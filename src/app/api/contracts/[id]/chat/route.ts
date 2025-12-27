@@ -4,9 +4,21 @@ import { z } from "zod";
 import type { Clause, ContractType, Jurisdiction } from "@/lib/contracts/schemas";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Force dynamic to prevent build-time API key validation
+export const dynamic = 'force-dynamic';
+
+// Lazy initialization of OpenAI client
+let openaiClient: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY is not configured');
+    }
+    openaiClient = new OpenAI({ apiKey });
+  }
+  return openaiClient;
+}
 
 const ChatRequestSchema = z.object({
   messages: z.array(
@@ -157,7 +169,7 @@ INSTRUCTIONS:
 - If the user's request is unclear, use answer_question to ask for clarification.`;
 
     // Call OpenAI with function calling
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       max_tokens: 2000,
       messages: [

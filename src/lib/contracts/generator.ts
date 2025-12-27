@@ -15,9 +15,18 @@ import {
   JURISDICTION_NAMES,
 } from "./schemas";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization of OpenAI client to prevent build-time errors
+let openaiClient: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY is not configured');
+    }
+    openaiClient = new OpenAI({ apiKey });
+  }
+  return openaiClient;
+}
 
 // Model to use - GPT-4o is the latest with best function calling
 const MODEL = "gpt-4o";
@@ -270,7 +279,7 @@ export async function generateContract(
   // Build the user prompt with all the metadata
   const userPrompt = buildGenerationPrompt(contractType, metadata, typeDefinition);
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: MODEL,
     max_tokens: 8000,
     messages: [
@@ -463,7 +472,7 @@ export async function modifyClause(
   instruction: string,
   contractContext: string
 ): Promise<ClauseModification> {
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: MODEL,
     max_tokens: 2000,
     messages: [
@@ -519,7 +528,7 @@ export async function explainClause(
   clause: Clause,
   contractType: string
 ): Promise<ClauseExplanation> {
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: MODEL,
     max_tokens: 1500,
     messages: [
@@ -585,7 +594,7 @@ ${contractContext.clauses.map((c) => `- ${c.title}`).join("\n")}
 
 Be helpful, accurate, and when suggesting changes, always explain the implications. If asked to make specific changes, provide the exact new wording.`;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: MODEL,
     max_tokens: 2000,
     messages: [
