@@ -165,7 +165,9 @@ export function HighlightedClauseContent({
         return (
           <mark
             key={index}
-            className="bg-amber-100 hover:bg-amber-200 cursor-pointer rounded-sm px-0.5 transition-colors"
+            className="bg-amber-100 hover:bg-amber-200 cursor-pointer rounded-sm px-0.5 transition-all"
+            data-start={segment.start}
+            data-end={segment.end}
             onClick={() => {
               if (segment.commentIds.length > 0) {
                 onHighlightClick(segment.commentIds[0]);

@@ -23,6 +23,7 @@ interface CommentSidebarProps {
   onClose: () => void;
   onCommentCountChange?: (counts: Record<string, number>) => void;
   onCommentCreated?: () => void;
+  onJumpToSelection?: (clauseId: string, selectionStart: number, selectionEnd: number) => void;
 }
 
 export function CommentSidebar({
@@ -36,6 +37,7 @@ export function CommentSidebar({
   onClose,
   onCommentCountChange,
   onCommentCreated,
+  onJumpToSelection,
 }: CommentSidebarProps) {
   const [comments, setComments] = useState<CommentWithUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -305,6 +307,7 @@ export function CommentSidebar({
                 onDelete={handleDelete}
                 onReply={handleReply}
                 onResolve={handleResolve}
+                onJumpToSelection={onJumpToSelection}
               />
             ))}
           </>

@@ -345,6 +345,35 @@ export default function ContractEditorPage() {
     // TODO: Could scroll to the specific comment in the sidebar
   };
 
+  // Handle jumping to a specific selection in the document from a comment
+  const handleJumpToSelection = useCallback((clauseId: string, selectionStart: number, selectionEnd: number) => {
+    // Expand the clause if collapsed
+    setExpandedClauses((prev) => new Set([...prev, clauseId]));
+
+    // Small delay to ensure clause is expanded before scrolling
+    setTimeout(() => {
+      const clauseElement = document.getElementById(`clause-${clauseId}`);
+      if (clauseElement) {
+        clauseElement.scrollIntoView({ behavior: "smooth", block: "center" });
+
+        // Find the highlighted mark element with matching data attributes
+        const highlightedMarks = clauseElement.querySelectorAll("mark[data-start]");
+        for (const mark of highlightedMarks) {
+          const start = parseInt(mark.getAttribute("data-start") || "0");
+          const end = parseInt(mark.getAttribute("data-end") || "0");
+          if (start === selectionStart && end === selectionEnd) {
+            // Flash animation on the highlight
+            mark.classList.add("ring-2", "ring-amber-500", "ring-offset-2");
+            setTimeout(() => {
+              mark.classList.remove("ring-2", "ring-amber-500", "ring-offset-2");
+            }, 2000);
+            break;
+          }
+        }
+      }
+    }, 100);
+  }, []);
+
   // Render clause content with fillable blanks highlighted
   const renderClauseContent = (content: string, clauseId: string) => {
     // Pattern matches 5+ underscores (the standard blank format)
@@ -2151,6 +2180,7 @@ export default function ContractEditorPage() {
               setPendingCommentSelection(null);
               fetchAllComments(); // Refresh highlights
             }}
+            onJumpToSelection={handleJumpToSelection}
           />
         )}
 

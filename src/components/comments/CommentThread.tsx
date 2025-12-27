@@ -15,6 +15,7 @@ interface CommentThreadProps {
   onDelete: (commentId: string) => Promise<void>;
   onReply: (parentCommentId: string, content: string) => Promise<void>;
   onResolve: (commentId: string, unresolve?: boolean) => Promise<void>;
+  onJumpToSelection?: (clauseId: string, selectionStart: number, selectionEnd: number) => void;
 }
 
 export function CommentThread({
@@ -26,6 +27,7 @@ export function CommentThread({
   onDelete,
   onReply,
   onResolve,
+  onJumpToSelection,
 }: CommentThreadProps) {
   const [isResolving, setIsResolving] = useState(false);
   const [showReplyInput, setShowReplyInput] = useState(false);
@@ -70,6 +72,7 @@ export function CommentThread({
         onReply={() => setShowReplyInput(true)}
         onEdit={onEdit}
         onDelete={onDelete}
+        onJumpToSelection={onJumpToSelection}
       />
 
       {/* Replies */}

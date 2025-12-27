@@ -9,6 +9,7 @@ import {
   Check,
   X,
   Loader2,
+  ExternalLink,
 } from "lucide-react";
 import type { CommentWithUser } from "@/db/types";
 
@@ -19,6 +20,7 @@ interface CommentItemProps {
   onReply?: (commentId: string) => void;
   onEdit?: (commentId: string, content: string) => Promise<void>;
   onDelete?: (commentId: string) => Promise<void>;
+  onJumpToSelection?: (clauseId: string, selectionStart: number, selectionEnd: number) => void;
   isReply?: boolean;
 }
 
@@ -29,6 +31,7 @@ export function CommentItem({
   onReply,
   onEdit,
   onDelete,
+  onJumpToSelection,
   isReply = false,
 }: CommentItemProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -134,13 +137,24 @@ export function CommentItem({
             )}
           </div>
 
-          {/* Selected text quote */}
+          {/* Selected text quote - clickable to jump to highlight */}
           {comment.selected_text && (
-            <div className="mb-2 pl-3 border-l-2 border-amber-300 bg-amber-50 rounded-r py-1 px-2">
-              <p className="text-xs text-amber-800 italic line-clamp-2">
-                &ldquo;{comment.selected_text}&rdquo;
-              </p>
-            </div>
+            <button
+              onClick={() => {
+                if (onJumpToSelection && comment.clause_id && comment.selection_start !== null && comment.selection_end !== null) {
+                  onJumpToSelection(comment.clause_id, comment.selection_start, comment.selection_end);
+                }
+              }}
+              className="mb-2 pl-3 border-l-2 border-amber-300 bg-amber-50 rounded-r py-1 px-2 w-full text-left hover:bg-amber-100 transition-colors group/quote cursor-pointer"
+              title="Jump to highlighted text"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-amber-800 italic line-clamp-2 flex-1">
+                  &ldquo;{comment.selected_text}&rdquo;
+                </p>
+                <ExternalLink className="w-3 h-3 text-amber-600 opacity-0 group-hover/quote:opacity-100 ml-2 flex-shrink-0" />
+              </div>
+            </button>
           )}
 
           {/* Comment content */}
