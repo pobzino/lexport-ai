@@ -10,7 +10,7 @@ Lexport is an AI-powered legal platform for startup founders and freelancers. Cr
 - **Runtime**: Bun
 - **Backend**: Supabase (PostgreSQL, Auth, Storage)
 - **Styling**: Tailwind CSS v4
-- **AI**: Anthropic Claude API
+- **AI**: OpenAI GPT-4o
 - **Hosting**: Netlify
 
 ## Project Structure
@@ -80,9 +80,9 @@ Copy `.env.example` to `.env` and fill in:
 
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon key
-- `ANTHROPIC_API_KEY` - Claude AI API key
+- `OPENAI_API_KEY` - OpenAI API key for contract generation
 - `STRIPE_SECRET_KEY` - Stripe secret key for payments
-- `STRIPE_PUBLISHABLE_KEY` - Stripe publishable key
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` - Stripe publishable key
 
 ## Supabase Setup
 

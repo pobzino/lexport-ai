@@ -23,6 +23,8 @@ import {
   Download,
   PenTool,
   Users,
+  DollarSign,
+  CreditCard,
 } from "lucide-react";
 import type { Clause } from "@/lib/contracts/schemas";
 import { SignatureFieldEditor, type SignatureField } from "@/components/signature-field-editor";
@@ -45,6 +47,13 @@ interface Contract {
   content: ContractContent;
   metadata: Record<string, unknown>;
   version: number;
+  // Payment settings
+  payment_required: boolean;
+  payment_amount: number | null;
+  payment_currency: string;
+  payment_status: string;
+  payment_structure: "full" | "deposit_balance" | "bnpl";
+  deposit_percentage: number | null;
 }
 
 // Database signature field interface (snake_case from API)
@@ -134,6 +143,14 @@ export default function ContractEditorPage() {
   const [isEditingFields, setIsEditingFields] = useState(false);
   const [showSignerPanel, setShowSignerPanel] = useState(false);
 
+  // Payment settings state
+  const [showPaymentSettings, setShowPaymentSettings] = useState(false);
+  const [paymentRequired, setPaymentRequired] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState<string>("");
+  const [paymentCurrency, setPaymentCurrency] = useState("usd");
+  const [paymentStructure, setPaymentStructure] = useState<"full" | "deposit_balance" | "bnpl">("full");
+  const [depositPercentage, setDepositPercentage] = useState<string>("30");
+
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -209,6 +226,15 @@ export default function ContractEditorPage() {
           setExpandedClauses(
             new Set(data.contract.content.clauses.map((c: Clause) => c.id))
           );
+        }
+
+        // Initialize payment settings from contract
+        if (data.contract) {
+          setPaymentRequired(data.contract.payment_required || false);
+          setPaymentAmount(data.contract.payment_amount ? String(data.contract.payment_amount) : "");
+          setPaymentCurrency(data.contract.payment_currency || "usd");
+          setPaymentStructure(data.contract.payment_structure || "full");
+          setDepositPercentage(data.contract.deposit_percentage ? String(data.contract.deposit_percentage) : "30");
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load contract");
@@ -452,6 +478,12 @@ export default function ContractEditorPage() {
         body: JSON.stringify({
           content: contract.content,
           version: (contract.version || 0) + 1,
+          // Payment settings
+          payment_required: paymentRequired,
+          payment_amount: paymentAmount ? parseFloat(paymentAmount) : null,
+          payment_currency: paymentCurrency,
+          payment_structure: paymentStructure,
+          deposit_percentage: paymentStructure === "deposit_balance" ? parseInt(depositPercentage) : null,
         }),
       });
 
@@ -556,6 +588,21 @@ export default function ContractEditorPage() {
                   </span>
                 </button>
               )}
+              {/* Payment Settings Toggle */}
+              <button
+                onClick={() => setShowPaymentSettings(!showPaymentSettings)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all ${showPaymentSettings
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : paymentRequired
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "text-slate-600 hover:bg-slate-100"
+                  }`}
+              >
+                <DollarSign className="w-4 h-4" />
+                <span className="hidden sm:inline">
+                  {paymentRequired ? `$${paymentAmount || 0}` : "Payment"}
+                </span>
+              </button>
               {/* Configure Fields Toggle */}
               <button
                 onClick={() => setIsEditingFields(!isEditingFields)}
@@ -632,6 +679,164 @@ export default function ContractEditorPage() {
           className="flex-1 overflow-auto p-6"
         >
           <div className="max-w-4xl mx-auto">
+            {/* Payment Settings Panel */}
+            {showPaymentSettings && (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-emerald-600" />
+                    <h3 className="font-semibold text-slate-900">Payment Settings</h3>
+                  </div>
+                  <button
+                    onClick={() => setShowPaymentSettings(false)}
+                    className="p-1 hover:bg-slate-100 rounded"
+                  >
+                    <X className="w-4 h-4 text-slate-500" />
+                  </button>
+                </div>
+                <div className="p-6 space-y-6">
+                  {/* Require Payment Toggle */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="font-medium text-slate-900">Require Payment</label>
+                      <p className="text-sm text-slate-500">Collect payment before or after signing</p>
+                    </div>
+                    <button
+                      onClick={() => setPaymentRequired(!paymentRequired)}
+                      className={`relative w-12 h-6 rounded-full transition-colors ${
+                        paymentRequired ? "bg-emerald-600" : "bg-slate-300"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                          paymentRequired ? "translate-x-6" : ""
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {paymentRequired && (
+                    <>
+                      {/* Amount and Currency */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Amount
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
+                            <input
+                              type="number"
+                              value={paymentAmount}
+                              onChange={(e) => setPaymentAmount(e.target.value)}
+                              placeholder="0.00"
+                              className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Currency
+                          </label>
+                          <select
+                            value={paymentCurrency}
+                            onChange={(e) => setPaymentCurrency(e.target.value)}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          >
+                            <option value="usd">USD ($)</option>
+                            <option value="eur">EUR (€)</option>
+                            <option value="gbp">GBP (£)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Payment Structure */}
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Payment Structure
+                        </label>
+                        <div className="grid grid-cols-3 gap-3">
+                          <button
+                            onClick={() => setPaymentStructure("full")}
+                            className={`p-3 rounded-lg border-2 text-left transition-all ${
+                              paymentStructure === "full"
+                                ? "border-emerald-500 bg-emerald-50"
+                                : "border-slate-200 hover:border-slate-300"
+                            }`}
+                          >
+                            <p className="font-medium text-slate-900">Full Payment</p>
+                            <p className="text-xs text-slate-500 mt-1">Pay 100% upfront</p>
+                          </button>
+                          <button
+                            onClick={() => setPaymentStructure("deposit_balance")}
+                            className={`p-3 rounded-lg border-2 text-left transition-all ${
+                              paymentStructure === "deposit_balance"
+                                ? "border-emerald-500 bg-emerald-50"
+                                : "border-slate-200 hover:border-slate-300"
+                            }`}
+                          >
+                            <p className="font-medium text-slate-900">Deposit + Balance</p>
+                            <p className="text-xs text-slate-500 mt-1">Split payment</p>
+                          </button>
+                          <button
+                            onClick={() => setPaymentStructure("bnpl")}
+                            className={`p-3 rounded-lg border-2 text-left transition-all ${
+                              paymentStructure === "bnpl"
+                                ? "border-emerald-500 bg-emerald-50"
+                                : "border-slate-200 hover:border-slate-300"
+                            }`}
+                          >
+                            <p className="font-medium text-slate-900">Buy Now, Pay Later</p>
+                            <p className="text-xs text-slate-500 mt-1">Klarna / Afterpay</p>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Deposit Percentage (only for deposit_balance) */}
+                      {paymentStructure === "deposit_balance" && (
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Deposit Percentage
+                          </label>
+                          <div className="flex items-center gap-4">
+                            <input
+                              type="range"
+                              min="10"
+                              max="90"
+                              step="5"
+                              value={depositPercentage}
+                              onChange={(e) => setDepositPercentage(e.target.value)}
+                              className="flex-1"
+                            />
+                            <span className="w-16 text-center font-medium text-slate-900">
+                              {depositPercentage}%
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-xs text-slate-500 mt-2">
+                            <span>Deposit: ${((parseFloat(paymentAmount) || 0) * parseInt(depositPercentage) / 100).toFixed(2)}</span>
+                            <span>Balance: ${((parseFloat(paymentAmount) || 0) * (100 - parseInt(depositPercentage)) / 100).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Info Box */}
+                      <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg">
+                        <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm text-blue-800">
+                          <p className="font-medium">Payment Collection</p>
+                          <p className="mt-1">
+                            {paymentStructure === "full" && "The signer will pay the full amount before or after signing, based on your preference."}
+                            {paymentStructure === "deposit_balance" && `The signer will pay ${depositPercentage}% deposit upfront, and the remaining ${100 - parseInt(depositPercentage)}% upon completion.`}
+                            {paymentStructure === "bnpl" && "The signer can pay in installments via Klarna or Afterpay. You receive the full amount immediately."}
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Contract Document */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               {/* Title */}

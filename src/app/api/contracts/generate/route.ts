@@ -8,6 +8,7 @@ import {
   ConsultingMetadataSchema,
   SAFEMetadataSchema,
   FreelanceMetadataSchema,
+  PaymentConfigSchema,
   type ContractMetadata,
   type ContractType,
 } from "@/lib/contracts/schemas";
@@ -42,6 +43,7 @@ const GenerateRequestSchema = z.object({
     SAFEMetadataSchema,
     FreelanceMetadataSchema,
   ]),
+  paymentConfig: PaymentConfigSchema.optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -68,7 +70,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { contractType, metadata } = parseResult.data;
+    const { contractType, metadata, paymentConfig } = parseResult.data;
 
     // Generate contract with AI
     const generated = await generateContract(
@@ -76,23 +78,35 @@ export async function POST(request: NextRequest) {
       metadata as ContractMetadata
     );
 
+    // Build contract data with optional payment config
+    const contractData: Record<string, unknown> = {
+      user_id: user.id,
+      title: generated.title,
+      type: contractType,
+      jurisdiction: metadata.jurisdiction,
+      status: "draft",
+      content: {
+        preamble: generated.preamble,
+        recitals: generated.recitals,
+        clauses: generated.clauses,
+        signatureBlock: generated.signatureBlock,
+      },
+      metadata: metadata,
+    };
+
+    // Add payment configuration if provided
+    if (paymentConfig) {
+      contractData.payment_required = paymentConfig.paymentRequired;
+      contractData.payment_amount = paymentConfig.paymentAmount || null;
+      contractData.payment_currency = paymentConfig.paymentCurrency;
+      contractData.payment_structure = paymentConfig.paymentStructure;
+      contractData.deposit_percentage = paymentConfig.depositPercentage || null;
+    }
+
     // Save to database using Supabase
     const { data: savedContract, error: insertError } = await supabase
       .from("contracts")
-      .insert({
-        user_id: user.id,
-        title: generated.title,
-        type: contractType,
-        jurisdiction: metadata.jurisdiction,
-        status: "draft",
-        content: {
-          preamble: generated.preamble,
-          recitals: generated.recitals,
-          clauses: generated.clauses,
-          signatureBlock: generated.signatureBlock,
-        },
-        metadata: metadata,
-      })
+      .insert(contractData)
       .select()
       .single();
 

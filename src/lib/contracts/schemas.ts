@@ -187,6 +187,20 @@ export type ContractMetadata =
   | FreelanceMetadata;
 
 // ============================================================================
+// Payment Configuration Schema
+// ============================================================================
+
+export const PaymentConfigSchema = z.object({
+  paymentRequired: z.boolean().default(false),
+  paymentAmount: z.number().min(0).optional(),
+  paymentCurrency: z.enum(["usd", "eur", "gbp"]).default("usd"),
+  paymentStructure: z.enum(["full", "deposit_balance", "bnpl"]).default("full"),
+  depositPercentage: z.number().min(10).max(90).optional(),
+});
+
+export type PaymentConfig = z.infer<typeof PaymentConfigSchema>;
+
+// ============================================================================
 // Full Contract Schema
 // ============================================================================
 

@@ -355,6 +355,54 @@ Similar to above but with UK-specific needs:
 
 ---
 
+### F7: Payment Collection System (Implemented)
+
+**Description**: Collect payments from signers as part of the contract signing flow. Enables contract owners to require payment before or with signature.
+
+**User Story**: As a freelancer, I want to collect a deposit when clients sign my contract so I'm protected before starting work.
+
+**Functional Requirements**:
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| F7.1 | Enable/disable payment requirement per contract | P0 | ✅ Done |
+| F7.2 | Set payment amount and currency (USD, EUR, GBP) | P0 | ✅ Done |
+| F7.3 | Full payment upfront option | P0 | ✅ Done |
+| F7.4 | Deposit + Balance payment structure | P0 | ✅ Done |
+| F7.5 | Buy Now Pay Later (Klarna/Afterpay) | P0 | ✅ Done |
+| F7.6 | Stripe integration for card payments | P0 | ✅ Done |
+| F7.7 | Payment settings in contract creation wizard | P0 | ✅ Done |
+| F7.8 | Payment settings in contract editor | P0 | ✅ Done |
+| F7.9 | Payment status tracking | P1 | ✅ Done |
+| F7.10 | Stripe Connect for contract owner payouts | P1 | ✅ Done |
+| F7.11 | Platform fee collection (1%) | P1 | ✅ Done |
+| F7.12 | Payment webhooks for status updates | P1 | ✅ Done |
+| F7.13 | Invoice generation | P2 | Planned |
+| F7.14 | Payments dashboard | P2 | Planned |
+
+**Payment Structures Supported**:
+
+| Structure | Description | Use Case |
+|-----------|-------------|----------|
+| Full Payment | 100% collected at signing | Service agreements, retainers |
+| Deposit + Balance | Configurable % upfront (10-90%) | Freelance projects, consulting |
+| BNPL | Klarna/Afterpay installments | Higher-value contracts |
+
+**Stripe Connect Integration**:
+- Express accounts for contract owners
+- Automatic payout to connected bank accounts
+- 1% platform fee on transactions
+- Real-time webhook handling
+
+**Technical Implementation**:
+- `POST /api/contracts/[id]/payment` - Create PaymentIntent
+- `POST /api/webhooks/stripe` - Handle payment events
+- `GET /api/stripe/connect` - Check Connect status
+- `POST /api/stripe/connect` - Start Connect onboarding
+- Payment config integrated into AI contract generator
+
+---
+
 ## Technical Architecture
 
 ### System Overview
@@ -389,7 +437,7 @@ Similar to above but with UK-specific needs:
                     ▼               ▼               ▼
 ┌──────────────────────┐ ┌──────────────────┐ ┌──────────────────────────┐
 │      PostgreSQL      │ │   Redis Cache    │ │      AI Services         │
-│   (Neon/Supabase)    │ │   (Upstash)      │ │  (Anthropic Claude API)  │
+│   (Neon/Supabase)    │ │   (Upstash)      │ │     (OpenAI GPT-4o)      │
 └──────────────────────┘ └──────────────────┘ └──────────────────────────┘
                                     │
                                     ▼
@@ -415,7 +463,7 @@ Similar to above but with UK-specific needs:
 | **ORM** | Drizzle ORM | Type-safe, performant, great DX |
 | **Auth** | NextAuth.js v5 | Flexible, supports multiple providers |
 | **File Storage** | Cloudflare R2 / AWS S3 | Cost-effective, S3-compatible |
-| **AI** | Anthropic Claude API | Best-in-class for legal text generation |
+| **AI** | OpenAI GPT-4o | Best-in-class for legal text generation |
 | **Email** | Resend | Developer-friendly, reliable |
 | **Payments** | Stripe | Industry standard, subscription support |
 | **Analytics** | PostHog | Product analytics, feature flags |
@@ -835,21 +883,31 @@ interface Template {
 
 ### MVP Features (8-10 weeks)
 
-**Must Have (P0)**:
-- [ ] User registration and login (email + Google)
-- [ ] Create contract with AI (NDA, Contractor Agreement, Consulting Agreement)
-- [ ] Basic template library (5 templates per contract type)
-- [ ] E-signature flow (single signer)
-- [ ] Contract dashboard with status
-- [ ] Email notifications (signature requests, completions)
-- [ ] PDF download of signed contracts
-- [ ] Basic audit trail
+**Must Have (P0)** - ALL COMPLETE ✅:
+- [x] User registration and login (email + Google) - Supabase Auth
+- [x] Create contract with AI (NDA, Contractor, Consulting, SAFE, Freelance)
+- [x] Contract types with AI generation (5 types, 4 jurisdictions)
+- [x] E-signature flow (multi-signer support)
+- [x] Contract dashboard with status
+- [x] Email notifications (signature requests, completions) - Resend
+- [x] PDF download of signed contracts
+- [x] Basic audit trail
 
-**Should Have (P1)** - Include if time permits:
-- [ ] Multiple signers (sequential)
-- [ ] Signature reminders
-- [ ] Team/organization support
-- [ ] SAFE Note template
+**Should Have (P1)** - COMPLETE ✅:
+- [x] Multiple signers (sequential/parallel)
+- [x] SAFE Note template
+- [x] Signature field placement editor
+- [x] Signer status tracking panel
+- [x] Field-guided signing flow
+
+**Bonus Features Built (Beyond Original Scope)** ✅:
+- [x] Payment collection via Stripe
+- [x] Stripe Connect for contract owner payouts
+- [x] Multiple payment structures (Full, Deposit+Balance, BNPL)
+- [x] Payment settings in contract creation wizard
+- [x] Payment settings in contract editor
+- [x] Platform fee collection (1%)
+- [x] Stripe webhooks for payment status
 
 **Won't Have (Post-MVP)**:
 - [ ] API access
@@ -857,6 +915,8 @@ interface Template {
 - [ ] Advanced analytics
 - [ ] Bulk operations
 - [ ] SSO
+- [ ] Invoice PDF generation
+- [ ] Payments dashboard
 
 ### MVP Contract Types
 
@@ -1025,10 +1085,18 @@ Week 9-10: Launch Prep
 |---------|---------|-----------|----------|----------|---------------|
 | AI Contract Generation | ✓ | ✗ | ✗ | Limited | ✗ |
 | E-Signatures | ✓ | ✗ | ✓ | ✓ | ✓ |
+| **Payment Collection** | ✓ | ✗ | ✗ | ✓ | ✗ |
+| **BNPL (Klarna/Afterpay)** | ✓ | ✗ | ✗ | ✗ | ✗ |
+| **Deposit + Balance Payments** | ✓ | ✗ | ✗ | Limited | ✗ |
 | Founder-Focused Templates | ✓ | Limited | ✗ | ✗ | Limited |
 | Self-Serve (No Lawyer) | ✓ | ✗ | N/A | N/A | Limited |
 | Modern UX | ✓ | ✗ | ✓ | ✓ | ✗ |
 | Affordable | ✓ | ✗ | ✓ | ✗ | ✓ |
+
+**Key Differentiators**:
+1. **End-to-end solution**: AI generation → E-signatures → Payment collection
+2. **Freelancer-friendly payments**: Deposit protection, BNPL options
+3. **No enterprise bloat**: Built for individuals and small teams
 
 ### B. Pricing Strategy (Draft)
 
@@ -1060,7 +1128,8 @@ Week 9-10: Launch Prep
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2024-XX-XX | Lexport Team | Initial PRD |
+| 1.1 | 2024-12-27 | Claude Code | Added F7 Payment Collection System, updated MVP status, competitive matrix |
 
 ---
 
-*This is a living document. Last updated: [Auto-generated]*
+*This is a living document. Last updated: 2024-12-27*
