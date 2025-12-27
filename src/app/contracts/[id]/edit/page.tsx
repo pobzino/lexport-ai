@@ -25,11 +25,28 @@ import {
   Users,
   DollarSign,
   CreditCard,
+  ClipboardList,
+  CheckCircle2,
+  Circle,
+  Trash2,
+  Plus,
+  Undo2,
+  MessageCircle,
+  Clock,
+  History,
+  ShieldAlert,
+  AlertTriangle,
+  MoreHorizontal,
 } from "lucide-react";
 import type { Clause } from "@/lib/contracts/schemas";
 import { SignatureFieldEditor, type SignatureField } from "@/components/signature-field-editor";
 import { SignatureBlockDisplay } from "@/components/signature-block-display";
 import { SignerStatusPanel } from "@/components/signer-status-panel";
+import { CommentSidebar, CommentIndicator } from "@/components/comments";
+import { VersionHistoryPanel } from "@/components/version-history-panel";
+import { RiskAnalysisPanel } from "@/components/risk-analysis";
+import type { ContractVersion, ContractContent as ContractContentType } from "@/db/types";
+import type { RiskAnalysisResult } from "@/types/risk-analysis";
 
 interface ContractContent {
   preamble: string;
@@ -47,6 +64,7 @@ interface Contract {
   content: ContractContent;
   metadata: Record<string, unknown>;
   version: number;
+  user_id: string;
   // Payment settings
   payment_required: boolean;
   payment_amount: number | null;
@@ -107,6 +125,13 @@ interface ChatMessage {
   content: string;
 }
 
+// Fillable blank tracking
+interface FilledBlank {
+  clauseId: string;
+  index: number;
+  value: string;
+}
+
 interface ClauseExplanation {
   summary: string;
   explanation: string;
@@ -131,6 +156,7 @@ export default function ContractEditorPage() {
   const [activeClause, setActiveClause] = useState<string | null>(null);
   const [editingClause, setEditingClause] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState<string>("");
+  const [editedTitle, setEditedTitle] = useState<string>("");
   const [showChat, setShowChat] = useState(false);
   const [expandedClauses, setExpandedClauses] = useState<Set<string>>(new Set());
 
@@ -142,6 +168,7 @@ export default function ContractEditorPage() {
   const [fieldValues, setFieldValues] = useState<FieldValue[]>([]);
   const [isEditingFields, setIsEditingFields] = useState(false);
   const [showSignerPanel, setShowSignerPanel] = useState(false);
+  const [showFillBlanksPanel, setShowFillBlanksPanel] = useState(false);
 
   // Payment settings state
   const [showPaymentSettings, setShowPaymentSettings] = useState(false);
@@ -160,6 +187,255 @@ export default function ContractEditorPage() {
   // Explanation state
   const [explanation, setExplanation] = useState<ClauseExplanation | null>(null);
   const [explaining, setExplaining] = useState(false);
+
+  // Fillable blanks state
+  const [filledBlanks, setFilledBlanks] = useState<Map<string, string>>(new Map());
+
+  // Undo state for deleted clauses
+  const [deletedClause, setDeletedClause] = useState<{ clause: Clause; index: number } | null>(null);
+  const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Comments state
+  const [showComments, setShowComments] = useState(false);
+  const [activeCommentClause, setActiveCommentClause] = useState<string | null>(null);
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // Version history state
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [previewVersion, setPreviewVersion] = useState<ContractContentType | null>(null);
+
+  // Risk analysis state
+  const [showRiskAnalysis, setShowRiskAnalysis] = useState(false);
+  const [riskAnalysis, setRiskAnalysis] = useState<RiskAnalysisResult | null>(null);
+  const [riskLoading, setRiskLoading] = useState(false);
+  const [riskError, setRiskError] = useState<string | null>(null);
+
+  // Tools menu state
+  const [showToolsMenu, setShowToolsMenu] = useState(false);
+  const toolsMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close tools menu on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (toolsMenuRef.current && !toolsMenuRef.current.contains(event.target as Node)) {
+        setShowToolsMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Handle blank value change
+  const handleBlankChange = (key: string, value: string) => {
+    setFilledBlanks(prev => {
+      const newMap = new Map(prev);
+      newMap.set(key, value);
+      return newMap;
+    });
+  };
+
+  // Scroll to a blank in the document and focus it
+  const scrollToBlank = (blankKey: string) => {
+    const element = document.getElementById(`blank-input-${blankKey}`);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Focus after scroll animation
+      setTimeout(() => {
+        element.focus();
+      }, 300);
+    }
+  };
+
+  // Render clause content with fillable blanks highlighted
+  const renderClauseContent = (content: string, clauseId: string) => {
+    // Pattern matches 5+ underscores (the standard blank format)
+    const blankPattern = /_{5,}/g;
+    const parts: (string | React.ReactNode)[] = [];
+    let lastIndex = 0;
+    let match;
+    let blankIndex = 0;
+
+    while ((match = blankPattern.exec(content)) !== null) {
+      // Add text before the blank
+      if (match.index > lastIndex) {
+        parts.push(content.slice(lastIndex, match.index));
+      }
+
+      // Create unique key for this blank
+      const blankKey = `${clauseId}-blank-${blankIndex}`;
+      const filledValue = filledBlanks.get(blankKey) || "";
+
+      // Add the fillable blank input
+      parts.push(
+        <span key={blankKey} className="inline-block relative mx-0.5">
+          <input
+            id={`blank-input-${blankKey}`}
+            type="text"
+            value={filledValue}
+            onChange={(e) => handleBlankChange(blankKey, e.target.value)}
+            placeholder="fill in"
+            className={`
+              inline-block min-w-[80px] max-w-[200px] px-2 py-0.5
+              text-center font-medium rounded
+              border-b-2 border-dashed
+              transition-all duration-200
+              focus:outline-none focus:ring-2 focus:ring-offset-1
+              ${filledValue
+                ? "bg-emerald-50 border-emerald-400 text-emerald-700 focus:ring-emerald-400"
+                : "bg-amber-50 border-amber-400 text-amber-700 focus:ring-amber-400 animate-pulse"
+              }
+            `}
+            style={{ width: `${Math.max(80, filledValue.length * 10 + 20)}px` }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          {!filledValue && (
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+            </span>
+          )}
+        </span>
+      );
+
+      lastIndex = match.index + match[0].length;
+      blankIndex++;
+    }
+
+    // Add remaining text
+    if (lastIndex < content.length) {
+      parts.push(content.slice(lastIndex));
+    }
+
+    // If no blanks found, just return the content
+    if (parts.length === 0) {
+      return content;
+    }
+
+    return <>{parts}</>;
+  };
+
+  // Count blanks in contract
+  const countBlanks = (): { total: number; filled: number } => {
+    if (!contract) return { total: 0, filled: 0 };
+
+    const blankPattern = /_{5,}/g;
+    let totalBlanks = 0;
+    let filledCount = 0;
+
+    // Count in preamble
+    const preambleMatches = contract.content.preamble.match(blankPattern) || [];
+    preambleMatches.forEach((_, i) => {
+      totalBlanks++;
+      if (filledBlanks.get(`preamble-blank-${i}`)) filledCount++;
+    });
+
+    // Count in recitals
+    if (contract.content.recitals) {
+      const recitalsMatches = contract.content.recitals.match(blankPattern) || [];
+      recitalsMatches.forEach((_, i) => {
+        totalBlanks++;
+        if (filledBlanks.get(`recitals-blank-${i}`)) filledCount++;
+      });
+    }
+
+    // Count in clauses
+    contract.content.clauses.forEach((clause) => {
+      const clauseMatches = clause.content.match(blankPattern) || [];
+      clauseMatches.forEach((_, i) => {
+        totalBlanks++;
+        if (filledBlanks.get(`${clause.id}-blank-${i}`)) filledCount++;
+      });
+    });
+
+    return { total: totalBlanks, filled: filledCount };
+  };
+
+  const blankCounts = countBlanks();
+
+  // Extract all blanks with surrounding context for the side panel
+  interface BlankInfo {
+    key: string;
+    sectionId: string;
+    sectionTitle: string;
+    contextBefore: string;
+    contextAfter: string;
+    index: number;
+  }
+
+  const extractBlanksWithContext = (): BlankInfo[] => {
+    if (!contract) return [];
+
+    const blanks: BlankInfo[] = [];
+    const blankPattern = /_{5,}/g;
+
+    // Helper to extract context around a blank
+    const getContext = (text: string, matchIndex: number, matchLength: number) => {
+      const contextChars = 30;
+      const before = text.slice(Math.max(0, matchIndex - contextChars), matchIndex).trim();
+      const after = text.slice(matchIndex + matchLength, matchIndex + matchLength + contextChars).trim();
+      return {
+        contextBefore: before.length < matchIndex ? "..." + before : before,
+        contextAfter: after + (matchIndex + matchLength + contextChars < text.length ? "..." : ""),
+      };
+    };
+
+    // Extract from preamble
+    let match;
+    let blankIndex = 0;
+    const preambleRegex = /_{5,}/g;
+    while ((match = preambleRegex.exec(contract.content.preamble)) !== null) {
+      const context = getContext(contract.content.preamble, match.index, match[0].length);
+      blanks.push({
+        key: `preamble-blank-${blankIndex}`,
+        sectionId: "preamble",
+        sectionTitle: "Preamble",
+        ...context,
+        index: blankIndex,
+      });
+      blankIndex++;
+    }
+
+    // Extract from recitals
+    if (contract.content.recitals) {
+      blankIndex = 0;
+      const recitalsRegex = /_{5,}/g;
+      while ((match = recitalsRegex.exec(contract.content.recitals)) !== null) {
+        const context = getContext(contract.content.recitals, match.index, match[0].length);
+        blanks.push({
+          key: `recitals-blank-${blankIndex}`,
+          sectionId: "recitals",
+          sectionTitle: "Recitals",
+          ...context,
+          index: blankIndex,
+        });
+        blankIndex++;
+      }
+    }
+
+    // Extract from clauses
+    for (const clause of contract.content.clauses) {
+      blankIndex = 0;
+      const clauseRegex = /_{5,}/g;
+      while ((match = clauseRegex.exec(clause.content)) !== null) {
+        const context = getContext(clause.content, match.index, match[0].length);
+        blanks.push({
+          key: `${clause.id}-blank-${blankIndex}`,
+          sectionId: clause.id,
+          sectionTitle: clause.title,
+          ...context,
+          index: blankIndex,
+        });
+        blankIndex++;
+      }
+    }
+
+    return blanks;
+  };
+
+  const allBlanks = extractBlanksWithContext();
 
   // Convert DB field to frontend format
   const mapDbFieldToField = (dbField: DBSignatureField): SignatureField => ({
@@ -246,6 +522,40 @@ export default function ContractEditorPage() {
     fetchContract();
   }, [contractId]);
 
+  // Fetch current user ID for comments
+  useEffect(() => {
+    async function fetchCurrentUser() {
+      try {
+        const response = await fetch("/api/auth/me");
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentUserId(data.user?.id || null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch current user:", err);
+      }
+    }
+    fetchCurrentUser();
+  }, []);
+
+  // Fetch comment counts on mount
+  useEffect(() => {
+    async function fetchCommentCounts() {
+      try {
+        const response = await fetch(`/api/contracts/${contractId}/comments`);
+        if (response.ok) {
+          const data = await response.json();
+          setCommentCounts(data.commentCounts || {});
+        }
+      } catch (err) {
+        console.error("Failed to fetch comment counts:", err);
+      }
+    }
+    if (contract) {
+      fetchCommentCounts();
+    }
+  }, [contractId, contract]);
+
   // Scroll chat to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -266,6 +576,7 @@ export default function ContractEditorPage() {
   const startEditing = (clause: Clause) => {
     setEditingClause(clause.id);
     setEditedContent(clause.content);
+    setEditedTitle(clause.title);
   };
 
   // Save edited clause
@@ -276,6 +587,7 @@ export default function ContractEditorPage() {
       c.id === editingClause
         ? {
           ...c,
+          title: editedTitle,
           content: editedContent,
           isEdited: true,
           originalContent: c.originalContent || c.content,
@@ -288,12 +600,99 @@ export default function ContractEditorPage() {
       content: { ...contract.content, clauses: updatedClauses },
     });
     setEditingClause(null);
+    setEditedTitle("");
   };
 
   // Cancel editing
   const cancelEdit = () => {
     setEditingClause(null);
+    setEditedTitle("");
     setEditedContent("");
+  };
+
+  // Remove a clause (with undo support)
+  const removeClause = (clauseId: string) => {
+    if (!contract) return;
+
+    // Find the clause and its index before removing
+    const clauseIndex = contract.content.clauses.findIndex((c) => c.id === clauseId);
+    const clauseToDelete = contract.content.clauses[clauseIndex];
+
+    if (!clauseToDelete) return;
+
+    // Store for undo
+    setDeletedClause({ clause: clauseToDelete, index: clauseIndex });
+
+    // Clear any existing timeout
+    if (undoTimeoutRef.current) {
+      clearTimeout(undoTimeoutRef.current);
+    }
+
+    // Auto-dismiss undo toast after 5 seconds
+    undoTimeoutRef.current = setTimeout(() => {
+      setDeletedClause(null);
+    }, 5000);
+
+    const updatedClauses = contract.content.clauses.filter((c) => c.id !== clauseId);
+    setContract({
+      ...contract,
+      content: { ...contract.content, clauses: updatedClauses },
+    });
+
+    // Remove from expanded set
+    setExpandedClauses((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(clauseId);
+      return newSet;
+    });
+  };
+
+  // Undo clause deletion
+  const undoDelete = () => {
+    if (!contract || !deletedClause) return;
+
+    // Clear the timeout
+    if (undoTimeoutRef.current) {
+      clearTimeout(undoTimeoutRef.current);
+    }
+
+    // Insert the clause back at its original position
+    const updatedClauses = [...contract.content.clauses];
+    updatedClauses.splice(deletedClause.index, 0, deletedClause.clause);
+
+    setContract({
+      ...contract,
+      content: { ...contract.content, clauses: updatedClauses },
+    });
+
+    // Re-expand the restored clause
+    setExpandedClauses((prev) => new Set([...prev, deletedClause.clause.id]));
+
+    // Clear the deleted clause state
+    setDeletedClause(null);
+  };
+
+  // Add a new clause
+  const addClause = () => {
+    if (!contract) return;
+    const newClause: Clause = {
+      id: `clause-${Date.now()}`,
+      title: "New Clause",
+      content: "Enter clause content here...",
+      type: "negotiable",
+      order: contract.content.clauses.length + 1,
+      isEdited: true,
+    };
+    const updatedClauses = [...contract.content.clauses, newClause];
+    setContract({
+      ...contract,
+      content: { ...contract.content, clauses: updatedClauses },
+    });
+    // Auto-expand and start editing the new clause
+    setExpandedClauses((prev) => new Set([...prev, newClause.id]));
+    setEditingClause(newClause.id);
+    setEditedTitle(newClause.title);
+    setEditedContent(newClause.content);
   };
 
   // Create signature field
@@ -465,18 +864,44 @@ export default function ContractEditorPage() {
     }
   };
 
+  // Apply filled blanks to content string
+  const applyFilledBlanks = (content: string, sectionId: string): string => {
+    const blankPattern = /_{5,}/g;
+    let blankIndex = 0;
+    return content.replace(blankPattern, () => {
+      const blankKey = `${sectionId}-blank-${blankIndex}`;
+      const filledValue = filledBlanks.get(blankKey);
+      blankIndex++;
+      // Keep the underscores if not filled, otherwise use the value
+      return filledValue || "_____";
+    });
+  };
+
   // Save entire contract
   const saveContract = async () => {
     if (!contract) return;
     setSaving(true);
     setSaved(false);
 
+    // Apply filled blanks to all content sections
+    const updatedContent = {
+      ...contract.content,
+      preamble: applyFilledBlanks(contract.content.preamble, "preamble"),
+      recitals: contract.content.recitals
+        ? applyFilledBlanks(contract.content.recitals, "recitals")
+        : contract.content.recitals,
+      clauses: contract.content.clauses.map(clause => ({
+        ...clause,
+        content: applyFilledBlanks(clause.content, clause.id),
+      })),
+    };
+
     try {
       const response = await fetch(`/api/contracts/${contractId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: contract.content,
+          content: updatedContent,
           version: (contract.version || 0) + 1,
           // Payment settings
           payment_required: paymentRequired,
@@ -490,6 +915,8 @@ export default function ContractEditorPage() {
       if (!response.ok) throw new Error("Failed to save");
       const data = await response.json();
       setContract(data.contract);
+      // Clear filled blanks since they're now embedded in the content
+      setFilledBlanks(new Map());
       setSaved(true);
       // Auto-hide after 3 seconds
       setTimeout(() => setSaved(false), 3000);
@@ -521,6 +948,55 @@ export default function ContractEditorPage() {
     } finally {
       setDownloading(false);
     }
+  };
+
+  // Fetch risk analysis
+  const fetchRiskAnalysis = async (forceRefresh = false) => {
+    setRiskLoading(true);
+    setRiskError(null);
+    try {
+      const response = await fetch(`/api/contracts/${contractId}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ forceRefresh }),
+      });
+      if (!response.ok) throw new Error("Failed to analyze contract");
+      const data = await response.json();
+      setRiskAnalysis(data.analysis);
+    } catch (err) {
+      setRiskError(err instanceof Error ? err.message : "Analysis failed");
+    } finally {
+      setRiskLoading(false);
+    }
+  };
+
+  // Jump to a clause and highlight it
+  const jumpToClause = (clauseId: string) => {
+    // Expand the clause if collapsed
+    setExpandedClauses((prev) => new Set([...prev, clauseId]));
+    // Scroll to the clause
+    const element = document.getElementById(`clause-${clauseId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Briefly highlight the clause
+      element.classList.add("ring-2", "ring-amber-400");
+      setTimeout(() => {
+        element.classList.remove("ring-2", "ring-amber-400");
+      }, 2000);
+    }
+  };
+
+  // Get clause risk indicator for a specific clause
+  const getClauseRiskLevel = (clauseId: string): "critical" | "warning" | null => {
+    if (!riskAnalysis) return null;
+    const clauseRisks = riskAnalysis.clauseRisks.filter((r) => r.clauseId === clauseId);
+    const jurisdictionRisks = riskAnalysis.jurisdictionAlerts.filter(
+      (r) => r.affectedClauseId === clauseId
+    );
+    const allRisks = [...clauseRisks, ...jurisdictionRisks];
+    if (allRisks.some((r) => r.severity === "critical")) return "critical";
+    if (allRisks.some((r) => r.severity === "warning")) return "warning";
+    return null;
   };
 
   if (loading) {
@@ -603,6 +1079,33 @@ export default function ContractEditorPage() {
                   {paymentRequired ? `$${paymentAmount || 0}` : "Payment"}
                 </span>
               </button>
+              {/* Fill Blanks Toggle - only show if there are blanks */}
+              {blankCounts.total > 0 && (
+                <button
+                  onClick={() => {
+                    setShowFillBlanksPanel(!showFillBlanksPanel);
+                    setShowChat(false);
+                    setShowSignerPanel(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all ${showFillBlanksPanel
+                    ? "bg-amber-500 text-white shadow-sm"
+                    : blankCounts.filled === blankCounts.total
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-amber-100 text-amber-700"
+                    }`}
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  <span className="hidden sm:inline">Fill Blanks</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${showFillBlanksPanel
+                    ? "bg-white/20"
+                    : blankCounts.filled === blankCounts.total
+                      ? "bg-emerald-200"
+                      : "bg-amber-200"
+                    }`}>
+                    {blankCounts.filled}/{blankCounts.total}
+                  </span>
+                </button>
+              )}
               {/* Configure Fields Toggle */}
               <button
                 onClick={() => setIsEditingFields(!isEditingFields)}
@@ -614,34 +1117,104 @@ export default function ContractEditorPage() {
                 <PenTool className="w-4 h-4" />
                 {isEditingFields ? "Done Editing" : "Configure Fields"}
               </button>
-              <button
-                onClick={() => {
-                  setShowChat(!showChat);
-                  setShowSignerPanel(false);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all ${showChat
-                  ? "bg-violet-100 text-violet-700 ring-1 ring-violet-200"
-                  : "text-slate-600 hover:bg-slate-100"
-                  }`}
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span className="hidden sm:inline">AI Chat</span>
-              </button>
+              {/* Tools Dropdown */}
+              <div className="relative" ref={toolsMenuRef}>
+                <button
+                  onClick={() => setShowToolsMenu(!showToolsMenu)}
+                  className={`flex items-center justify-center h-9 w-9 rounded-lg transition-all ${showToolsMenu
+                    ? "bg-slate-100 text-slate-900"
+                    : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                >
+                  <MoreHorizontal className="w-5 h-5" />
+                </button>
 
-              <div className="w-px h-6 bg-slate-200 mx-1" />
+                {showToolsMenu && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-[60] animate-in fade-in zoom-in-95 duration-100">
+                    <div className="px-3 py-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
+                      Tools & Analysis
+                    </div>
 
-              <button
-                onClick={downloadPDF}
-                disabled={downloading}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-all disabled:opacity-50"
-              >
-                {downloading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
+                    <button
+                      onClick={() => {
+                        setShowChat(!showChat);
+                        setShowToolsMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <Sparkles className="w-4 h-4 text-violet-500" />
+                      AI Chat Assistant
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setShowRiskAnalysis(true);
+                        if (!riskAnalysis) fetchRiskAnalysis();
+                        setShowToolsMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <ShieldAlert className="w-4 h-4 text-amber-500" />
+                      Risk Analysis
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setShowComments(true);
+                        setShowToolsMenu(false);
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        <MessageCircle className="w-4 h-4 text-slate-400" />
+                        Comments
+                      </span>
+                      {Object.values(commentCounts).reduce((a, b) => a + b, 0) > 0 && (
+                        <span className="text-xs bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">
+                          {Object.values(commentCounts).reduce((a, b) => a + b, 0)}
+                        </span>
+                      )}
+                    </button>
+
+                    <div className="my-1.5 border-t border-slate-100" />
+
+                    <div className="px-3 py-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
+                      History & File
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setShowVersionHistory(true);
+                        setShowToolsMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <Clock className="w-4 h-4 text-slate-400" />
+                      Version History
+                    </button>
+
+                    <Link
+                      href={`/contracts/${contractId}/audit`}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <History className="w-4 h-4 text-slate-400" />
+                      Audit Trail
+                    </Link>
+
+                    <button
+                      onClick={() => {
+                        downloadPDF();
+                        setShowToolsMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <Download className="w-4 h-4 text-slate-400" />
+                      Download PDF
+                    </button>
+                  </div>
                 )}
-                <span className="hidden sm:inline">PDF</span>
-              </button>
+              </div>
+
               <button
                 onClick={saveContract}
                 disabled={saving}
@@ -703,14 +1276,12 @@ export default function ContractEditorPage() {
                     </div>
                     <button
                       onClick={() => setPaymentRequired(!paymentRequired)}
-                      className={`relative w-12 h-6 rounded-full transition-colors ${
-                        paymentRequired ? "bg-emerald-600" : "bg-slate-300"
-                      }`}
+                      className={`relative w-12 h-6 rounded-full transition-colors ${paymentRequired ? "bg-emerald-600" : "bg-slate-300"
+                        }`}
                     >
                       <span
-                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                          paymentRequired ? "translate-x-6" : ""
-                        }`}
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${paymentRequired ? "translate-x-6" : ""
+                          }`}
                       />
                     </button>
                   </div>
@@ -758,33 +1329,30 @@ export default function ContractEditorPage() {
                         <div className="grid grid-cols-3 gap-3">
                           <button
                             onClick={() => setPaymentStructure("full")}
-                            className={`p-3 rounded-lg border-2 text-left transition-all ${
-                              paymentStructure === "full"
-                                ? "border-emerald-500 bg-emerald-50"
-                                : "border-slate-200 hover:border-slate-300"
-                            }`}
+                            className={`p-3 rounded-lg border-2 text-left transition-all ${paymentStructure === "full"
+                              ? "border-emerald-500 bg-emerald-50"
+                              : "border-slate-200 hover:border-slate-300"
+                              }`}
                           >
                             <p className="font-medium text-slate-900">Full Payment</p>
                             <p className="text-xs text-slate-500 mt-1">Pay 100% upfront</p>
                           </button>
                           <button
                             onClick={() => setPaymentStructure("deposit_balance")}
-                            className={`p-3 rounded-lg border-2 text-left transition-all ${
-                              paymentStructure === "deposit_balance"
-                                ? "border-emerald-500 bg-emerald-50"
-                                : "border-slate-200 hover:border-slate-300"
-                            }`}
+                            className={`p-3 rounded-lg border-2 text-left transition-all ${paymentStructure === "deposit_balance"
+                              ? "border-emerald-500 bg-emerald-50"
+                              : "border-slate-200 hover:border-slate-300"
+                              }`}
                           >
                             <p className="font-medium text-slate-900">Deposit + Balance</p>
                             <p className="text-xs text-slate-500 mt-1">Split payment</p>
                           </button>
                           <button
                             onClick={() => setPaymentStructure("bnpl")}
-                            className={`p-3 rounded-lg border-2 text-left transition-all ${
-                              paymentStructure === "bnpl"
-                                ? "border-emerald-500 bg-emerald-50"
-                                : "border-slate-200 hover:border-slate-300"
-                            }`}
+                            className={`p-3 rounded-lg border-2 text-left transition-all ${paymentStructure === "bnpl"
+                              ? "border-emerald-500 bg-emerald-50"
+                              : "border-slate-200 hover:border-slate-300"
+                              }`}
                           >
                             <p className="font-medium text-slate-900">Buy Now, Pay Later</p>
                             <p className="text-xs text-slate-500 mt-1">Klarna / Afterpay</p>
@@ -849,7 +1417,7 @@ export default function ContractEditorPage() {
               {/* Preamble */}
               <div className="px-8 py-6 border-b border-slate-100">
                 <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-                  {contract.content.preamble}
+                  {renderClauseContent(contract.content.preamble, "preamble")}
                 </p>
               </div>
 
@@ -860,7 +1428,7 @@ export default function ContractEditorPage() {
                     Recitals
                   </h3>
                   <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-                    {contract.content.recitals}
+                    {renderClauseContent(contract.content.recitals, "recitals")}
                   </p>
                 </div>
               )}
@@ -870,7 +1438,8 @@ export default function ContractEditorPage() {
                 {contract.content.clauses.map((clause) => (
                   <div
                     key={clause.id}
-                    className={`transition-colors ${activeClause === clause.id ? "bg-violet-50" : ""
+                    id={`clause-${clause.id}`}
+                    className={`transition-all ${activeClause === clause.id ? "bg-violet-50" : ""
                       }`}
                   >
                     {/* Clause Header */}
@@ -902,8 +1471,45 @@ export default function ContractEditorPage() {
                         >
                           {clause.type}
                         </span>
+                        {/* Risk indicator */}
+                        {getClauseRiskLevel(clause.id) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowRiskAnalysis(true);
+                              setShowChat(false);
+                              setShowComments(false);
+                              setShowSignerPanel(false);
+                              setShowFillBlanksPanel(false);
+                              setShowVersionHistory(false);
+                            }}
+                            className={`p-1 rounded-full ${getClauseRiskLevel(clause.id) === "critical"
+                              ? "bg-red-100 hover:bg-red-200"
+                              : "bg-amber-100 hover:bg-amber-200"
+                              }`}
+                            title="View risks for this clause"
+                          >
+                            <AlertTriangle className={`w-3.5 h-3.5 ${getClauseRiskLevel(clause.id) === "critical"
+                              ? "text-red-500"
+                              : "text-amber-500"
+                              }`} />
+                          </button>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
+                        {/* Comment indicator */}
+                        <CommentIndicator
+                          count={commentCounts[clause.id] || 0}
+                          isActive={showComments && activeCommentClause === clause.id}
+                          onClick={() => {
+                            setActiveCommentClause(clause.id);
+                            setShowComments(true);
+                            setShowChat(false);
+                            setShowSignerPanel(false);
+                            setShowFillBlanksPanel(false);
+                            setShowVersionHistory(false);
+                          }}
+                        />
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -926,6 +1532,23 @@ export default function ContractEditorPage() {
                         >
                           <Edit3 className="w-4 h-4 text-slate-500" />
                         </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Require confirmation for standard clauses, quick delete for others
+                            if (clause.type === "standard") {
+                              if (confirm(`"${clause.title}" is a standard clause that's typically required in this type of contract.\n\nAre you sure you want to remove it?`)) {
+                                removeClause(clause.id);
+                              }
+                            } else {
+                              removeClause(clause.id);
+                            }
+                          }}
+                          className="p-2 hover:bg-red-100 rounded-lg"
+                          title={clause.type === "standard" ? "Remove standard clause (confirmation required)" : "Remove this clause"}
+                        >
+                          <Trash2 className="w-4 h-4 text-slate-400 hover:text-red-500" />
+                        </button>
                       </div>
                     </div>
 
@@ -934,11 +1557,29 @@ export default function ContractEditorPage() {
                       <div className="px-8 pb-6">
                         {editingClause === clause.id ? (
                           <div className="space-y-3">
-                            <textarea
-                              value={editedContent}
-                              onChange={(e) => setEditedContent(e.target.value)}
-                              className="w-full h-64 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none font-mono text-sm"
-                            />
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">
+                                Clause Title
+                              </label>
+                              <input
+                                type="text"
+                                value={editedTitle}
+                                onChange={(e) => setEditedTitle(e.target.value)}
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-sm font-semibold"
+                                placeholder="Enter clause title..."
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">
+                                Clause Content
+                              </label>
+                              <textarea
+                                value={editedContent}
+                                onChange={(e) => setEditedContent(e.target.value)}
+                                className="w-full h-64 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none font-mono text-sm"
+                                placeholder="Enter clause content..."
+                              />
+                            </div>
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={saveClauseEdit}
@@ -959,7 +1600,7 @@ export default function ContractEditorPage() {
                         ) : (
                           <div className="pl-8">
                             <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-                              {clause.content}
+                              {renderClauseContent(clause.content, clause.id)}
                             </p>
                           </div>
                         )}
@@ -967,6 +1608,15 @@ export default function ContractEditorPage() {
                     )}
                   </div>
                 ))}
+
+                {/* Add Clause Button */}
+                <button
+                  onClick={addClause}
+                  className="w-full py-4 border-2 border-dashed border-slate-300 hover:border-violet-400 hover:bg-violet-50 rounded-lg transition-colors flex items-center justify-center gap-2 text-slate-500 hover:text-violet-600"
+                >
+                  <Plus className="w-5 h-5" />
+                  <span className="font-medium">Add Clause</span>
+                </button>
               </div>
 
               {/* Signature Block / Field Editor */}
@@ -1080,6 +1730,28 @@ export default function ContractEditorPage() {
                   <p className="text-xs mt-1">
                     Click on a clause to focus our conversation.
                   </p>
+                  {/* Suggested prompts for empty state */}
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs text-slate-400 uppercase font-medium">Try asking:</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {[
+                        "Summarize this contract",
+                        "What are the key terms?",
+                        "Are there any red flags?",
+                        "What obligations do I have?",
+                      ].map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => {
+                            setChatInput(suggestion);
+                          }}
+                          className="px-3 py-1.5 text-xs bg-violet-50 text-violet-700 rounded-full hover:bg-violet-100 border border-violet-200"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
               {chatMessages.map((msg, i) => (
@@ -1132,21 +1804,150 @@ export default function ContractEditorPage() {
                 </button>
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
-                {["Explain this clause", "Make it simpler", "What are the risks?"].map(
-                  (suggestion) => (
-                    <button
-                      key={suggestion}
-                      onClick={() => {
-                        setChatInput(suggestion);
-                      }}
-                      className="px-3 py-1 text-xs bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200"
-                    >
-                      {suggestion}
-                    </button>
-                  )
-                )}
+                {(activeClause
+                  ? [
+                    "Explain this clause",
+                    "Make it simpler",
+                    "What are the risks?",
+                    "Rewrite to favor me",
+                    "Add more protection",
+                  ]
+                  : [
+                    "Review the whole contract",
+                    "Suggest improvements",
+                    "Find potential issues",
+                    "What should I negotiate?",
+                  ]
+                ).map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    onClick={() => {
+                      setChatInput(suggestion);
+                    }}
+                    className="px-3 py-1 text-xs bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
               </div>
             </div>
+          </aside>
+        )}
+
+        {/* Fill Blanks Sidebar */}
+        {showFillBlanksPanel && (
+          <aside className="w-96 flex-shrink-0 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
+            {/* Panel Header */}
+            <div className="px-4 py-3 border-b border-slate-200 flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="w-5 h-5 text-amber-600" />
+                  <span className="font-semibold text-slate-900">Fill Blanks</span>
+                </div>
+                <button
+                  onClick={() => setShowFillBlanksPanel(false)}
+                  className="p-1 hover:bg-slate-100 rounded"
+                >
+                  <X className="w-4 h-4 text-slate-500" />
+                </button>
+              </div>
+              {/* Progress bar */}
+              <div className="mt-3">
+                <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                  <span>{blankCounts.filled} of {blankCounts.total} completed</span>
+                  <span>{Math.round((blankCounts.filled / blankCounts.total) * 100)}%</span>
+                </div>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-400 to-emerald-500 transition-all duration-300"
+                    style={{ width: `${(blankCounts.filled / blankCounts.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Blanks List */}
+            <div className="flex-1 overflow-auto p-4 space-y-3">
+              {allBlanks.length === 0 ? (
+                <div className="text-center text-slate-500 py-8">
+                  <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-emerald-500" />
+                  <p className="font-medium">All blanks filled!</p>
+                  <p className="text-sm mt-1">Your contract is ready.</p>
+                </div>
+              ) : (
+                allBlanks.map((blank, idx) => {
+                  const isFilled = !!filledBlanks.get(blank.key);
+                  return (
+                    <div
+                      key={blank.key}
+                      className={`p-3 rounded-lg border transition-all ${isFilled
+                        ? "bg-emerald-50 border-emerald-200"
+                        : "bg-amber-50 border-amber-200"
+                        }`}
+                    >
+                      {/* Header with section label and jump button */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {isFilled ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                          ) : (
+                            <Circle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                          )}
+                          <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                            {blank.sectionTitle}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => scrollToBlank(blank.key)}
+                          className={`px-2 py-1 text-xs font-medium rounded transition-colors ${isFilled
+                            ? "text-emerald-600 hover:bg-emerald-100"
+                            : "text-amber-600 hover:bg-amber-100"
+                            }`}
+                        >
+                          Jump to ↓
+                        </button>
+                      </div>
+
+                      {/* Context preview */}
+                      <p className="text-xs text-slate-600 mb-2 leading-relaxed">
+                        <span className="text-slate-400">{blank.contextBefore}</span>
+                        <span className={`font-semibold mx-1 ${isFilled ? "text-emerald-600" : "text-amber-600"}`}>
+                          {filledBlanks.get(blank.key) || "_____"}
+                        </span>
+                        <span className="text-slate-400">{blank.contextAfter}</span>
+                      </p>
+
+                      {/* Input field */}
+                      <input
+                        type="text"
+                        value={filledBlanks.get(blank.key) || ""}
+                        onChange={(e) => handleBlankChange(blank.key, e.target.value)}
+                        placeholder="Enter value..."
+                        className={`w-full px-3 py-2 text-sm rounded-md border transition-all focus:outline-none focus:ring-2 ${isFilled
+                          ? "border-emerald-300 bg-white focus:ring-emerald-400"
+                          : "border-amber-300 bg-white focus:ring-amber-400"
+                          }`}
+                      />
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer with actions */}
+            {blankCounts.total > 0 && (
+              <div className="p-4 border-t border-slate-200 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    // Clear all blanks
+                    setFilledBlanks(new Map());
+                  }}
+                  className="w-full px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  Clear All
+                </button>
+              </div>
+            )}
           </aside>
         )}
 
@@ -1180,7 +1981,108 @@ export default function ContractEditorPage() {
             </div>
           </aside>
         )}
+
+        {/* Version History Sidebar */}
+        {showVersionHistory && contract && (
+          <VersionHistoryPanel
+            contractId={contractId}
+            currentVersion={contract.version}
+            onClose={() => {
+              setShowVersionHistory(false);
+              setPreviewVersion(null);
+            }}
+            onVersionPreview={(content) => {
+              setPreviewVersion(content);
+            }}
+            onRollback={async (version) => {
+              try {
+                const response = await fetch(`/api/contracts/${contractId}/versions/rollback`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ targetVersionNumber: version.version_number }),
+                });
+                if (!response.ok) throw new Error("Failed to rollback");
+                const data = await response.json();
+                setContract(data.contract);
+                setPreviewVersion(null);
+              } catch (err) {
+                console.error("Rollback error:", err);
+                throw err;
+              }
+            }}
+          />
+        )}
+
+        {/* Comments Sidebar */}
+        {showComments && currentUserId && (
+          <CommentSidebar
+            contractId={contractId}
+            currentUserId={currentUserId}
+            isContractOwner={contract?.user_id === currentUserId}
+            activeClauseId={activeCommentClause}
+            clauseTitle={
+              contract?.content.clauses.find((c) => c.id === activeCommentClause)?.title
+            }
+            onClose={() => setShowComments(false)}
+            onCommentCountChange={(counts) => setCommentCounts(counts)}
+          />
+        )}
+
+        {/* Risk Analysis Sidebar */}
+        {showRiskAnalysis && (
+          <RiskAnalysisPanel
+            contractId={contractId}
+            onClose={() => setShowRiskAnalysis(false)}
+            onJumpToClause={jumpToClause}
+            analysis={riskAnalysis}
+            loading={riskLoading}
+            error={riskError}
+            onRefresh={() => fetchRiskAnalysis(true)}
+          />
+        )}
       </div>
+
+      {/* Version Preview Banner */}
+      {previewVersion && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-top-2 fade-in duration-200">
+          <div className="flex items-center gap-3 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg">
+            <Eye className="w-4 h-4" />
+            <span className="text-sm font-medium">
+              Previewing older version
+            </span>
+            <button
+              onClick={() => setPreviewVersion(null)}
+              className="flex items-center gap-1.5 px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium transition-colors"
+            >
+              Exit Preview
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Undo Toast */}
+      {deletedClause && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
+          <div className="flex items-center gap-3 bg-slate-900 text-white px-4 py-3 rounded-lg shadow-lg">
+            <span className="text-sm">
+              Deleted &quot;{deletedClause.clause.title}&quot;
+            </span>
+            <button
+              onClick={undoDelete}
+              className="flex items-center gap-1.5 px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-sm font-medium transition-colors"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              Undo
+            </button>
+            <button
+              onClick={() => setDeletedClause(null)}
+              className="p-1 hover:bg-white/10 rounded transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
