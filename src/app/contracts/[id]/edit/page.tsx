@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import Link from "next/link";
@@ -43,6 +43,9 @@ import { SignatureFieldEditor, type SignatureField } from "@/components/signatur
 import { SignatureBlockDisplay } from "@/components/signature-block-display";
 import { SignerStatusPanel } from "@/components/signer-status-panel";
 import { CommentSidebar, CommentIndicator } from "@/components/comments";
+import { SelectionPopup } from "@/components/comments/SelectionPopup";
+import { HighlightedClauseContent } from "@/components/comments/HighlightedClauseContent";
+import type { CommentWithUser } from "@/db/types";
 import { VersionHistoryPanel } from "@/components/version-history-panel";
 import { RiskAnalysisPanel } from "@/components/risk-analysis";
 import type { ContractVersion, ContractContent as ContractContentType } from "@/db/types";
@@ -200,6 +203,23 @@ export default function ContractEditorPage() {
   const [activeCommentClause, setActiveCommentClause] = useState<string | null>(null);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [comments, setComments] = useState<CommentWithUser[]>([]);
+
+  // Text selection state for inline commenting (controls popup visibility)
+  const [textSelection, setTextSelection] = useState<{
+    clauseId: string;
+    text: string;
+    start: number;
+    end: number;
+    position: { x: number; y: number };
+  } | null>(null);
+
+  // Pending comment selection - stored separately so it persists after popup closes
+  const [pendingCommentSelection, setPendingCommentSelection] = useState<{
+    text: string;
+    start: number;
+    end: number;
+  } | null>(null);
 
   // Version history state
   const [showVersionHistory, setShowVersionHistory] = useState(false);
@@ -247,6 +267,82 @@ export default function ContractEditorPage() {
         element.focus();
       }, 300);
     }
+  };
+
+  // Handle text selection for inline commenting
+  const handleTextSelect = (clauseId: string, contentRef: HTMLElement | null) => {
+    if (!contentRef) return;
+
+    // Small delay to ensure selection is complete
+    setTimeout(() => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) return;
+
+      const selectedText = selection.toString().trim();
+      if (!selectedText || selectedText.length < 2) return;
+
+      // Get the selection range
+      const range = selection.getRangeAt(0);
+      if (!contentRef.contains(range.commonAncestorContainer)) return;
+
+      // Calculate the character offset within the content
+      const preSelectionRange = document.createRange();
+      preSelectionRange.selectNodeContents(contentRef);
+      preSelectionRange.setEnd(range.startContainer, range.startOffset);
+      const start = preSelectionRange.toString().length;
+      const end = start + selectedText.length;
+
+      // Get position for popup
+      const rect = range.getBoundingClientRect();
+      const position = {
+        x: rect.left + rect.width / 2,
+        y: rect.top,
+      };
+
+      setTextSelection({
+        clauseId,
+        text: selectedText,
+        start,
+        end,
+        position,
+      });
+    }, 10);
+  };
+
+  // Handle adding comment from text selection
+  const handleAddCommentFromSelection = () => {
+    if (!textSelection) return;
+
+    // Store selection data for the comment before clearing the popup
+    setPendingCommentSelection({
+      text: textSelection.text,
+      start: textSelection.start,
+      end: textSelection.end,
+    });
+
+    setActiveCommentClause(textSelection.clauseId);
+    setShowComments(true);
+
+    // Clear the popup - selection data is now in pendingCommentSelection
+    setTextSelection(null);
+  };
+
+  // Handle text selection from HighlightedClauseContent
+  const handleHighlightedTextSelect = (selection: {
+    clauseId: string;
+    text: string;
+    start: number;
+    end: number;
+    position: { x: number; y: number };
+  }) => {
+    setTextSelection(selection);
+  };
+
+  // Handle clicking on a highlight to open comment sidebar
+  const handleHighlightClick = (commentId: string, clauseId: string) => {
+    setActiveCommentClause(clauseId);
+    setShowComments(true);
+    // TODO: Could scroll to the specific comment in the sidebar
   };
 
   // Render clause content with fillable blanks highlighted
@@ -538,23 +634,34 @@ export default function ContractEditorPage() {
     fetchCurrentUser();
   }, []);
 
-  // Fetch comment counts on mount
-  useEffect(() => {
-    async function fetchCommentCounts() {
-      try {
-        const response = await fetch(`/api/contracts/${contractId}/comments`);
-        if (response.ok) {
-          const data = await response.json();
-          setCommentCounts(data.commentCounts || {});
-        }
-      } catch (err) {
-        console.error("Failed to fetch comment counts:", err);
+  // Fetch all comments (for highlights and counts)
+  const fetchAllComments = useCallback(async () => {
+    try {
+      // Fetch all comments including resolved ones for highlights
+      const response = await fetch(`/api/contracts/${contractId}/comments?includeResolved=true`);
+      if (response.ok) {
+        const data = await response.json();
+        setCommentCounts(data.commentCounts || {});
+        setComments(data.comments || []);
       }
+    } catch (err) {
+      console.error("Failed to fetch comments:", err);
     }
+  }, [contractId]);
+
+  // Fetch comments on mount and when sidebar opens
+  useEffect(() => {
     if (contract) {
-      fetchCommentCounts();
+      fetchAllComments();
     }
-  }, [contractId, contract]);
+  }, [contract, fetchAllComments]);
+
+  // Refresh comments when sidebar is opened to keep highlights in sync
+  useEffect(() => {
+    if (showComments && contract) {
+      fetchAllComments();
+    }
+  }, [showComments, contract, fetchAllComments]);
 
   // Scroll chat to bottom
   useEffect(() => {
@@ -1599,9 +1706,14 @@ export default function ContractEditorPage() {
                           </div>
                         ) : (
                           <div className="pl-8">
-                            <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-                              {renderClauseContent(clause.content, clause.id)}
-                            </p>
+                            <HighlightedClauseContent
+                              clauseId={clause.id}
+                              content={clause.content}
+                              comments={comments.filter(c => c.clause_id === clause.id)}
+                              onHighlightClick={(commentId) => handleHighlightClick(commentId, clause.id)}
+                              onTextSelect={handleHighlightedTextSelect}
+                              className="text-slate-700 leading-relaxed select-text"
+                            />
                           </div>
                         )}
                       </div>
@@ -2023,8 +2135,31 @@ export default function ContractEditorPage() {
             clauseTitle={
               contract?.content.clauses.find((c) => c.id === activeCommentClause)?.title
             }
-            onClose={() => setShowComments(false)}
+            selectedText={pendingCommentSelection?.text}
+            selectionRange={
+              pendingCommentSelection
+                ? { start: pendingCommentSelection.start, end: pendingCommentSelection.end }
+                : undefined
+            }
+            onClose={() => {
+              setShowComments(false);
+              setTextSelection(null);
+              setPendingCommentSelection(null);
+            }}
             onCommentCountChange={(counts) => setCommentCounts(counts)}
+            onCommentCreated={() => {
+              setPendingCommentSelection(null);
+              fetchAllComments(); // Refresh highlights
+            }}
+          />
+        )}
+
+        {/* Selection Popup for inline commenting */}
+        {textSelection && (
+          <SelectionPopup
+            position={textSelection.position}
+            onAddComment={handleAddCommentFromSelection}
+            onClose={() => setTextSelection(null)}
           />
         )}
 
