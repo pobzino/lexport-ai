@@ -1,13 +1,32 @@
 import Stripe from "stripe";
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  console.warn("STRIPE_SECRET_KEY not configured");
+// Lazy initialization of Stripe client to prevent build-time errors
+let stripeClient: Stripe | null = null;
+
+export function getStripe(): Stripe {
+  if (!stripeClient) {
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+    if (!secretKey) {
+      throw new Error('STRIPE_SECRET_KEY is not configured');
+    }
+    stripeClient = new Stripe(secretKey, {
+      apiVersion: "2025-12-15.clover",
+      typescript: true,
+    });
+  }
+  return stripeClient;
 }
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2025-12-15.clover",
-  typescript: true,
-});
+// Legacy export for backwards compatibility - use getStripe() in new code
+export const stripe = {
+  get accounts() { return getStripe().accounts; },
+  get balance() { return getStripe().balance; },
+  get checkout() { return getStripe().checkout; },
+  get paymentIntents() { return getStripe().paymentIntents; },
+  get accountLinks() { return getStripe().accountLinks; },
+  get webhooks() { return getStripe().webhooks; },
+  get charges() { return getStripe().charges; },
+};
 
 export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 
