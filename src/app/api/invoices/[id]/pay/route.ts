@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import Stripe from "stripe";
+import { calculatePlatformFee, getPlatformFeePercent, type SubscriptionTier } from "@/lib/stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2025-12-15.clover",
@@ -48,12 +49,22 @@ export async function POST(
       );
     }
 
-    // Get invoice owner for Stripe connect (if they have connected account)
+    // Get invoice owner for Stripe connect (if they have connected account) and subscription tier
     const { data: invoiceSettings } = await supabase
       .from("invoice_settings")
       .select("stripe_account_id")
       .eq("user_id", invoice.user_id)
       .single();
+
+    // Get user's subscription tier for platform fee calculation
+    const { data: invoiceOwner } = await supabase
+      .from("users")
+      .select("subscription_status")
+      .eq("id", invoice.user_id)
+      .single();
+
+    const subscriptionTier: SubscriptionTier =
+      (invoiceOwner?.subscription_status as SubscriptionTier) || "free";
 
     // Check if there's an existing payment intent
     if (invoice.stripe_payment_intent_id) {
@@ -114,11 +125,18 @@ export async function POST(
 
     // Add application fee and connected account if user has Stripe Connect
     if (invoiceSettings?.stripe_account_id) {
-      paymentIntentParams.application_fee_amount = Math.round(
-        (invoice.total || invoice.amount) * 0.025
-      ); // 2.5% platform fee
+      const invoiceAmount = invoice.total || invoice.amount;
+      const platformFee = calculatePlatformFee(invoiceAmount, subscriptionTier);
+
+      paymentIntentParams.application_fee_amount = platformFee;
       paymentIntentParams.transfer_data = {
         destination: invoiceSettings.stripe_account_id,
+      };
+      paymentIntentParams.metadata = {
+        ...paymentIntentParams.metadata,
+        platform_fee: platformFee.toString(),
+        platform_fee_percent: getPlatformFeePercent(subscriptionTier).toString(),
+        subscription_tier: subscriptionTier,
       };
     }
 

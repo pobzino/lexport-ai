@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { stripe, calculatePlatformFee } from "@/lib/stripe";
+import { stripe, calculatePlatformFee, getPlatformFeePercent, type SubscriptionTier } from "@/lib/stripe";
 import type { PaymentType } from "@/db/types";
 
 // Create a payment intent for a contract
@@ -152,12 +152,16 @@ export async function POST(
       }
     }
 
-    // Get contract owner's Connect account for payouts
+    // Get contract owner's Connect account and subscription tier for payouts
     const { data: contractOwner } = await supabase
       .from("users")
-      .select("stripe_connect_account_id, stripe_connect_status")
+      .select("stripe_connect_account_id, stripe_connect_status, subscription_status")
       .eq("id", contract.user_id)
       .single();
+
+    // Determine subscription tier for platform fee calculation
+    const subscriptionTier: SubscriptionTier =
+      (contractOwner?.subscription_status as SubscriptionTier) || "free";
 
     // Build payment intent options
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -183,7 +187,7 @@ export async function POST(
       contractOwner?.stripe_connect_account_id &&
       contractOwner.stripe_connect_status === "active"
     ) {
-      const platformFee = calculatePlatformFee(paymentAmount);
+      const platformFee = calculatePlatformFee(paymentAmount, subscriptionTier);
       paymentIntentOptions.application_fee_amount = platformFee;
       paymentIntentOptions.transfer_data = {
         destination: contractOwner.stripe_connect_account_id,
@@ -191,6 +195,8 @@ export async function POST(
       paymentIntentOptions.metadata.connected_account_id =
         contractOwner.stripe_connect_account_id;
       paymentIntentOptions.metadata.platform_fee = platformFee.toString();
+      paymentIntentOptions.metadata.platform_fee_percent = getPlatformFeePercent(subscriptionTier).toString();
+      paymentIntentOptions.metadata.subscription_tier = subscriptionTier;
     }
 
     const paymentIntent = await stripe.paymentIntents.create(paymentIntentOptions);
@@ -199,7 +205,7 @@ export async function POST(
     const platformFee =
       contractOwner?.stripe_connect_account_id &&
       contractOwner.stripe_connect_status === "active"
-        ? calculatePlatformFee(paymentAmount)
+        ? calculatePlatformFee(paymentAmount, subscriptionTier)
         : 0;
 
     // Create payment record in our database

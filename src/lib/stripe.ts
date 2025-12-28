@@ -30,12 +30,27 @@ export const stripe = {
 
 export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 
-// Platform fee percentage (1% = 100 basis points)
-export const PLATFORM_FEE_PERCENT = Number(process.env.PLATFORM_FEE_PERCENT) || 1;
+// Platform fee percentages by subscription tier
+export const PLATFORM_FEES = {
+  free: 1.0,        // 1% for free/pay-per-contract users
+  pro: 0.75,        // 0.75% for Pro subscribers
+  team: 0.5,        // 0.5% for Team subscribers
+} as const;
 
-// Calculate platform fee in cents
-export function calculatePlatformFee(amountInCents: number): number {
-  return Math.round(amountInCents * (PLATFORM_FEE_PERCENT / 100));
+export type SubscriptionTier = keyof typeof PLATFORM_FEES;
+
+// Calculate platform fee in cents based on user's subscription tier
+export function calculatePlatformFee(
+  amountInCents: number,
+  subscriptionTier: SubscriptionTier = "free"
+): number {
+  const feePercent = PLATFORM_FEES[subscriptionTier] || PLATFORM_FEES.free;
+  return Math.round(amountInCents * (feePercent / 100));
+}
+
+// Get fee percentage for display
+export function getPlatformFeePercent(subscriptionTier: SubscriptionTier = "free"): number {
+  return PLATFORM_FEES[subscriptionTier] || PLATFORM_FEES.free;
 }
 
 // Stripe Connect helpers

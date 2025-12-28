@@ -360,6 +360,72 @@ Show unlock status on contract cards:
 
 ---
 
+## Payment Collection Fees
+
+When users collect payments through contracts (deposits, milestone payments, full payments), Lexport takes a platform fee on top of Stripe's processing fees.
+
+### Fee Structure
+
+| User Tier | Platform Fee | Example: £1,000 payment |
+|-----------|--------------|-------------------------|
+| Free | N/A (can't collect) | — |
+| Pay-Per-Contract (Free) | 1.0% | £10 platform fee |
+| Pro | 0.75% | £7.50 platform fee |
+| Team | 0.5% | £5 platform fee |
+
+*Plus Stripe's standard 1.5% + 20p processing fee*
+
+### Total Cost to User (£1,000 payment)
+
+| Tier | Platform Fee | Stripe Fee | Total Fees | User Receives |
+|------|--------------|------------|------------|---------------|
+| Pay-Per-Contract (Free) | £10.00 | £15.20 | £25.20 | £974.80 |
+| Pro | £7.50 | £15.20 | £22.70 | £977.30 |
+| Team | £5.00 | £15.20 | £20.20 | £979.80 |
+
+### Revenue Potential
+
+If 100 Pro users each collect £5,000/month in contract payments:
+- Monthly payment volume: £500,000
+- Platform fee (0.75%): **£3,750/month**
+- Plus subscription revenue: £2,900/month (100 × £29)
+- **Total: £6,650/month**
+
+### Implementation
+
+Platform fees are collected via Stripe Connect:
+
+```typescript
+import { calculatePlatformFee, type SubscriptionTier } from "@/lib/stripe";
+
+// Fee percentages by tier
+const PLATFORM_FEES = {
+  free: 1.0,    // 1% for free/pay-per-contract users
+  pro: 0.75,    // 0.75% for Pro subscribers
+  team: 0.5,    // 0.5% for Team subscribers
+};
+
+// When creating payment intent
+const subscriptionTier: SubscriptionTier = "pro";
+const paymentIntent = await stripe.paymentIntents.create({
+  amount: 100000, // £1,000 in pence
+  currency: 'gbp',
+  application_fee_amount: calculatePlatformFee(100000, subscriptionTier), // 750 (0.75%)
+  transfer_data: {
+    destination: userStripeAccountId, // User's connected account
+  },
+});
+```
+
+### Why This Works
+
+1. **Aligned incentives**: We only make money when users make money
+2. **Scales with success**: Bigger deals = more revenue for both
+3. **Lower tier = higher fee**: Incentivizes subscription upgrades
+4. **Competitive rates**: DocuSign Payments charges 2.9%, we're cheaper for subscribers
+
+---
+
 ## Success Metrics
 
 | Metric | Target |
