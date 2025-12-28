@@ -37,9 +37,11 @@ import {
   ShieldAlert,
   AlertTriangle,
   MoreHorizontal,
+  FileStack,
 } from "lucide-react";
 import type { Clause } from "@/lib/contracts/schemas";
 import { SignatureFieldEditor, type SignatureField } from "@/components/signature-field-editor";
+import { SignatureFieldEditorVisual, type PlacedFieldData } from "@/components/signature-field-editor/index";
 import { SignatureBlockDisplay } from "@/components/signature-block-display";
 import { SignerStatusPanel } from "@/components/signer-status-panel";
 import { CommentSidebar, CommentIndicator } from "@/components/comments";
@@ -48,6 +50,11 @@ import { HighlightedClauseContent } from "@/components/comments/HighlightedClaus
 import type { CommentWithUser } from "@/db/types";
 import { VersionHistoryPanel } from "@/components/version-history-panel";
 import { RiskAnalysisPanel } from "@/components/risk-analysis";
+import { ShareForReviewModal } from "@/components/share-for-review-modal";
+import { InvoicePanel } from "@/components/invoice-panel";
+import { ReviewPanel } from "@/components/review-panel";
+import { SaveAsTemplateModal } from "@/components/templates/SaveAsTemplateModal";
+import { FieldTemplateEditor } from "@/components/templates/FieldTemplateEditor";
 import type { ContractVersion, ContractContent as ContractContentType } from "@/db/types";
 import type { RiskAnalysisResult } from "@/types/risk-analysis";
 
@@ -170,16 +177,19 @@ export default function ContractEditorPage() {
   const [signatures, setSignatures] = useState<Signature[]>([]);
   const [fieldValues, setFieldValues] = useState<FieldValue[]>([]);
   const [isEditingFields, setIsEditingFields] = useState(false);
+  const [showVisualEditor, setShowVisualEditor] = useState(false);
   const [showSignerPanel, setShowSignerPanel] = useState(false);
   const [showFillBlanksPanel, setShowFillBlanksPanel] = useState(false);
 
   // Payment settings state
   const [showPaymentSettings, setShowPaymentSettings] = useState(false);
+  const [showInvoicePanel, setShowInvoicePanel] = useState(false);
   const [paymentRequired, setPaymentRequired] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<string>("");
   const [paymentCurrency, setPaymentCurrency] = useState("usd");
   const [paymentStructure, setPaymentStructure] = useState<"full" | "deposit_balance" | "bnpl">("full");
   const [depositPercentage, setDepositPercentage] = useState<string>("30");
+  const [balanceDueDate, setBalanceDueDate] = useState<string>("");
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -234,6 +244,15 @@ export default function ContractEditorPage() {
   // Tools menu state
   const [showToolsMenu, setShowToolsMenu] = useState(false);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
+
+  // Share for review modal state
+  const [showShareModal, setShowShareModal] = useState(false);
+
+  // Review panel state
+  const [showReviewPanel, setShowReviewPanel] = useState(false);
+
+  // Save as template modal state
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   // Close tools menu on click outside
   useEffect(() => {
@@ -636,6 +655,11 @@ export default function ContractEditorPage() {
           setPaymentCurrency(data.contract.payment_currency || "usd");
           setPaymentStructure(data.contract.payment_structure || "full");
           setDepositPercentage(data.contract.deposit_percentage ? String(data.contract.deposit_percentage) : "30");
+          // Initialize balance due date (convert to YYYY-MM-DD for input)
+          if (data.contract.balance_due_date) {
+            const dueDate = new Date(data.contract.balance_due_date);
+            setBalanceDueDate(dueDate.toISOString().split("T")[0]);
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load contract");
@@ -1045,6 +1069,9 @@ export default function ContractEditorPage() {
           payment_currency: paymentCurrency,
           payment_structure: paymentStructure,
           deposit_percentage: paymentStructure === "deposit_balance" ? parseInt(depositPercentage) : null,
+          balance_due_date: paymentStructure === "deposit_balance" && balanceDueDate
+            ? new Date(balanceDueDate).toISOString()
+            : null,
         }),
       });
 
@@ -1215,6 +1242,48 @@ export default function ContractEditorPage() {
                   {paymentRequired ? `$${paymentAmount || 0}` : "Payment"}
                 </span>
               </button>
+              {/* Invoices Toggle - only show if payment is required */}
+              {paymentRequired && (
+                <button
+                  onClick={() => {
+                    setShowInvoicePanel(!showInvoicePanel);
+                    setShowChat(false);
+                    setShowSignerPanel(false);
+                    setShowFillBlanksPanel(false);
+                    setShowComments(false);
+                    setShowVersionHistory(false);
+                    setShowRiskAnalysis(false);
+                    setShowReviewPanel(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all ${showInvoicePanel
+                    ? "bg-violet-600 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  <span className="hidden sm:inline">Invoices</span>
+                </button>
+              )}
+              {/* Reviews Toggle - view comments from reviewers */}
+              <button
+                onClick={() => {
+                  setShowReviewPanel(!showReviewPanel);
+                  setShowChat(false);
+                  setShowSignerPanel(false);
+                  setShowFillBlanksPanel(false);
+                  setShowComments(false);
+                  setShowVersionHistory(false);
+                  setShowRiskAnalysis(false);
+                  setShowInvoicePanel(false);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all ${showReviewPanel
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
+                  }`}
+              >
+                <Users className="w-4 h-4" />
+                <span className="hidden sm:inline">Reviews</span>
+              </button>
               {/* Fill Blanks Toggle - only show if there are blanks */}
               {blankCounts.total > 0 && (
                 <button
@@ -1252,6 +1321,14 @@ export default function ContractEditorPage() {
               >
                 <PenTool className="w-4 h-4" />
                 {isEditingFields ? "Done Editing" : "Configure Fields"}
+              </button>
+              {/* Visual Field Editor Button */}
+              <button
+                onClick={() => setShowVisualEditor(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all text-violet-600 hover:bg-violet-50 border border-violet-200"
+              >
+                <Eye className="w-4 h-4" />
+                Visual Editor
               </button>
               {/* Tools Dropdown */}
               <div className="relative" ref={toolsMenuRef}>
@@ -1322,6 +1399,7 @@ export default function ContractEditorPage() {
                       onClick={() => {
                         setShowVersionHistory(true);
                         setShowToolsMenu(false);
+                        setShowReviewPanel(false);
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                     >
@@ -1347,6 +1425,17 @@ export default function ContractEditorPage() {
                       <Download className="w-4 h-4 text-slate-400" />
                       Download PDF
                     </button>
+
+                    <button
+                      onClick={() => {
+                        setShowTemplateModal(true);
+                        setShowToolsMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <FileStack className="w-4 h-4 text-violet-500" />
+                      Save as Template
+                    </button>
                   </div>
                 )}
               </div>
@@ -1368,6 +1457,17 @@ export default function ContractEditorPage() {
                 )}
                 {saved ? "Saved!" : "Save"}
               </button>
+              {/* Share for Review - only show for draft contracts */}
+              {contract.status === "draft" && (
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-all"
+                >
+                  <Eye className="w-4 h-4" />
+                  <span className="hidden md:inline">Share for Review</span>
+                  <span className="md:hidden">Share</span>
+                </button>
+              )}
               <Link
                 href={`/contracts/${contractId}/sign`}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all shadow-sm"
@@ -1520,6 +1620,24 @@ export default function ContractEditorPage() {
                             <span>Deposit: ${((parseFloat(paymentAmount) || 0) * parseInt(depositPercentage) / 100).toFixed(2)}</span>
                             <span>Balance: ${((parseFloat(paymentAmount) || 0) * (100 - parseInt(depositPercentage)) / 100).toFixed(2)}</span>
                           </div>
+
+                          {/* Balance Due Date */}
+                          <div className="mt-4">
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                              Balance Due Date
+                              <span className="text-slate-400 font-normal ml-1">(for auto-reminders)</span>
+                            </label>
+                            <input
+                              type="date"
+                              value={balanceDueDate}
+                              onChange={(e) => setBalanceDueDate(e.target.value)}
+                              min={new Date().toISOString().split("T")[0]}
+                              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                            />
+                            <p className="text-xs text-slate-500 mt-1">
+                              Automatic payment reminders will be sent 7, 3, and 1 days before this date.
+                            </p>
+                          </div>
                         </div>
                       )}
 
@@ -1618,6 +1736,7 @@ export default function ContractEditorPage() {
                               setShowSignerPanel(false);
                               setShowFillBlanksPanel(false);
                               setShowVersionHistory(false);
+                              setShowReviewPanel(false);
                             }}
                             className={`p-1 rounded-full ${getClauseRiskLevel(clause.id) === "critical"
                               ? "bg-red-100 hover:bg-red-200"
@@ -1644,6 +1763,7 @@ export default function ContractEditorPage() {
                             setShowSignerPanel(false);
                             setShowFillBlanksPanel(false);
                             setShowVersionHistory(false);
+                            setShowReviewPanel(false);
                           }}
                         />
                         <button
@@ -1742,6 +1862,8 @@ export default function ContractEditorPage() {
                               onHighlightClick={(commentId) => handleHighlightClick(commentId, clause.id)}
                               onTextSelect={handleHighlightedTextSelect}
                               className="text-slate-700 leading-relaxed select-text"
+                              filledBlanks={filledBlanks}
+                              onBlankChange={handleBlankChange}
                             />
                           </div>
                         )}
@@ -1763,9 +1885,19 @@ export default function ContractEditorPage() {
               {/* Signature Block / Field Editor */}
               {isEditingFields ? (
                 <div className="px-8 py-6 bg-white border-t border-slate-100">
-                  <h3 className="text-sm font-semibold text-slate-500 uppercase mb-4 flex items-center justify-between">
-                    <span>Configure Signature Fields</span>
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-slate-500 uppercase">
+                      Configure Signature Fields
+                    </h3>
+                    <FieldTemplateEditor
+                      contractId={contractId}
+                      contractType={contract.type}
+                      currentFields={signatureFields}
+                      onApplyTemplate={(newFields) => {
+                        setSignatureFields((prev) => [...prev, ...newFields]);
+                      }}
+                    />
+                  </div>
                   <SignatureFieldEditor
                     fields={signatureFields}
                     signerRoles={getSignerRoles()}
@@ -2205,6 +2337,22 @@ export default function ContractEditorPage() {
             onRefresh={() => fetchRiskAnalysis(true)}
           />
         )}
+
+        {/* Invoice Panel Sidebar */}
+        {showInvoicePanel && (
+          <InvoicePanel
+            contractId={contractId}
+            onClose={() => setShowInvoicePanel(false)}
+          />
+        )}
+
+        {/* Review Panel Sidebar */}
+        {showReviewPanel && (
+          <ReviewPanel
+            contractId={contractId}
+            onClose={() => setShowReviewPanel(false)}
+          />
+        )}
       </div>
 
       {/* Version Preview Banner */}
@@ -2247,6 +2395,105 @@ export default function ContractEditorPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Share for Review Modal */}
+      {showShareModal && contract && (
+        <ShareForReviewModal
+          contractId={contractId}
+          contractTitle={contract.title}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
+
+      {/* Save as Template Modal */}
+      {showTemplateModal && contract && (
+        <SaveAsTemplateModal
+          isOpen={showTemplateModal}
+          onClose={() => setShowTemplateModal(false)}
+          contractType={contract.type}
+          jurisdiction={contract.jurisdiction}
+          content={contract.content}
+          defaultName={contract.title}
+          onSave={async (templateData) => {
+            const response = await fetch("/api/templates", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: templateData.name,
+                description: templateData.description,
+                type: contract.type,
+                jurisdiction: contract.jurisdiction,
+                content: contract.content,
+                is_public: templateData.is_public,
+              }),
+            });
+            if (!response.ok) {
+              throw new Error("Failed to save template");
+            }
+          }}
+        />
+      )}
+
+      {/* Visual Signature Field Editor Modal */}
+      {showVisualEditor && contract && (
+        <SignatureFieldEditorVisual
+          contractId={contractId}
+          pdfUrl={`/api/contracts/${contractId}/pdf`}
+          signers={getSignerRoles().map((role, idx) => ({
+            id: `signer-${idx}`,
+            role,
+            name: signatureRequests.find(sr => sr.signer_role === role)?.signer_name,
+            email: signatureRequests.find(sr => sr.signer_role === role)?.signer_email,
+          }))}
+          initialFields={signatureFields.map((f) => ({
+            id: f.id,
+            type: f.type,
+            signerId: `signer-${getSignerRoles().indexOf(f.signerRole)}`,
+            signerRole: f.signerRole,
+            page: 1,
+            x: f.positionX,
+            y: f.positionY,
+            width: f.width,
+            height: f.height,
+            required: f.required,
+            label: f.label,
+          }))}
+          onClose={() => setShowVisualEditor(false)}
+          onSave={async (fields: PlacedFieldData[]) => {
+            // Convert visual fields back to signature fields and save
+            for (const field of fields) {
+              const existingField = signatureFields.find((f) => f.id === field.id);
+              if (existingField) {
+                await handleFieldUpdate(field.id, {
+                  positionX: field.x,
+                  positionY: field.y,
+                  width: field.width,
+                  height: field.height,
+                });
+              } else {
+                await handleFieldCreate({
+                  type: field.type,
+                  signerRole: field.signerRole,
+                  label: field.label || field.type,
+                  required: field.required,
+                  positionX: field.x,
+                  positionY: field.y,
+                  width: field.width,
+                  height: field.height,
+                  order: signatureFields.length + 1,
+                });
+              }
+            }
+            // Delete fields that were removed
+            const fieldIds = new Set(fields.map((f) => f.id));
+            for (const existingField of signatureFields) {
+              if (!fieldIds.has(existingField.id)) {
+                await handleFieldDelete(existingField.id);
+              }
+            }
+          }}
+        />
       )}
     </div>
   );
