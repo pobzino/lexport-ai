@@ -67,11 +67,17 @@ Available jurisdictions:
 ${JURISDICTION_DESCRIPTIONS}
 
 Required fields per contract type:
-- NDA (mutual/one_way): parties (names, emails), purpose, effective date, confidentiality period
-- Independent Contractor: client, contractor, services description, payment amount, payment frequency
-- Consulting Agreement: client, consultant, consulting scope, hourly rate or retainer
-- SAFE Note: company, investor, investment amount, valuation cap or discount (US only - not available for UK)
-- Freelance Service: client, freelancer, project name, description, total amount
+- NDA (mutual/one_way): parties (names, emails), purpose, effectiveDate, confidentialityPeriod (years)
+- Independent Contractor: clientName, contractorName, servicesDescription, paymentAmount (number), paymentFrequency (hourly|monthly|project|milestone), duration (e.g. "4 months")
+- Consulting Agreement: clientName, consultantName, consultingScope, hourlyRate or retainerAmount
+- SAFE Note: companyName, investorName, investmentAmount, valuationCap or discountRate (US only)
+- Freelance Service: clientName, freelancerName, projectName, projectDescription, totalAmount
+
+IMPORTANT field naming conventions:
+- paymentAmount: Always a NUMBER (e.g., 25000 not "$25,000")
+- paymentFrequency: Must be one of: "hourly", "daily", "weekly", "monthly", "project", "milestone"
+- duration: The contract length as a string (e.g., "4 months", "1 year")
+- Do NOT confuse duration with paymentFrequency
 
 Respond with a JSON object matching this structure:
 {
