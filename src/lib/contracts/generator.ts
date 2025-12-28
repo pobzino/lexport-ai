@@ -1,8 +1,10 @@
 /**
- * Contract Generator using OpenAI GPT
+ * Contract Generator using OpenAI GPT-5-mini
  *
- * Uses OpenAI's function calling for structured outputs to generate
- * consistent, clause-based contracts.
+ * Uses manifest-based dynamic prompts for optimal quality/cost balance.
+ * Manifests are generated from GPT-5.2 to ensure clause completeness.
+ *
+ * Cost: ~$0.009 per contract (vs $0.072 with GPT-5.2)
  */
 
 import OpenAI from "openai";
@@ -14,6 +16,9 @@ import {
   CONTRACT_TYPES,
   JURISDICTION_NAMES,
 } from "./schemas";
+
+// Import clause manifests (generated from GPT-5.2)
+import californiaManifests from "./manifests/california.json";
 
 // Lazy initialization of OpenAI client to prevent build-time errors
 let openaiClient: OpenAI | null = null;
@@ -28,8 +33,55 @@ function getOpenAI(): OpenAI {
   return openaiClient;
 }
 
-// Model to use - GPT-4o is the latest with best function calling
-const MODEL = "gpt-4o";
+// Models
+const GENERATION_MODEL = "gpt-5-mini"; // Fast, cost-effective for generation
+const REASONING_EFFORT = "low"; // Low effort is sufficient with manifest guidance
+const CHAT_MODEL = "gpt-4o"; // Keep GPT-4o for chat/explanations
+
+// Map contract types to manifest keys
+const MANIFEST_KEY_MAP: Record<ContractType, string> = {
+  nda_mutual: "nda_mutual",
+  nda_one_way: "nda_oneway",
+  independent_contractor: "contractor_agreement",
+  consulting_agreement: "consulting_agreement",
+  safe_note: "safe_note",
+  freelance_service: "service_agreement",
+};
+
+// Type for manifest structure
+interface ClauseManifest {
+  contractType: string;
+  contractName: string;
+  jurisdiction: string;
+  requiredClauses: Array<{
+    title: string;
+    type: string;
+    keyProvisions: string[];
+  }>;
+  commonClauses: Array<{
+    title: string;
+    type: string;
+    keyProvisions: string[];
+  }>;
+  optionalClauses?: Array<{
+    title: string;
+    type: string;
+    keyProvisions: string[];
+  }>;
+}
+
+// Get manifest for contract type
+function getManifest(contractType: ContractType, jurisdiction: Jurisdiction): ClauseManifest | null {
+  // Currently only California manifests are available
+  if (!jurisdiction.startsWith("us_california") && jurisdiction !== "us_california") {
+    // Fall back to California for now, but could load jurisdiction-specific manifests
+  }
+
+  const manifestKey = MANIFEST_KEY_MAP[contractType];
+  const manifests = californiaManifests as Record<string, ClauseManifest>;
+
+  return manifests[manifestKey] || null;
+}
 
 // ============================================================================
 // Function Definitions for Structured Output
@@ -88,7 +140,23 @@ const generateContractFunction: OpenAI.Chat.Completions.ChatCompletionTool = {
         },
         signatureBlock: {
           type: "string",
-          description: "Signature block with spaces for all parties to sign",
+          description: `Professional signature block formatted consistently for all parties. Each party section must include:
+1. A role header (e.g., "CLIENT:", "CONTRACTOR:", "INVESTOR:", "COMPANY:")
+2. A signature line with "Signature: ____________________"
+3. A printed name line: "Printed Name: [Full Name]"
+4. A title line if applicable: "Title: [Job Title]"
+5. A date line: "Date: ____________________"
+6. Company name if applicable
+
+Format example:
+CLIENT:
+Signature: ____________________
+Printed Name: John Smith
+Title: Chief Executive Officer
+Company: Acme Corp
+Date: ____________________
+
+Use consistent formatting for ALL parties with clear visual separation between each.`,
         },
       },
       required: ["title", "preamble", "recitals", "clauses", "signatureBlock"],
@@ -186,7 +254,12 @@ When generating contracts:
 - Add proper definitions for key terms
 - Include appropriate governing law and dispute resolution clauses
 - Format with proper section numbering (1., 1.1, 1.2, etc.)
-- Make the signature block appropriate for the parties involved
+
+SIGNATURE BLOCK REQUIREMENTS:
+- Create a professional signature block with CONSISTENT formatting for ALL parties
+- Each party section must include: role header (e.g., "CLIENT:"), signature line, printed name, title (if provided), company name (if applicable), and date line
+- Use clear visual separation between each party's signature section
+- Include any provided job titles or roles in the signature block
 
 Always use the generate_contract function to return the structured output.`;
 }
@@ -258,7 +331,7 @@ Use the explain_clause function to return your explanation.`;
 }
 
 // ============================================================================
-// Contract Generation
+// Contract Generation (using GPT-5-mini with manifest-based prompts)
 // ============================================================================
 
 export interface GeneratedContract {
@@ -276,37 +349,32 @@ export async function generateContract(
   const typeDefinition = CONTRACT_TYPES[contractType];
   const jurisdiction = metadata.jurisdiction;
 
-  // Build the user prompt with all the metadata
-  const userPrompt = buildGenerationPrompt(contractType, metadata, typeDefinition);
+  // Get manifest for this contract type
+  const manifest = getManifest(contractType, jurisdiction);
 
-  const response = await getOpenAI().chat.completions.create({
-    model: MODEL,
-    max_tokens: 8000,
-    messages: [
-      {
-        role: "system",
-        content: getGenerationSystemPrompt(jurisdiction),
-      },
-      {
-        role: "user",
-        content: userPrompt,
-      },
+  // Build the prompt with manifest guidance
+  const developerPrompt = buildDeveloperPrompt(jurisdiction, manifest);
+  const userPrompt = buildManifestBasedPrompt(contractType, metadata, typeDefinition, manifest);
+
+  // Use GPT-5-mini with Responses API for cost-effective generation
+  const response = await (getOpenAI() as any).responses.create({
+    model: GENERATION_MODEL,
+    reasoning: { effort: REASONING_EFFORT },
+    input: [
+      { role: "developer", content: developerPrompt },
+      { role: "user", content: userPrompt },
     ],
-    tools: [generateContractFunction],
-    tool_choice: { type: "function", function: { name: "generate_contract" } },
   });
 
-  // Extract the function call response
-  const toolCall = response.choices[0]?.message?.tool_calls?.[0] as {
-    type: "function";
-    function: { name: string; arguments: string };
-  } | undefined;
+  const content = response.output_text || "";
 
-  if (!toolCall || toolCall.function.name !== "generate_contract") {
-    throw new Error("Failed to generate contract: No function response");
+  // Parse JSON from response
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error("Failed to generate contract: No JSON in response");
   }
 
-  const input = JSON.parse(toolCall.function.arguments) as {
+  const input = JSON.parse(jsonMatch[0]) as {
     title: string;
     preamble: string;
     recitals: string;
@@ -321,8 +389,12 @@ export async function generateContract(
   };
 
   // Map to our Clause type with defaults
-  const clauses: Clause[] = input.clauses.map((c) => ({
-    ...c,
+  const clauses: Clause[] = input.clauses.map((c, index) => ({
+    id: c.id || `clause_${index + 1}`,
+    title: c.title,
+    content: c.content,
+    type: c.type || "standard",
+    order: c.order || index + 1,
     isEdited: false,
   }));
 
@@ -333,6 +405,76 @@ export async function generateContract(
     clauses,
     signatureBlock: input.signatureBlock,
   };
+}
+
+// Build developer prompt with manifest guidance
+function buildDeveloperPrompt(jurisdiction: Jurisdiction, manifest: ClauseManifest | null): string {
+  const jurisdictionName = JURISDICTION_NAMES[jurisdiction];
+
+  let prompt = `You are a legal contract generator for ${jurisdictionName} law.
+
+FORMATTING REQUIREMENTS:
+1. Use numbered subsections throughout (1.1, 1.2, 2.1, etc.)
+2. Include a Definitions section for key terms
+3. Use professional signature block with "By:" line format
+4. All clauses must be appropriate for the specific contract type
+5. For optional fields not provided, use placeholder format: _____ (5 underscores) that users can fill in later`;
+
+  if (manifest) {
+    const requiredList = manifest.requiredClauses
+      .slice(0, 6)
+      .map((c) => {
+        const provisions = c.keyProvisions?.slice(0, 2).join(", ") || "";
+        return `- ${c.title}${provisions ? ` (include: ${provisions})` : ""}`;
+      })
+      .join("\n");
+
+    const commonList = manifest.commonClauses
+      .slice(0, 6)
+      .map((c) => `- ${c.title}`)
+      .join("\n");
+
+    prompt += `
+
+REQUIRED CLAUSES (must include):
+${requiredList}
+
+RECOMMENDED CLAUSES (include if relevant):
+${commonList}
+
+You may add other appropriate clauses as needed.`;
+  }
+
+  prompt += `
+
+Output as JSON:
+{
+  "title": "string",
+  "preamble": "string",
+  "recitals": "string",
+  "clauses": [{"id": "string", "title": "string", "content": "string", "type": "standard|negotiable|optional", "order": number}],
+  "signatureBlock": "string"
+}`;
+
+  return prompt;
+}
+
+// Build user prompt with contract details
+function buildManifestBasedPrompt(
+  contractType: ContractType,
+  metadata: ContractMetadata,
+  typeDefinition: (typeof CONTRACT_TYPES)[ContractType],
+  manifest: ClauseManifest | null
+): string {
+  const metadataSummary = formatMetadataForPrompt(contractType, metadata);
+  const contractName = manifest?.contractName || typeDefinition.name;
+
+  return `Generate a ${contractName} for ${JURISDICTION_NAMES[metadata.jurisdiction]}.
+
+CONTRACT DETAILS:
+${metadataSummary}
+
+Return only valid JSON.`;
 }
 
 function buildGenerationPrompt(
@@ -377,8 +519,8 @@ function formatMetadataForPrompt(
     case "nda_one_way": {
       const m = metadata as import("./schemas").NDAMetadata;
       return `
-- Disclosing Party: ${m.disclosingParty.name}${m.disclosingParty.company ? ` (${m.disclosingParty.company})` : ""}
-- Receiving Party: ${m.receivingParty.name}${m.receivingParty.company ? ` (${m.receivingParty.company})` : ""}
+- Disclosing Party: ${m.disclosingParty.name}${m.disclosingParty.title ? `, ${m.disclosingParty.title}` : ""}${m.disclosingParty.company ? ` of ${m.disclosingParty.company}` : ""}
+- Receiving Party: ${m.receivingParty.name}${m.receivingParty.title ? `, ${m.receivingParty.title}` : ""}${m.receivingParty.company ? ` of ${m.receivingParty.company}` : ""}
 - Effective Date: ${m.effectiveDate}
 - Purpose: ${m.purpose}
 - Confidentiality Period: ${m.confidentialityPeriod} years
@@ -390,8 +532,8 @@ ${m.geographicScope ? `- Geographic Scope: ${m.geographicScope}` : ""}`;
     case "independent_contractor": {
       const m = metadata as import("./schemas").ContractorMetadata;
       return `
-- Client: ${m.client.name}${m.client.company ? ` (${m.client.company})` : ""}
-- Contractor: ${m.contractor.name}${m.contractor.company ? ` (${m.contractor.company})` : ""}
+- Client: ${m.client.name}${m.client.title ? `, ${m.client.title}` : ""}${m.client.company ? ` of ${m.client.company}` : ""}
+- Contractor: ${m.contractor.name}${m.contractor.title ? `, ${m.contractor.title}` : ""}${m.contractor.company ? ` of ${m.contractor.company}` : ""}
 - Effective Date: ${m.effectiveDate}
 ${m.endDate ? `- End Date: ${m.endDate}` : "- Ongoing engagement"}
 - Services: ${m.servicesDescription}
@@ -405,8 +547,8 @@ ${m.includeConfidentiality ? "- Include Confidentiality clause" : ""}`;
     case "consulting_agreement": {
       const m = metadata as import("./schemas").ConsultingMetadata;
       return `
-- Client: ${m.client.name}${m.client.company ? ` (${m.client.company})` : ""}
-- Consultant: ${m.consultant.name}${m.consultant.company ? ` (${m.consultant.company})` : ""}
+- Client: ${m.client.name}${m.client.title ? `, ${m.client.title}` : ""}${m.client.company ? ` of ${m.client.company}` : ""}
+- Consultant: ${m.consultant.name}${m.consultant.title ? `, ${m.consultant.title}` : ""}${m.consultant.company ? ` of ${m.consultant.company}` : ""}
 - Effective Date: ${m.effectiveDate}
 ${m.endDate ? `- End Date: ${m.endDate}` : "- Ongoing engagement"}
 - Scope: ${m.consultingScope}
@@ -421,8 +563,8 @@ ${m.includeNonCompete ? `- Include Non-Compete (${m.nonCompetePeriod} months)` :
     case "safe_note": {
       const m = metadata as import("./schemas").SAFEMetadata;
       return `
-- Company: ${m.company.name}
-- Investor: ${m.investor.name}
+- Company: ${m.company.name}${m.company.title ? ` (signer: ${m.company.title})` : ""}
+- Investor: ${m.investor.name}${m.investor.title ? `, ${m.investor.title}` : ""}${m.investor.company ? ` of ${m.investor.company}` : ""}
 - Investment Amount: $${m.investmentAmount.toLocaleString()}
 - SAFE Type: ${m.safeType.replace(/_/g, " ")}
 ${m.valuationCap ? `- Valuation Cap: $${m.valuationCap.toLocaleString()}` : ""}
@@ -437,14 +579,14 @@ ${m.discountRate ? `- Discount Rate: ${m.discountRate}%` : ""}
         .map((d) => `  - ${d.description}${d.dueDate ? ` (due: ${d.dueDate})` : ""}${d.amount ? ` - $${d.amount}` : ""}`)
         .join("\n");
       return `
-- Client: ${m.client.name}${m.client.company ? ` (${m.client.company})` : ""}
-- Freelancer: ${m.freelancer.name}${m.freelancer.company ? ` (${m.freelancer.company})` : ""}
+- Client: ${m.client.name}${m.client.title ? `, ${m.client.title}` : ""}${m.client.company ? ` of ${m.client.company}` : ""}
+- Freelancer: ${m.freelancer.name}${m.freelancer.title ? `, ${m.freelancer.title}` : ""}${m.freelancer.company ? ` of ${m.freelancer.company}` : ""}
 - Project: ${m.projectName}
 - Description: ${m.projectDescription}
 - Total Amount: $${m.totalAmount}
 ${m.depositAmount ? `- Deposit: $${m.depositAmount}` : ""}
 - Payment Schedule: ${m.paymentSchedule}
-- Revision Rounds: ${m.revisionRounds}
+- Revision Rounds: ${m.revisionRounds === -1 ? "Unlimited" : m.revisionRounds}
 - Effective Date: ${m.effectiveDate}
 ${m.deadline ? `- Deadline: ${m.deadline}` : ""}
 - Deliverables:
@@ -473,8 +615,8 @@ export async function modifyClause(
   contractContext: string
 ): Promise<ClauseModification> {
   const response = await getOpenAI().chat.completions.create({
-    model: MODEL,
-    max_tokens: 2000,
+    model: CHAT_MODEL,
+    max_completion_tokens: 2000,
     messages: [
       {
         role: "system",
@@ -529,8 +671,8 @@ export async function explainClause(
   contractType: string
 ): Promise<ClauseExplanation> {
   const response = await getOpenAI().chat.completions.create({
-    model: MODEL,
-    max_tokens: 1500,
+    model: CHAT_MODEL,
+    max_completion_tokens: 1500,
     messages: [
       {
         role: "system",
@@ -595,8 +737,8 @@ ${contractContext.clauses.map((c) => `- ${c.title}`).join("\n")}
 Be helpful, accurate, and when suggesting changes, always explain the implications. If asked to make specific changes, provide the exact new wording.`;
 
   const response = await getOpenAI().chat.completions.create({
-    model: MODEL,
-    max_tokens: 2000,
+    model: CHAT_MODEL,
+    max_completion_tokens: 2000,
     messages: [
       {
         role: "system",
