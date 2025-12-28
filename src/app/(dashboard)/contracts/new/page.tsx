@@ -45,10 +45,31 @@ import type { Template } from "@/db/types";
 
 // Step indicators
 const STEPS = [
-  { id: 1, name: "Contract Type", description: "Choose your contract" },
+  { id: 1, name: "Describe", description: "Tell us what you need" },
   { id: 2, name: "Details", description: "Enter the specifics" },
   { id: 3, name: "Review", description: "Generate with AI" },
 ];
+
+// Intake analysis result type
+interface IntakeAnalysis {
+  suggestedType: string;
+  confidence: number;
+  contractTypeName: string;
+  contractTypeDescription: string;
+  contractTypeIcon: string;
+  jurisdiction: string | null;
+  jurisdictionName: string | null;
+  availableJurisdictions: { id: string; name: string }[];
+  extractedFields: Record<string, string | number | boolean>;
+  followUpQuestions: {
+    field: string;
+    question: string;
+    type: "text" | "select" | "number" | "date";
+    options?: string[];
+    required: boolean;
+  }[];
+  reasoning: string;
+}
 
 // Icon mapping
 const CONTRACT_ICONS: Record<string, typeof Shield> = {
@@ -65,12 +86,18 @@ export default function NewContractPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Creation mode state - default to template
-  const [creationMode, setCreationMode] = useState<"generate" | "template">("template");
+  // Creation mode state - default to smart intake
+  const [creationMode, setCreationMode] = useState<"smart" | "manual" | "template">("smart");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [templateSearch, setTemplateSearch] = useState("");
   const [isUsingTemplate, setIsUsingTemplate] = useState(false);
+
+  // Smart intake state
+  const [intakeDescription, setIntakeDescription] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [intakeAnalysis, setIntakeAnalysis] = useState<IntakeAnalysis | null>(null);
+  const [followUpAnswers, setFollowUpAnswers] = useState<Record<string, string>>({});
 
   // Placeholder modal state for system templates
   const [selectedTemplate, setSelectedTemplate] = useState<(Template & { content?: { placeholders?: Placeholder[] } }) | null>(null);
@@ -111,6 +138,73 @@ export default function NewContractPage() {
   const handleTypeSelect = (type: ContractType) => {
     setSelectedType(type);
     setFormData({}); // Reset form data when type changes
+  };
+
+  // Smart intake analysis
+  const handleAnalyzeIntake = async () => {
+    if (!intakeDescription.trim() || intakeDescription.length < 10) {
+      setError("Please describe what you need in more detail (at least 10 characters)");
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/contracts/intake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: intakeDescription }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to analyze your request");
+      }
+
+      const data = await response.json();
+      setIntakeAnalysis(data.analysis);
+
+      // Pre-select the suggested type and jurisdiction
+      setSelectedType(data.analysis.suggestedType as ContractType);
+      if (data.analysis.jurisdiction) {
+        setJurisdiction(data.analysis.jurisdiction as Jurisdiction);
+      }
+
+      // Pre-fill extracted fields into form data
+      if (data.analysis.extractedFields) {
+        setFormData(prev => ({ ...prev, ...data.analysis.extractedFields }));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Confirm intake analysis and proceed
+  const handleConfirmIntake = () => {
+    if (!intakeAnalysis || !selectedType) return;
+
+    // Merge follow-up answers into form data
+    const updatedFormData = { ...formData };
+    for (const [field, value] of Object.entries(followUpAnswers)) {
+      if (value) {
+        updatedFormData[field] = value;
+      }
+    }
+    setFormData(updatedFormData);
+
+    // Proceed to details step
+    setStep(2);
+  };
+
+  // Reset intake to try again
+  const handleResetIntake = () => {
+    setIntakeAnalysis(null);
+    setFollowUpAnswers({});
+    setSelectedType(null);
+    setFormData({});
   };
 
   const handleNext = () => {
@@ -320,19 +414,23 @@ export default function NewContractPage() {
 
       {/* Main Content */}
       <main className="max-w-5xl mx-auto px-4 py-8">
-        {/* Step 1: Choose Contract Type */}
+        {/* Step 1: Smart Intake / Choose Contract Type */}
         {step === 1 && (
           <div className="space-y-6">
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold text-slate-900">
-                {creationMode === "generate"
-                  ? "What type of contract do you need?"
-                  : "Choose a template to start"}
+                {creationMode === "smart"
+                  ? "What kind of agreement do you need?"
+                  : creationMode === "manual"
+                    ? "Select a contract type"
+                    : "Choose a template to start"}
               </h2>
               <p className="text-slate-600 mt-2">
-                {creationMode === "generate"
-                  ? "Select a contract type to get started. Our AI will generate a customized contract for you."
-                  : "Start from a saved template and customize it for your needs."}
+                {creationMode === "smart"
+                  ? "Describe your situation and we'll create the perfect contract for you."
+                  : creationMode === "manual"
+                    ? "Pick from our standard contract types."
+                    : "Start from a saved template and customize it for your needs."}
               </p>
             </div>
 
@@ -340,15 +438,26 @@ export default function NewContractPage() {
             <div className="flex justify-center mb-6">
               <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
                 <button
-                  onClick={() => setCreationMode("generate")}
+                  onClick={() => { setCreationMode("smart"); handleResetIntake(); }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                    creationMode === "generate"
+                    creationMode === "smart"
                       ? "bg-violet-100 text-violet-700"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
                   <Sparkles className="w-4 h-4" />
-                  Generate New
+                  Describe Need
+                </button>
+                <button
+                  onClick={() => { setCreationMode("manual"); handleResetIntake(); }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    creationMode === "manual"
+                      ? "bg-violet-100 text-violet-700"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Briefcase className="w-4 h-4" />
+                  Pick Type
                 </button>
                 <button
                   onClick={() => setCreationMode("template")}
@@ -364,8 +473,224 @@ export default function NewContractPage() {
               </div>
             </div>
 
-            {/* Generate Mode - Contract Type Selection */}
-            {creationMode === "generate" && (
+            {/* Error Display */}
+            {error && step === 1 && (
+              <div className="max-w-2xl mx-auto mb-6">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 flex items-start gap-3">
+                  <X className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium">Error</p>
+                    <p className="text-sm">{error}</p>
+                  </div>
+                  <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Smart Intake Mode */}
+            {creationMode === "smart" && !intakeAnalysis && (
+              <div className="max-w-2xl mx-auto">
+                <div className="bg-white rounded-xl border border-slate-200 p-6">
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-violet-100 to-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Sparkles className="w-6 h-6 text-violet-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-slate-900">Describe what you need</h3>
+                      <p className="text-sm text-slate-500 mt-1">
+                        Tell us about your situation in plain English. Include details like who&apos;s involved,
+                        what work is being done, payment amounts, and location.
+                      </p>
+                    </div>
+                  </div>
+
+                  <textarea
+                    value={intakeDescription}
+                    onChange={(e) => setIntakeDescription(e.target.value)}
+                    placeholder="Example: I'm hiring a freelance designer in California for a 3-month project to redesign our company website. The total budget is $15,000 with a 30% deposit upfront..."
+                    rows={5}
+                    className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 resize-none text-slate-900 placeholder:text-slate-400"
+                    disabled={isAnalyzing}
+                  />
+
+                  <div className="flex items-center justify-between mt-4">
+                    <p className="text-sm text-slate-500">
+                      {intakeDescription.length} characters
+                      {intakeDescription.length < 10 && intakeDescription.length > 0 && (
+                        <span className="text-amber-600 ml-2">(minimum 10)</span>
+                      )}
+                    </p>
+                    <button
+                      onClick={handleAnalyzeIntake}
+                      disabled={isAnalyzing || intakeDescription.length < 10}
+                      className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isAnalyzing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          Analyze & Continue
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Example prompts */}
+                <div className="mt-6">
+                  <p className="text-sm text-slate-500 mb-3 text-center">Or try an example:</p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {[
+                      "I need an NDA to share confidential business plans with a potential investor",
+                      "Hiring a contractor to build a mobile app for $25,000 over 4 months",
+                      "Need a consulting agreement for advisory services at $200/hour",
+                    ].map((example, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setIntakeDescription(example)}
+                        className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors"
+                      >
+                        {example.length > 50 ? example.substring(0, 50) + "..." : example}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Smart Intake Analysis Result */}
+            {creationMode === "smart" && intakeAnalysis && (
+              <div className="max-w-2xl mx-auto space-y-6">
+                {/* Suggested Contract Type */}
+                <div className="bg-white rounded-xl border-2 border-violet-200 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-violet-100 rounded-xl flex items-center justify-center">
+                        {(() => {
+                          const Icon = CONTRACT_ICONS[intakeAnalysis.contractTypeIcon] || Shield;
+                          return <Icon className="w-6 h-6 text-violet-600" />;
+                        })()}
+                      </div>
+                      <div>
+                        <p className="text-sm text-violet-600 font-medium">Recommended Contract</p>
+                        <h3 className="text-xl font-bold text-slate-900">{intakeAnalysis.contractTypeName}</h3>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        intakeAnalysis.confidence >= 80
+                          ? "bg-emerald-100 text-emerald-700"
+                          : intakeAnalysis.confidence >= 60
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-slate-100 text-slate-600"
+                      }`}>
+                        {intakeAnalysis.confidence}% match
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-slate-600 mb-4">{intakeAnalysis.reasoning}</p>
+
+                  {/* Jurisdiction */}
+                  <div className="flex items-center gap-2 text-sm text-slate-500 mb-4">
+                    <span className="font-medium">Jurisdiction:</span>
+                    <select
+                      value={jurisdiction}
+                      onChange={(e) => setJurisdiction(e.target.value as Jurisdiction)}
+                      className="px-2 py-1 border border-slate-200 rounded text-slate-700 bg-white"
+                    >
+                      {intakeAnalysis.availableJurisdictions.map((j) => (
+                        <option key={j.id} value={j.id}>{j.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Extracted Details */}
+                  {Object.keys(intakeAnalysis.extractedFields).length > 0 && (
+                    <div className="bg-slate-50 rounded-lg p-4 mb-4">
+                      <p className="text-sm font-medium text-slate-700 mb-2">Details I found:</p>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        {Object.entries(intakeAnalysis.extractedFields).map(([key, value]) => (
+                          <div key={key} className="flex gap-2">
+                            <span className="text-slate-500">{formatFieldLabel(key)}:</span>
+                            <span className="text-slate-900 font-medium">{String(value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Follow-up Questions */}
+                  {intakeAnalysis.followUpQuestions.length > 0 && (
+                    <div className="border-t border-slate-200 pt-4 mt-4">
+                      <p className="text-sm font-medium text-slate-700 mb-3">A few quick questions:</p>
+                      <div className="space-y-3">
+                        {intakeAnalysis.followUpQuestions.map((q) => (
+                          <div key={q.field}>
+                            <label className="block text-sm text-slate-600 mb-1">
+                              {q.question}
+                              {q.required && <span className="text-red-500 ml-1">*</span>}
+                            </label>
+                            {q.type === "select" && q.options ? (
+                              <select
+                                value={followUpAnswers[q.field] || ""}
+                                onChange={(e) => setFollowUpAnswers(prev => ({ ...prev, [q.field]: e.target.value }))}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 bg-white"
+                              >
+                                <option value="">Select...</option>
+                                {q.options.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type={q.type === "number" ? "number" : q.type === "date" ? "date" : "text"}
+                                value={followUpAnswers[q.field] || ""}
+                                onChange={(e) => setFollowUpAnswers(prev => ({ ...prev, [q.field]: e.target.value }))}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-200">
+                    <button
+                      onClick={handleResetIntake}
+                      className="text-sm text-slate-500 hover:text-slate-700"
+                    >
+                      ← Start over
+                    </button>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setCreationMode("manual")}
+                        className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+                      >
+                        Pick different type
+                      </button>
+                      <button
+                        onClick={handleConfirmIntake}
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+                      >
+                        Continue
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Manual Mode - Contract Type Selection */}
+            {creationMode === "manual" && (
               <>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {Object.values(CONTRACT_TYPES).map((type) => {
@@ -469,7 +794,7 @@ export default function NewContractPage() {
                         : "Create contracts and save them as templates to reuse later."}
                     </p>
                     <button
-                      onClick={() => setCreationMode("generate")}
+                      onClick={() => setCreationMode("smart")}
                       className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-violet-600 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors"
                     >
                       <Sparkles className="w-4 h-4" />
@@ -565,8 +890,8 @@ export default function NewContractPage() {
               </div>
             )}
 
-            {/* Jurisdiction Selection - Only in Generate Mode */}
-            {creationMode === "generate" && (
+            {/* Jurisdiction Selection - Only in Manual Mode */}
+            {creationMode === "manual" && (
               <div className="bg-white rounded-xl border border-slate-200 p-6 mt-8">
                 <h3 className="font-semibold text-slate-900 mb-4">
                   Jurisdiction
@@ -920,8 +1245,8 @@ export default function NewContractPage() {
           </div>
         )}
 
-        {/* Navigation Buttons - Hide on step 1 in template mode */}
-        {!(step === 1 && creationMode === "template") && (
+        {/* Navigation Buttons - Hide on step 1 in template/smart mode */}
+        {!(step === 1 && (creationMode === "template" || creationMode === "smart")) && (
           <div className="flex justify-between mt-8 pt-6 border-t border-slate-200">
             <button
               onClick={handleBack}
