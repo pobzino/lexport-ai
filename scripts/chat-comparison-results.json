@@ -1,0 +1,191 @@
+{
+  "sonnet-4": {
+    "scenarios": {
+      "explain_clause": {
+        "name": "Explain a Clause",
+        "response": "I notice that while you've provided context about your Mutual NDA, you haven't shared the specific indemnification clause text. However, I can explain what indemnification clauses typically mean in NDAs:\n\n**In simple terms:**\nAn indemnification clause is like an \"I'll cover you\" promise. It means if one party gets sued or faces legal costs because of something the other party did wrong related to the confidential information, the party who caused the problem will pay for the legal defense and any damages.\n\n**Common examples in NDAs:**\n- If TechStart shares confidential info that violates someone else's rights, TechStart would cover InnovateCo's legal costs\n- If InnovateCo misuses TechStart's confidential information and gets them both sued, InnovateCo would handle the legal expenses\n\n**Why it matters:**\nIt protects each party from being financially responsible for the other party's mistakes with confidential information.\n\nCould you share the actual indemnification language from your contract? That way I can explain exactly what your specific clause says and whether it's balanced fairly between both parties.",
+        "timing": 7374,
+        "tokens": 377,
+        "evaluation": {
+          "score": 100,
+          "notes": []
+        }
+      },
+      "modification_request": {
+        "name": "Modification Request",
+        "response": "**Consider these factors before agreeing:**\n\n**Reasons to be cautious:**\n- 1 year may be too short if you're sharing sensitive business information, trade secrets, or long-term strategic plans\n- If your confidential info has lasting competitive value, you need longer protection\n- Consider your industry's typical development/product cycles\n\n**When 1 year might be acceptable:**\n- The information you're sharing loses value quickly\n- It's mainly for a short-term project or evaluation\n- The other party's information is similarly time-sensitive\n\n**Middle-ground options:**\n- **Tiered approach**: Different periods for different types of info (e.g., 1 year for general business info, 3 years for technical data)\n- **Compromise at 2 years**\n- **Event-based expiration**: Until the information becomes public or the business relationship ends\n\n**Bottom line:** Only agree if 1 year genuinely protects your interests. If your confidential information could still provide competitive advantage after 1 year, push back. The standard 3-5 years exists because most business information retains value longer than 1 year.\n\nWhat type of information will you be sharing? That can help determine if 1 year is sufficient.",
+        "timing": 9134,
+        "tokens": 419,
+        "evaluation": {
+          "score": 100,
+          "notes": []
+        }
+      },
+      "legal_risk": {
+        "name": "Legal Risk Question",
+        "response": "Based on your Mutual NDA, if they accidentally share your confidential information with a third party, here's what typically happens:\n\n**Immediate Consequences:**\n- They've breached the NDA, even if unintentional\n- You can demand they immediately notify the third party that the information is confidential\n- They must take reasonable steps to retrieve or secure the information\n\n**Your Remedies:**\n- **Monetary damages** - You can sue for any financial losses caused by the disclosure\n- **Injunctive relief** - You can ask a court to stop further disclosure or misuse\n- **Attorney's fees** - Many NDAs allow you to recover legal costs if you win\n\n**Important Notes:**\n- \"Accidental\" doesn't excuse the breach - they're still liable\n- However, courts may consider it wasn't intentional when determining damages\n- The other party should have reasonable security measures in place to prevent accidents\n\n**Recommendation:**\nMake sure your NDA includes a clause requiring immediate notification if a breach occurs (accidental or otherwise) and specifies that they must take corrective action at their expense. This gives you faster response time and clearer remedies.\n\nWould you like me to review if your current NDA has adequate breach notification requirements?",
+        "timing": 8814,
+        "tokens": 403,
+        "evaluation": {
+          "score": 100,
+          "notes": []
+        }
+      },
+      "negotiation_advice": {
+        "name": "Negotiation Advice",
+        "response": "**Non-compete clauses are generally NOT enforceable in California.**\n\nCalifornia Business and Professions Code Section 16600 voids most non-compete agreements, even if signed in other states. California courts strongly favor employee mobility and competition.\n\n**Key points:**\n- California prohibits non-competes for employees and most contractors\n- This applies even if the other party (InnovateCo) is based elsewhere\n- Your current non-solicitation clause is separate and likely enforceable\n\n**My recommendation:** \nPush back on the non-compete addition. Instead, you could:\n1. Strengthen the existing confidentiality provisions\n2. Add more specific non-solicitation language\n3. Include a \"non-use of confidential information\" clause\n\n**Bottom line:** Adding a non-compete would likely be unenforceable and could create unnecessary legal complications. Focus on protecting legitimate business interests through confidentiality and non-solicitation terms instead.\n\nWould you like me to suggest specific alternative language that would be enforceable in California?",
+        "timing": 7032,
+        "tokens": 363,
+        "evaluation": {
+          "score": 100,
+          "notes": []
+        }
+      },
+      "quick_question": {
+        "name": "Quick Factual Question",
+        "response": "Based on the contract context you provided, this NDA expires **3 years** from the effective date of the agreement.\n\nHowever, I should note a few important points:\n\n1. **Effective date matters**: The 3-year period typically starts from when both parties signed the agreement, but I'd need to see the specific contract to confirm the exact start date.\n\n2. **Survival clauses**: Some NDAs include \"survival\" provisions where certain obligations (like returning confidential information) continue even after the main confidentiality period expires.\n\n3. **Information already disclosed**: The 3-year period usually applies to information shared during the NDA's active period, meaning information shared in year 2 would still be protected until year 5.\n\nTo give you a precise expiration date, I'd need to review the actual contract language and effective date. Would you like me to explain any other aspects of the confidentiality period?",
+        "timing": 6601,
+        "tokens": 322,
+        "evaluation": {
+          "score": 90,
+          "notes": [
+            "Over-explained simple question"
+          ]
+        }
+      }
+    },
+    "summary": {
+      "totalTime": 38955,
+      "totalTokens": 1884,
+      "avgScore": 98
+    }
+  },
+  "gpt-4.1-mini": {
+    "scenarios": {
+      "explain_clause": {
+        "name": "Explain a Clause",
+        "response": "Certainly! The indemnification clause means that one party agrees to protect the other party from certain losses or damages. In simple terms, if something goes wrong—like a legal claim or a financial loss—because of one party’s actions or mistakes, that party will cover the costs or compensate the other party. It’s like saying, \"If I cause a problem, I will take responsibility and fix it for you.\" This helps both parties feel safer doing business together.",
+        "timing": 1494,
+        "tokens": 215,
+        "evaluation": {
+          "score": 100,
+          "notes": []
+        }
+      },
+      "modification_request": {
+        "name": "Modification Request",
+        "response": "Reducing the confidentiality period from 3 years to 1 year means the other party only has to keep your information secret for 1 year after disclosure, instead of 3. \n\nConsider these points before agreeing:\n- **Protecting sensitive info:** If your shared info is valuable or could harm your business if leaked after 1 year, 3 years offers better protection.\n- **Industry norms:** In tech, longer confidentiality periods (2-5 years) are common due to ongoing innovation and competition.\n- **Your business timeline:** Think about how long your confidential info remains sensitive or competitive.\n\nIf you agree to 1 year, you reduce your protection window, which could increase risk. If you want to compromise, you might propose an intermediate period (e.g., 2 years) or tie the length to the nature of the information.\n\nIn summary, only agree to 1 year if you’re comfortable with the shorter protection or if the info becomes quickly outdated. Otherwise, keep the 3 years for stronger safeguards.",
+        "timing": 3776,
+        "tokens": 335,
+        "evaluation": {
+          "score": 100,
+          "notes": []
+        }
+      },
+      "legal_risk": {
+        "name": "Legal Risk Question",
+        "response": "If either party accidentally shares your confidential information with a third party, it typically constitutes a breach of the NDA. The agreement likely requires the party who disclosed the information to promptly notify the other party, take steps to recover or limit the spread of the information, and possibly face liability for damages.\n\nSince this NDA is mutual and governed by California law, the disclosing party could be held responsible for any harm caused by the accidental disclosure, and you may have the right to seek remedies such as injunctive relief or monetary damages.\n\nTo reduce risk, the contract might also require both parties to have reasonable safeguards to prevent accidental disclosures.\n\nIf you want, I can help you draft or suggest stronger protections or notification procedures for accidental disclosure.",
+        "timing": 2149,
+        "tokens": 265,
+        "evaluation": {
+          "score": 100,
+          "notes": []
+        }
+      },
+      "negotiation_advice": {
+        "name": "Negotiation Advice",
+        "response": "In California, non-compete clauses are generally unenforceable except in very limited situations (like sale of a business). The state law strongly favors employee mobility and free competition. Adding a non-compete clause to your Mutual NDA would likely be invalid and could cause legal issues.\n\nIf they want to protect their business interests, consider suggesting non-solicitation and confidentiality provisions instead, which are enforceable in California. You could also propose narrowly tailored clauses that protect trade secrets without broadly restricting competition.\n\nWould you like help drafting a compliant alternative clause?",
+        "timing": 2809,
+        "tokens": 233,
+        "evaluation": {
+          "score": 100,
+          "notes": []
+        }
+      },
+      "quick_question": {
+        "name": "Quick Factual Question",
+        "response": "This NDA’s confidentiality obligations last for 3 years from the date the agreement is signed or from the last disclosure of confidential information, depending on the contract wording. After this period, both parties are no longer legally bound to keep the disclosed information confidential under this agreement. Check the exact section titled \"Term\" or \"Duration\" to confirm how the 3-year period is calculated.",
+        "timing": 2606,
+        "tokens": 188,
+        "evaluation": {
+          "score": 100,
+          "notes": []
+        }
+      }
+    },
+    "summary": {
+      "totalTime": 12834,
+      "totalTokens": 1236,
+      "avgScore": 100
+    }
+  },
+  "gpt-5-mini": {
+    "scenarios": {
+      "explain_clause": {
+        "name": "Explain a Clause",
+        "response": "I don’t have the exact wording of your indemnification clause, but here’s a clear, practical explanation of what an indemnification clause in a mutual NDA typically means, and what to watch for or change in your TechStart ⇄ InnovateCo agreement.\n\nWhat “indemnify” usually means (plain English)\n- If one party (the “Indemnitor”) does something that causes a third party to sue the other party (the “Indemnitee”) or causes the Indemnitee to suffer a loss related to the NDA, the Indemnitor agrees to:\n  - Pay the Indemnitee’s financial losses (damages, settlements), and\n  - Often pay the Indemnitee’s reasonable legal costs to defend the claim.\n- Common triggers: breach of the NDA (e.g., leaking Confidential Information), misuse of the other party’s intellectual property, or negligent/wrongful acts by employees/contractors.\n\nWho typically owes what in a mutual NDA\n- Mutual: Each party promises to indemnify the other for claims caused by its own breach or wrongful acts. Example: If InnovateCo leaks TechStart’s confidential data and TechStart is sued by its customers, InnovateCo would cover TechStart’s costs and damages related to that leak.\n- It’s not insurance for general business losses — it’s narrowly tied to the party’s wrongdoing under the agreement.\n\nKey components to look for (and why they matter)\n- Scope of claims covered: Does it include breaches, IP infringement, negligence, willful misconduct? Narrower scope limits exposure; broader increases risk.\n- Defense and control of litigation: Who chooses lawyers and controls the defense or settlement? If the indemnitor controls defense, the indemnitee may lose control over settlement terms. If the indemnitee controls, the indemnitor may face high costs without input.\n- Duty to notify: The indemnitee should promptly notify the indemnitor of claims. Delay can be used to deny indemnity if it prejudices the indemnitor.\n- Settlement consent: Does the indemnitor need the indemnitee’s consent to settle? Usually, the indemnitee’s consent cannot be unreasonably withheld if settlement imposes obligations on them.\n- Mitigation and cooperation: Require the indemnitee to reasonably cooperate and mitigate losses.\n- Limitations and exclusions: Caps on liability, exclusions for indirect/consequential damages, and carve-outs for gross negligence or willful misconduct are common.\n- Survival: Does the indemnity survive termination/expiration of the NDA? Typically yes, for a set period or indefinitely for certain claims.\n\nSuggested, practical edits for your contract (implications included)\n- Add a notification requirement: “Indemnitee must promptly notify Indemnitor of any claim.” (Implication: Protects Indemnitor’s right to defend; unreasonable delay could be a defense.)\n- Clarify defense control: “Indemnitor has the right to assume defense with counsel reasonably acceptable to Indemnitee; Indemnitee may participate at its own expense.” (Implication: Balances control and protection.)\n- Require consent for settlements that admit wrongdoing or impose obligations: “Indemnitor may not settle without Indemnitee’s consent if settlement imposes obligations or admits liability.” (Implication: Prevents reputational or business harm from unwanted settlements.)\n- Limit indemnity to losses caused by breach or wrongful acts: “Indemnitor only indemnifies claims resulting from its breach, negligence, or willful misconduct.” (Implication: Narrows exposure.)\n- Add liability cap or carve-outs: E.g., cap indemnity at direct damages up to a defined amount (or exclude consequential damages), but carve out willful misconduct and IP indemnities from the cap. (Implication: Reduces unpredictable, catastrophic financial exposure while preserving protection for intentional or IP-related harms.)\n- State survival duration: “Indemnification obligations survive termination for [same as confidentiality — e.g., 3 years] or for claims arising from willful misconduct/intentional breaches, survive indefinitely.” (Implication: Clarifies how long protection lasts.)\n\nBottom line\n- The indemnification clause makes one party financially responsible for certain harms the other suffers because of that party’s actions (or failures).\n- For mutual NDAs, each side typically agrees to cover the other for its own breaches/misconduct.\n- You should clarify scope, control of defense, notice and settlement rules, any caps or exclusions, and how long the obligation lasts to manage risk.\n\nIf you paste the exact clause here, I can explain it line-by-line and suggest precise revision language tailored to TechStart and InnovateCo.",
+        "timing": 14256,
+        "tokens": 1199,
+        "evaluation": {
+          "score": 90,
+          "notes": [
+            "Too verbose"
+          ]
+        }
+      },
+      "modification_request": {
+        "name": "Modification Request",
+        "response": "Short answer: Probably not — unless the information you’ll share is short‑lived or purely transactional. Reducing the confidentiality period from 3 years to 1 year materially reduces your ongoing protection and is only reasonable in some circumstances.\n\nWhy it matters (plain English)\n- A 1‑year period means the other side only promises to keep your information confidential for one year after disclosure (or after the agreement ends, depending on wording). After that, they can use or disclose it freely.\n- If the information includes trade secrets or long‑term competitive advantages (roadmaps, customer lists, formulas, source code, pricing strategy), one year is often too short to prevent harm.\n- If the information is ephemeral (a short sales pitch, current pricing for a single bid, or a simple proposal) 1 year might be fine and is common in fast‑moving industries.\n\nPractical factors to weigh\n- Nature of the confidential information: trade secrets vs. non‑secret commercial info.\n- Business cycle: product development or sales cycles — how long would misuse harm you?\n- Relationship length: are you starting a long partnership where info will be reused later?\n- Enforcement: in California, trade secrets are protected beyond the NDA term (no fixed time limit), but you should explicitly treat trade secrets as excluded from the fixed period. Otherwise, a short NDA period could create ambiguity and weaken protection for non‑trade‑secret info.\n\nSuggested approaches\n1) Keep 3 years for general confidential info; allow a shorter period only for defined categories that are truly short‑lived.\n   - Example: “Confidentiality obligations shall survive for 3 years from the date of disclosure, except for Confidential Information that is transactional or inherently time‑limited, which shall survive for 1 year.”\n\n2) Carve out trade secrets\n   - “Notwithstanding the foregoing, Confidential Information that qualifies as a trade secret under applicable law shall remain subject to confidentiality protection for as long as it remains a trade secret.”\n\n3) Compromise: accept 2 years instead of 1 if they insist on shortening it — a middle ground that retains material protection.\n\n4) Add protective clauses regardless of term\n   - Require return/destruction of materials at end of term.\n   - Keep a clear definition of Confidential Information.\n   - Keep injunctive relief available for breaches.\n   - Maintain a non‑use clause (not just non‑disclosure).\n\nRecommended response you can propose to the other party\n- “We can consider shortening the term for certain short‑lived materials, but we need 3 years for general confidential information and an explicit carve‑out preserving protection for trade secrets. Alternatively, we can meet halfway at 2 years.”\n\nImplications of agreeing to 1 year\n- Lower legal protection for long‑term value information.\n- Greater risk a competitor (or ex‑partner) can use your knowledge after 1 year.\n- Could be acceptable if disclosures are limited, ephemeral, or you’re sharing only non‑strategic info.\n\nIf you tell me what type of information you’ll share (product roadmaps, source code, pricing, customer lists, marketing plans, etc.) and how long your commercial relationship is expected to last, I can draft specific language to propose to the other party.",
+        "timing": 11976,
+        "tokens": 989,
+        "evaluation": {
+          "score": 90,
+          "notes": [
+            "Too verbose"
+          ]
+        }
+      },
+      "legal_risk": {
+        "name": "Legal Risk Question",
+        "response": "If one party accidentally shares your confidential information with a third party, what happens depends on the specific NDA language — but under a typical Mutual NDA like yours (California law, 3‑year confidentiality period, plus non‑solicit), these are the common consequences and steps you should expect:\n\n1. Duty to notify\n- The recipient who made the accidental disclosure should be required to give you prompt written notice describing what was disclosed, when, to whom, and how the disclosure occurred. Prompt notice lets you take steps to limit harm.\n\n2. Mitigation and retrieval\n- The disclosing party should be required to use reasonable efforts to retrieve the information, stop further dissemination, and secure any copies held by the third party (for example, demand return or destruction and confirm in writing).\n\n3. Contracting with the third party\n- The recipient may need to obtain a written agreement from the third party to keep the information confidential and to return/destroy it — or, if allowed by the NDA, to treat that third party as bound by the same confidentiality obligations.\n\n4. Remedies and liability\n- Accidental disclosures typically still breach the NDA. Remedies can include:\n  - Injunctive relief (court order to stop further use/disclosure) — often available immediately because monetary damages may be inadequate.\n  - Monetary damages for actual harm caused by the disclosure.\n  - If the NDA includes liquidated damages or indemnity provisions, the disclosing party could owe a specified amount or indemnify you for losses.\n- Some NDAs distinguish between inadvertent and willful breaches and may limit liability for purely inadvertent disclosures; check your agreement for any such cap or standard (e.g., “reasonable care” vs. negligence).\n\n5. Exceptions that may excuse disclosure\n- If the disclosure falls within an express exception (public information not due to the recipient’s breach, information already known to the recipient, independently developed information, or compelled disclosure by law), the recipient may be excused — but they typically still must follow notice and cooperation procedures if disclosure is compelled by law.\n\n6. Cooperation on remedial steps\n- The NDA usually requires the recipient to cooperate with you in any legal action (e.g., obtaining an injunction) or communications necessary to protect the information.\n\nPractical next steps you can take now\n- Ask for immediate written notice from the party that disclosed the info (who, what, when).\n- Demand confirmation that they have (a) stopped further sharing, (b) asked the third party to return/destroy all copies, and (c) obtained a written confidentiality undertaking from the third party.\n- Consider seeking injunctive relief quickly if the potential harm is significant.\n- Document your losses and any remedial costs.\n\nSuggested contract improvements (if you want stronger protection)\n- Add an explicit prompt-notice requirement and clear timelines (e.g., notice within 5 business days).\n- Require the recipient to obtain written non‑disclosure and return/destruction obligations from any third party that received the information.\n- Require the recipient to use at least a defined standard of care (e.g., same degree of care it uses for its own similar confidential information).\n- Add a clause that accidental disclosures are treated as breaches and allow for injunctive relief without posting a bond.\n- Include an indemnity or liquidated damages provision for unauthorized disclosures to make recovery easier and deter carelessness.\n- Specify that contractual limitations of liability do not apply to breaches of confidentiality (if you want to preserve full remedies).\n\nIf you want, I can:\n- Review the specific wording of your NDA and point out exactly what it requires for accidental disclosures.\n- Draft a short notice template and a formal demand letter to send to the other party.",
+        "timing": 11647,
+        "tokens": 936,
+        "evaluation": {
+          "score": 90,
+          "notes": [
+            "Too verbose"
+          ]
+        }
+      },
+      "negotiation_advice": {
+        "name": "Negotiation Advice",
+        "response": "Short answer: Almost certainly not enforceable in California for ordinary employees. California law strongly disfavors non-compete clauses, so adding a general non-compete to this NDA is very risky and likely void.\n\nWhy: \n- California Business and Professions Code §16600 and court decisions (e.g., Edwards v. Arthur Andersen) make covenants that restrain someone from engaging in a lawful trade or profession unenforceable, with very narrow exceptions.\n- Valid exceptions are limited (for example, reasonable restrictions made in connection with the sale of a business or the dissolution of a partnership/LLC), not typical employer–employee non‑competes.\n- The fact this NDA is governed by California law makes the California rule especially important; courts will generally apply §16600 rather than enforce a non‑compete buried in an NDA.\n\nPractical alternatives (recommended):\n- Strengthen confidentiality and non‑use language: clearly prohibit use or disclosure of the other party’s trade secrets and confidential information; include remedies (injunctive relief).\n  Implication: Protects the information courts will enforce.\n- Include a tailored non‑solicit clause (e.g., no hiring or soliciting the other party’s employees or customers for a specified period).\n  Implication: Non‑solicit provisions are more likely to be upheld than broad non‑competes, but they must be narrowly drafted (limited duration, scope, and to legitimate business interests) because overly broad non‑solicit provisions can be treated as de facto non‑competes.\n- Add a sale-of-business carveout: if the clause is intended to protect a buyer of a business, draft a narrow non‑compete that applies only to the sellers and is limited in time/geography and tied to the sale.\n  Implication: This fits a recognized exception and is far more likely to be enforceable.\n- Consider a “garden leave” or liquidated-damages approach (paying the person during a restricted period) — still risky in CA and should be used carefully.\n\nSuggested language alternative (example you can propose instead of a non-compete):\n- Strong non‑use/non‑disclosure of Confidential Information and Trade Secrets;\n- Non‑solicit of the other party’s employees and direct customers for 12 months after termination (clearly define “customers” and geographic scope);\n- Sale-of-business exception: a narrow, time‑limited non‑compete only as to sellers in a bona fide sale of all/ substantially all assets.\n\nRecommendation:\n- Do not add a broad non‑compete to a California‑governed NDA. If you think you need one (e.g., sale of business), draft it narrowly and tie it to a legitimate exception. Have California counsel review the specific proposed language before including it.\n\nIf you want, I can draft a short replacement clause (narrow non‑solicit + stronger trade secret wording or a sale-of-business non‑compete) tailored to this NDA. Which approach do you prefer?",
+        "timing": 11435,
+        "tokens": 929,
+        "evaluation": {
+          "score": 90,
+          "notes": [
+            "Too verbose"
+          ]
+        }
+      },
+      "quick_question": {
+        "name": "Quick Factual Question",
+        "response": "Short answer: the confidentiality obligations in this NDA end three years after the relevant effective date/disclosure (i.e., the 3‑year confidentiality period). \n\nDetails and what to check:\n- Find the NDA’s effective date (often at top/signature block). The 3‑year clock normally runs from that effective date or from the date the particular Confidential Information was disclosed — check the exact wording.\n- Look for a “Survival” or “Term” clause. It may say the Agreement “terminates” on a specific date but that confidentiality obligations “survive” for 3 years after termination or disclosure.\n- Non‑solicitation: many NDAs treat non‑solicitations separately. If this NDA includes a non‑solicitation clause, check whether it also states a duration for that restriction (it may be the same 3 years or a different period). Non‑solicitations may be enforceable for a limited time under California law but are subject to reasonableness review.\n\nIf you want, paste the Term/Survival and Non‑Solicitation clauses and I’ll tell you exactly when each obligation ends and whether any wording risks ambiguity.",
+        "timing": 7284,
+        "tokens": 482,
+        "evaluation": {
+          "score": 90,
+          "notes": [
+            "Over-explained simple question"
+          ]
+        }
+      }
+    },
+    "summary": {
+      "totalTime": 56598,
+      "totalTokens": 4535,
+      "avgScore": 90
+    }
+  }
+}

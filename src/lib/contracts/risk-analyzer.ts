@@ -1,5 +1,5 @@
 /**
- * Contract Risk Analyzer using OpenAI GPT-4o
+ * Contract Risk Analyzer using OpenAI GPT-4.1
  *
  * Analyzes contracts for:
  * - Unusual or non-standard clauses
@@ -30,7 +30,7 @@ function getOpenAI(): OpenAI {
   return openaiClient;
 }
 
-const ANALYSIS_MODEL = "gpt-4o";
+const ANALYSIS_MODEL = "gpt-4.1"; // Best accuracy for risk detection (125/125 in tests)
 
 // ============================================================================
 // Contract Content Interface

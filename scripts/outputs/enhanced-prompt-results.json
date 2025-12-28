@@ -1,0 +1,651 @@
+[
+  {
+    "model": "gpt-5-mini",
+    "effort": "low",
+    "prompt": "simple",
+    "latencyMs": 46664,
+    "inputTokens": 326,
+    "outputTokens": 2889,
+    "reasoningTokens": 64,
+    "totalCost": 0.0059875,
+    "clauseCount": 23,
+    "wordCount": 1433,
+    "hasDefinitions": false,
+    "hasNumberedSections": false,
+    "hasKillFee": false,
+    "hasMoralRights": false,
+    "contract": {
+      "title": "Freelance Services Agreement (Brand Refresh 2025)",
+      "preamble": "This Freelance Services Agreement (\"Agreement\") is made and entered into as of January 15, 2025 (\"Effective Date\") by and between TechStartup Inc., a company for which Sarah Johnson serves as Marketing Director (\"Client\"), and Chen Creative Studio, for which Alex Chen is a Senior Designer (\"Freelancer\"). The Client and the Freelancer are each a \"Party\" and together the \"Parties.\"",
+      "recitals": "WHEREAS, the Client desires to retain the Freelancer to perform a complete visual identity redesign project described as \"Brand Refresh 2025,\" which includes logo, color palette, typography, and a brand guidelines document; and WHEREAS, the Freelancer has the professional skills, experience, and expertise to perform the services described herein and is willing to provide such services on the terms and conditions set forth in this Agreement; NOW, THEREFORE, in consideration of the mutual promises and covenants contained herein, the Parties agree as follows.",
+      "clauses": [
+        {
+          "id": "1",
+          "title": "Services",
+          "content": "Freelancer will perform the services described in Exhibit A (the \"Services\") for the Project \"Brand Refresh 2025.\" Services include creation and delivery of logo concepts, selected logo refinement, a brand guidelines document, and final asset package in accordance with the Deliverables, due dates, and specifications set forth in this Agreement.",
+          "type": "standard",
+          "order": 1
+        },
+        {
+          "id": "2",
+          "title": "Deliverables, Schedule and Milestones",
+          "content": "The Parties agree to the following Deliverables and Milestone Payments: (a) Logo concepts (3 options) — due January 30, 2025 — $2,000; (b) Selected logo refinement — due February 15, 2025 — $1,500; (c) Brand guidelines document — due March 1, 2025 — $2,500; (d) Asset package delivery — due March 15, 2025 — $2,500. The total contract amount is $8,500. Time is of the essence with respect to all due dates.",
+          "type": "standard",
+          "order": 2
+        },
+        {
+          "id": "3",
+          "title": "Deposit and Payment Terms",
+          "content": "Client shall pay Freelancer a non-refundable deposit of $2,550 (30% of total) upon execution of this Agreement. Remaining payments shall follow the milestone schedule: upon Client approval of Logo concepts — $2,000; upon approval of Selected logo refinement — $1,500; upon delivery and acceptance of Brand guidelines document — $2,500; upon delivery and acceptance of Asset package — $2,500, subject to the deposit already paid. All payments are due within fourteen (14) days of invoice. Invoices will be issued upon delivery of each milestone/deliverable.",
+          "type": "standard",
+          "order": 3
+        },
+        {
+          "id": "4",
+          "title": "Payment Method and Late Payment",
+          "content": "Payments shall be made in U.S. dollars by check, electronic transfer, or other mutually agreed method. Late payments will incur interest at 1.5% per month (or the maximum permitted by law, if less) on any unpaid balance from the due date until paid. Freelancer may suspend Services for overdue invoices after seven (7) days' written notice.",
+          "type": "standard",
+          "order": 4
+        },
+        {
+          "id": "5",
+          "title": "Revision Rounds",
+          "content": "Client is entitled to up to three (3) rounds of reasonably requested revisions per Deliverable as described herein. Additional revisions beyond three rounds or requests that materially change the scope will be billed at Freelancer's standard hourly rate and require a written change order.",
+          "type": "standard",
+          "order": 5
+        },
+        {
+          "id": "6",
+          "title": "Acceptance",
+          "content": "Deliverables shall be deemed accepted if Client does not provide written notice of non-conformity within seven (7) days of receipt. If Client provides timely notice, Freelancer shall correct non-conforming items within a mutually agreed timeframe and resubmit for acceptance.",
+          "type": "standard",
+          "order": 6
+        },
+        {
+          "id": "7",
+          "title": "Change Orders",
+          "content": "Any change to the scope, schedule, deliverables, or fees must be agreed in writing by both Parties via a written change order signed by authorized representatives of each Party. Change orders may affect fees and deadlines.",
+          "type": "standard",
+          "order": 7
+        },
+        {
+          "id": "8",
+          "title": "Intellectual Property and Ownership",
+          "content": "Upon full payment of all amounts due under this Agreement, Freelancer hereby assigns to Client all right, title, and interest in and to the final Deliverables created specifically for Client under this Agreement (\"Final Deliverables\"), excluding Freelancer's pre-existing materials, templates, tools, and stock assets for which Freelancer retains ownership. Freelancer grants Client a perpetual, worldwide, royalty-free license to use any Freelancer pre-existing materials incorporated in the Final Deliverables. Freelancer represents that, to Freelancer's knowledge, Final Deliverables will not infringe third-party intellectual property rights. Any third-party licensed assets included in Deliverables will be identified to Client and Client may be required to obtain separate licenses or pay additional fees. ",
+          "type": "standard",
+          "order": 8
+        },
+        {
+          "id": "9",
+          "title": "Representations and Warranties",
+          "content": "Each Party represents and warrants that it has the full power and authority to enter into this Agreement. Freelancer warrants that the Services will be performed in a professional manner consistent with industry standards. EXCEPT AS EXPRESSLY PROVIDED IN THIS SECTION, FREELANCER DISCLAIMS ALL OTHER WARRANTIES, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.",
+          "type": "standard",
+          "order": 9
+        },
+        {
+          "id": "10",
+          "title": "Confidentiality",
+          "content": "Each Party agrees to keep confidential the other Party's confidential information disclosed in connection with this Agreement and to use such information only for performing obligations under this Agreement. Confidential information does not include information that is or becomes publicly available through no breach of this Agreement or is independently developed by the receiving Party. The obligations in this Section survive termination for three (3) years.",
+          "type": "standard",
+          "order": 10
+        },
+        {
+          "id": "11",
+          "title": "Independent Contractor",
+          "content": "Freelancer is an independent contractor and not an employee, agent, or partner of Client. Freelancer is responsible for all taxes, withholdings, and other statutory obligations arising from the compensation paid under this Agreement. Client will not provide employee benefits to Freelancer.",
+          "type": "standard",
+          "order": 11
+        },
+        {
+          "id": "12",
+          "title": "Expenses",
+          "content": "Unless otherwise agreed in writing, Client will reimburse Freelancer for pre-approved out-of-pocket expenses reasonably incurred in connection with the Services upon presentation of receipts. If no pre-approval, Freelancer will not incur extraordinary expenses without Client's prior written consent.",
+          "type": "negotiable",
+          "order": 12
+        },
+        {
+          "id": "13",
+          "title": "Taxes",
+          "content": "Client will not withhold any taxes from payments made to Freelancer. Freelancer is solely responsible for all federal, state, and local taxes related to the payments received under this Agreement.",
+          "type": "standard",
+          "order": 13
+        },
+        {
+          "id": "14",
+          "title": "Termination",
+          "content": "Either Party may terminate this Agreement for convenience upon fourteen (14) days' written notice. Client may terminate for Freelancer's material breach if Freelancer fails to cure the breach within seven (7) days after written notice. Upon termination, Client will pay Freelancer for Services performed and expenses incurred through the effective date of termination, and Freelancer will deliver work-in-progress. The deposit is non-refundable but will be credited against amounts due for Services rendered. Sections dealing with payment, confidentiality, intellectual property, indemnification, and limitation of liability survive termination.",
+          "type": "standard",
+          "order": 14
+        },
+        {
+          "id": "15",
+          "title": "Indemnification",
+          "content": "Freelancer will indemnify and defend Client from third-party claims arising from Freelancer's gross negligence or willful misconduct in performing the Services. Client will indemnify and defend Freelancer from third-party claims arising from Client's use of the Final Deliverables, Client materials supplied to Freelancer, or Client's breach of this Agreement. Each Party's indemnity obligations are conditioned on prompt written notice of claims and reasonable cooperation in defense.",
+          "type": "standard",
+          "order": 15
+        },
+        {
+          "id": "16",
+          "title": "Limitation of Liability",
+          "content": "Except for liability arising from a Party's willful misconduct or gross negligence or its indemnification obligations, each Party's aggregate liability for claims arising out of or related to this Agreement will not exceed the total amount actually paid by Client to Freelancer under this Agreement. IN NO EVENT WILL EITHER PARTY BE LIABLE FOR CONSEQUENTIAL, INCIDENTAL, SPECIAL, OR PUNITIVE DAMAGES.",
+          "type": "standard",
+          "order": 16
+        },
+        {
+          "id": "17",
+          "title": "Delays and Force Majeure",
+          "content": "Neither Party will be liable for delays caused by events beyond its reasonable control (\"Force Majeure\"), including acts of God, labor disputes, governmental actions, or internet interruption. The affected Party will notify the other as soon as practicable and use reasonable efforts to resume performance. If a Force Majeure event continues for more than thirty (30) days, either Party may terminate upon written notice.",
+          "type": "standard",
+          "order": 17
+        },
+        {
+          "id": "18",
+          "title": "Dispute Resolution and Governing Law",
+          "content": "This Agreement is governed by the laws of the State of California without regard to its conflict of laws rules. The Parties will attempt in good faith to resolve disputes by negotiation. If unresolved within thirty (30) days, the Parties agree to non-binding mediation in California prior to initiating litigation. Either Party may seek equitable relief if necessary to protect intellectual property or confidential information. Venue for any litigation will be the state or federal courts located in California.",
+          "type": "standard",
+          "order": 18
+        },
+        {
+          "id": "19",
+          "title": "Insurance",
+          "content": "Freelancer is encouraged to maintain appropriate insurance (e.g., general liability, professional liability), but maintaining specific insurance is not a condition precedent to performance unless otherwise agreed in writing.",
+          "type": "optional",
+          "order": 19
+        },
+        {
+          "id": "20",
+          "title": "Publicity",
+          "content": "Freelancer may include limited descriptions and non-confidential images of the completed work in Freelancer's portfolio and promotional materials unless Client provides written objection. Client grants Freelancer a non-exclusive license to display Final Deliverables solely for Freelancer's marketing purposes unless Client and Freelancer agree otherwise in writing.",
+          "type": "negotiable",
+          "order": 20
+        },
+        {
+          "id": "21",
+          "title": "Entire Agreement; Amendments",
+          "content": "This Agreement, including any exhibits or attachments, constitutes the entire agreement between the Parties concerning the Services and supersedes all prior agreements and understandings. Any amendment must be in writing and signed by authorized representatives of both Parties.",
+          "type": "standard",
+          "order": 21
+        },
+        {
+          "id": "22",
+          "title": "Notices",
+          "content": "All notices must be in writing and delivered by email with confirmation, mailed by certified mail, or delivered by courier to the addresses provided by the Parties. Notices are effective upon receipt (or refusal of receipt).",
+          "type": "standard",
+          "order": 22
+        },
+        {
+          "id": "23",
+          "title": "Severability",
+          "content": "If any provision of this Agreement is held invalid or unenforceable, the remaining provisions will remain in full force and effect and the Parties will negotiate in good faith to replace the invalid provision with a valid provision that most closely approximates the intent and economic effect of the invalid provision.",
+          "type": "standard",
+          "order": 23
+        }
+      ],
+      "signatureBlock": "CLIENT:\\n\\nTechStartup Inc.\\nBy: Sarah Johnson\\nTitle: Marketing Director\\nDate: _____________________\\n\\nFREELANCER:\\n\\nChen Creative Studio\\nBy: Alex Chen\\nTitle: Senior Designer\\nDate: _____________________"
+    }
+  },
+  {
+    "model": "gpt-5-mini",
+    "effort": "low",
+    "prompt": "enhanced",
+    "latencyMs": 54555,
+    "inputTokens": 589,
+    "outputTokens": 4079,
+    "reasoningTokens": 384,
+    "totalCost": 0.00907325,
+    "clauseCount": 13,
+    "wordCount": 2232,
+    "hasDefinitions": true,
+    "hasNumberedSections": true,
+    "hasKillFee": true,
+    "hasMoralRights": true,
+    "contract": {
+      "title": "Freelance Service Agreement (Brand Refresh 2025)",
+      "preamble": "This Freelance Service Agreement (\"Agreement\") is entered into as of 2025-01-15 (\"Effective Date\") by and between TechStartup Inc., through its Marketing Director Sarah Johnson (\"Client\"), and Chen Creative Studio, through Senior Designer Alex Chen (\"Freelancer\"). Freelancer will perform design services for Client under the terms set forth herein for the project entitled \"Brand Refresh 2025.\"",
+      "recitals": "WHEREAS, Client desires to retain Freelancer to perform a complete visual identity redesign including logo, color palette, typography, and a brand guidelines document; and WHEREAS, Freelancer has the skills, experience and qualifications to provide such services and deliverables; NOW, THEREFORE, in consideration of the mutual covenants and promises contained herein, the parties agree as follows.",
+      "clauses": [
+        {
+          "id": "1",
+          "title": "DEFINITIONS",
+          "content": "1.1 \"Services\": The design, development, consultation and related efforts provided by Freelancer for the Brand Refresh 2025 project, including meetings, revisions, and production of Deliverables.\n1.2 \"Deliverables\": The items specifically to be delivered by Freelancer to Client under this Agreement: logo concepts, selected logo refinements, brand guidelines document, and asset package delivery, each as described in Clause 2.\n1.3 \"Final Deliverables\": The final versions of Deliverables delivered to Client after acceptance and completion of revision rounds and any agreed post-production, prepared for Client's use as specified in this Agreement.\n1.4 \"Client Materials\": Any materials, content, data, trademark or design guidance, and other items provided by Client to Freelancer to assist in the performance of the Services.\n1.5 \"Freelancer Tools\": Freelancer's pre-existing design tools, templates, software, methodologies, processes, fonts, code, or other tangible or intangible materials used or developed by Freelancer in connection with providing the Services, excluding Client Materials and Final Deliverables specifically created for Client.\n1.6 \"Work Product\": All original works of authorship, deliverables, drafts, modifications and other results created by Freelancer in the course of performing the Services, including Final Deliverables, but excluding Freelancer Tools and Preliminary Works.",
+          "type": "standard",
+          "order": 1
+        },
+        {
+          "id": "2",
+          "title": "SERVICES, SCOPE AND DELIVERABLES",
+          "content": "2.1 Services: Freelancer will provide Services for the Brand Refresh 2025 project as described in this Clause and Schedule.\n2.2 Project Description: Complete visual identity redesign including logo, color palette, typography, and brand guidelines document.\n2.3 Deliverables, Due Dates and Payment Allocation:\n  2.3.1 Logo concepts (3 options) — due Jan 30, 2025 — $2,000.\n  2.3.2 Selected logo refinement — due Feb 15, 2025 — $1,500.\n  2.3.3 Brand guidelines document — due Mar 1, 2025 — $2,500.\n  2.3.4 Asset package delivery — due Mar 15, 2025 — $2,500.\n2.4 Deadline: Final Deliverables to be completed and delivered by 2025-03-15.\n2.5 Revisions: Freelancer will include up to three (3) rounds of revisions for each Deliverable as reasonably described and limited to the scope of the selected concept; additional revisions will be billed at Freelancer's standard hourly rate upon prior written approval.",
+          "type": "standard",
+          "order": 2
+        },
+        {
+          "id": "3",
+          "title": "PAYMENT AND PAYMENT SCHEDULE",
+          "content": "3.1 Total Amount: Client agrees to pay Freelancer a total fee of $8,500 for the Services.\n3.2 Deposit: Client shall pay an initial deposit of $2,550 due upon signing.\n3.3 Milestone Payment Schedule: Payments are due upon completion/approval of each milestone as follows:\n  3.3.1 Upon delivery of Logo concepts (due Jan 30, 2025): $2,000.\n  3.3.2 Upon delivery of Selected logo refinement (due Feb 15, 2025): $1,500.\n  3.3.3 Upon delivery of Brand guidelines document (due Mar 1, 2025): $2,500.\n  3.3.4 Upon delivery of Asset package (due Mar 15, 2025): $2,500.\n3.4 Invoicing and Payment Terms: Freelancer will invoice Client for each milestone amount. Invoices are payable within fifteen (15) days of receipt. Late payments accrue interest at 1.5% per month or the maximum allowed by law, whichever is less.\n3.5 Taxes: Client is responsible for any sales, use, VAT or other taxes applicable to the Services, excluding Freelancer's income taxes.",
+          "type": "standard",
+          "order": 3
+        },
+        {
+          "id": "4",
+          "title": "KILL FEE; TERMINATION FOR CONVENIENCE",
+          "content": "4.1 Termination for Convenience: Client may terminate this Agreement for convenience after Freelancer has begun work upon written notice to Freelancer.\n4.2 Kill Fee: If Client terminates for convenience after work has begun, Client will pay Freelancer a kill fee equal to ten percent (10%) of the unpaid amount then due under this Agreement, subject to a maximum kill fee of $850. For purposes of this Clause, \"unpaid amount\" means the Total Amount less amounts already paid by Client at the time of termination.\n4.3 Payment Timing: The kill fee is due within fifteen (15) days of Client's notice of termination for convenience.\n4.4 Termination for Cause: Either party may terminate for material breach by the other party if the breach is not cured within fourteen (14) days after written notice specifying the breach.",
+          "type": "standard",
+          "order": 4
+        },
+        {
+          "id": "5",
+          "title": "INTELLECTUAL PROPERTY, MORAL RIGHTS, AND PORTFOLIO USE",
+          "content": "5.1 Ownership of Final Deliverables: Upon full payment of all amounts due under this Agreement, Freelancer assigns to Client all right, title and interest in and to the Final Deliverables, subject to the limited exceptions and Freelancer Tools identified herein.\n5.2 Freelancer Tools and Preliminary Works: Freelancer retains ownership of Freelancer Tools and any unused concepts, sketches, preliminary works, or other Preliminary Works developed during the project that are not included in the Final Deliverables. Client is granted a license to any Preliminary Works only if and to the extent such items are incorporated into Final Deliverables.\n5.3 Moral Rights: To the maximum extent permitted by applicable law, Freelancer hereby irrevocably waives and agrees not to assert any moral rights, droit moral, or similar rights in the Final Deliverables against Client or its successors and assigns. If any such waiver is not permitted by law, Freelancer agrees to execute any documents or take any steps reasonably requested by Client to effectuate a waiver or transfer of such rights.\n5.4 Portfolio Use: Freelancer may display the Deliverables and Final Deliverables in Freelancer's portfolio, website, social media and promotional materials after Client's public launch of the new brand, provided that such display does not disclose Client Materials designated by Client as confidential or otherwise subject to a prior written objection by Client for bona fide confidentiality reasons. If Client notifies Freelancer in writing prior to public launch that certain Deliverables are confidential, Freelancer will refrain from public display of those items until Client authorizes.\n5.5 Trademark Disclaimer: Client is responsible for clearance and use of any trademarks, trade names or service marks. Freelancer provides design and creative services only and does not provide legal advice; Freelancer disclaims any responsibility for trademark clearance, registration, infringement or suitability for Client's intended use.",
+          "type": "standard",
+          "order": 5
+        },
+        {
+          "id": "6",
+          "title": "WARRANTIES; PRELIMINARY WORKS; INFRINGEMENT REMEDIES",
+          "content": "6.1 Freelancer Warranty: Freelancer warrants that the Services shall be performed in a professional and workmanlike manner in accordance with industry standards and that the Final Deliverables will be original to Freelancer except to the extent based on Client Materials or third-party materials provided by Client.\n6.2 Client Warranty: Client warrants that Client Materials provided to Freelancer do not infringe the rights of third parties and that Client has the right to grant Freelancer any licenses necessary to use Client Materials.\n6.3 Preliminary Works: Concepts, sketches, mockups or other Preliminary Works created by Freelancer that are not selected as Final Deliverables remain the property of Freelancer and may be used by Freelancer in other projects.\n6.4 Indemnification Remedies for Infringement Claims: If a third-party claim arises alleging that the Final Deliverables infringe a third party's intellectual property rights, Freelancer's sole and exclusive obligation and Client's sole and exclusive remedy, subject to Freelancer's indemnification obligations in this Agreement, will be at Freelancer's election and expense to: (i) procure for Client the right to continue using the allegedly infringing Final Deliverable; or (ii) replace or modify the allegedly infringing Final Deliverable so that it becomes non-infringing while maintaining substantially similar functionality and appearance; or (iii) if options (i) and (ii) are not commercially reasonable, refund to Client the fees paid for the specific Deliverable that is the subject of the claim. The remedies in this Clause are conditioned on Client (a) providing Freelancer prompt written notice of the claim, (b) permitting Freelancer to control the defense and settlement of the claim, and (c) reasonably cooperating at Freelancer's expense. This Clause states the entire liability of Freelancer for infringement of third-party intellectual property rights.",
+          "type": "standard",
+          "order": 6
+        },
+        {
+          "id": "7",
+          "title": "CONFIDENTIALITY",
+          "content": "7.1 Confidential Information: Each party (\"Receiving Party\") shall keep confidential the other party's (\"Disclosing Party\") confidential information disclosed in connection with the Services and shall not disclose such information to any third party except as permitted hereunder. Confidential Information does not include information that is publicly known through no fault of Receiving Party, independently developed by Receiving Party, rightfully received from a third party without obligation of confidentiality, or required to be disclosed by law.\n7.2 Use Limitation: Receiving Party shall use Confidential Information solely for the purpose of performing its obligations under this Agreement.\n7.3 Return or Destruction: Upon termination or written request, Receiving Party will return or destroy Confidential Information of Disclosing Party, except that Freelancer may retain copies of Final Deliverables and Freelancer Tools as necessary for tax, billing, insurance or portfolio use as permitted by this Agreement.",
+          "type": "standard",
+          "order": 7
+        },
+        {
+          "id": "8",
+          "title": "INDEPENDENT CONTRACTOR; SUBCONTRACTING",
+          "content": "8.1 Independent Contractor: The parties acknowledge that Freelancer is an independent contractor and not an employee, agent, joint venturer, or partner of Client.\n8.2 Subcontracting: Freelancer may, in Freelancer's discretion, engage qualified subcontractors to perform portions of the Services provided that Freelancer remains responsible for the performance of Services and compliance with this Agreement. Freelancer will ensure subcontractors are bound by confidentiality obligations consistent with this Agreement.",
+          "type": "standard",
+          "order": 8
+        },
+        {
+          "id": "9",
+          "title": "ASSIGNMENT",
+          "content": "9.1 General Restriction: Neither party may assign or transfer this Agreement or any of its rights or obligations hereunder without the prior written consent of the other party, except as provided in Clause 9.2.\n9.2 Permitted Assignment: Notwithstanding Clause 9.1, either party may assign this Agreement without consent in connection with a merger, acquisition, corporate reorganization or sale of substantially all of its assets, provided that the assignee assumes the assigning party's obligations under this Agreement in writing.",
+          "type": "standard",
+          "order": 9
+        },
+        {
+          "id": "10",
+          "title": "LIMITATION OF LIABILITY",
+          "content": "10.1 Exclusion of Consequential Damages: Except for a party's willful misconduct or gross negligence, in no event will either party be liable for special, incidental, consequential, punitive or exemplary damages, including loss of profits, revenue or business opportunity, even if advised of the possibility of such damages.\n10.2 Limitation of Liability: Except for liability arising from (a) gross negligence or willful misconduct, (b) Client's payment obligations, or (c) Freelancer's breach of confidentiality or indemnification obligations for third-party claims, the aggregate liability of either party for any claim arising out of or relating to this Agreement will not exceed the total amount of fees actually paid by Client to Freelancer under this Agreement.",
+          "type": "standard",
+          "order": 10
+        },
+        {
+          "id": "11",
+          "title": "TERM, TERMINATION AND EFFECT OF TERMINATION",
+          "content": "11.1 Term: This Agreement commences on the Effective Date and continues until completion of the Services and delivery of Final Deliverables, unless earlier terminated in accordance with this Agreement.\n11.2 Effect of Termination: Upon termination, Client will pay Freelancer for Services performed and Deliverables delivered through the effective date of termination and any applicable kill fee under Clause 4. Freelancer will deliver to Client any Final Deliverables completed and any Client Materials in Freelancer's possession upon receipt of payment for the same.\n11.3 Survival: Provisions that by their nature survive termination (including but not limited to payment obligations, ownership, confidentiality, limitation of liability, indemnity, and governing law) will survive termination or expiration of this Agreement.",
+          "type": "standard",
+          "order": 11
+        },
+        {
+          "id": "12",
+          "title": "INDEMNIFICATION",
+          "content": "12.1 Freelancer Indemnity: Freelancer will indemnify, defend and hold Client harmless from and against any third-party claims alleging that Freelancer's unmodified Final Deliverables infringe a third party's intellectual property rights, subject to the remedies and limitations in Clause 6.4, except where infringement arises from Client Materials, Client's instructions, or uses not contemplated by this Agreement.\n12.2 Client Indemnity: Client will indemnify, defend and hold Freelancer harmless from and against any third-party claims arising from Client Materials, Client's use of the Final Deliverables beyond the scope of this Agreement, or Client's breach of warranties herein.\n12.3 Indemnification Procedure: The indemnified party will provide prompt written notice of any claim, and the indemnifying party shall control the defense and settlement of the claim, provided that the indemnified party may participate at its own expense and that the indemnifying party will not settle any claim that imposes any obligation or admission of liability on the indemnified party without the indemnified party's prior written consent.",
+          "type": "standard",
+          "order": 12
+        },
+        {
+          "id": "13",
+          "title": "MISCELLANEOUS",
+          "content": "13.1 Governing Law and Jurisdiction: This Agreement shall be governed by and construed in accordance with the laws of the State of California, USA, without regard to its conflict of law principles. The parties submit to the exclusive jurisdiction and venue of the state and federal courts located in California for any dispute arising out of or relating to this Agreement.\n13.2 Notices: All notices under this Agreement shall be in writing and shall be deemed given when delivered personally, sent by nationally recognized overnight courier, or three (3) business days after deposit in the U.S. mail, postage prepaid, to the addresses provided by the parties.\n13.3 Amendment: This Agreement may be amended only by a written instrument signed by both parties.\n13.4 Severability: If any provision of this Agreement is held to be invalid or unenforceable, the remaining provisions will remain in full force and effect.\n13.5 Entire Agreement: This Agreement, together with any exhibits or attachments referenced herein, constitutes the entire agreement between the parties regarding the subject matter hereof and supersedes all prior and contemporaneous agreements, proposals and communications, whether written or oral.\n13.6 Counterparts; Electronic Signatures: This Agreement may be executed in counterparts and by electronic signature, each of which will be deemed an original but all of which together will constitute one and the same instrument.",
+          "type": "standard",
+          "order": 13
+        }
+      ],
+      "signatureBlock": "CLIENT:\nTechStartup Inc.\n\nBy: _______________________________\nPrinted Name: Sarah Johnson\nTitle: Marketing Director\nCompany: TechStartup Inc.\nDate: _____________________________\n\nFREELANCER:\nChen Creative Studio\n\nBy: _______________________________\nPrinted Name: Alex Chen\nTitle: Senior Designer\nCompany: Chen Creative Studio\nDate: _____________________________"
+    }
+  },
+  {
+    "model": "gpt-5-mini",
+    "effort": "medium",
+    "prompt": "simple",
+    "latencyMs": 72711,
+    "inputTokens": 326,
+    "outputTokens": 4767,
+    "reasoningTokens": 704,
+    "totalCost": 0.0110235,
+    "clauseCount": 23,
+    "wordCount": 2309,
+    "hasDefinitions": false,
+    "hasNumberedSections": false,
+    "hasKillFee": false,
+    "hasMoralRights": false,
+    "contract": {
+      "title": "Freelance Services Agreement (Brand Refresh 2025)",
+      "preamble": "This Freelance Services Agreement (\"Agreement\") is made and entered into on 2025-01-15 (\"Effective Date\") by and between TechStartup Inc., a California corporation, acting by and through Sarah Johnson, Marketing Director (\"Client\"), and Chen Creative Studio, acting by and through Alex Chen, Senior Designer (\"Freelancer\"). Client and Freelancer are each a \"Party\" and together the \"Parties.\" The Parties agree that Freelancer will perform the services described below for the Project \"Brand Refresh 2025\" under the terms and conditions set forth in this Agreement.",
+      "recitals": "WHEREAS, Client desires to engage Freelancer to perform a complete visual identity redesign including logo, color palette, typography, and a brand guidelines document (the \"Project\"); and\n\nWHEREAS, Freelancer represents that Freelancer has the skill, experience, and qualifications to perform the services required for the Project and agrees to provide such services under the terms and conditions of this Agreement.",
+      "clauses": [
+        {
+          "id": "1.0",
+          "title": "Scope of Services",
+          "content": "Freelancer shall design and deliver the following deliverables for the Project \"Brand Refresh 2025\":\n\n- Logo concepts (3 options) — due January 30, 2025 — Fee: $2,000\n- Selected logo refinement — due February 15, 2025 — Fee: $1,500\n- Brand guidelines document — due March 1, 2025 — Fee: $2,500\n- Asset package delivery (final file package: vector and raster files, web-optimized assets, color and typography files) — due March 15, 2025 — Fee: $2,500\n\nFreelancer will provide up to three (3) rounds of revisions for each deliverable as part of the fees set forth. Additional revisions requested by Client will be billed in accordance with the rate set forth in Clause 10 (Additional Work and Change Orders). The Parties agree that the Deliverables, due dates, and fees are a part of this Agreement. Freelancer shall perform services in a professional and timely manner consistent with industry standards.",
+          "type": "standard",
+          "order": 1
+        },
+        {
+          "id": "2.0",
+          "title": "Payment; Fees; Deposit",
+          "content": "Total Fee: $8,500. A non-refundable deposit of $2,550 (30% of Total Fee) is due upon execution of this Agreement and must be paid before Freelancer will commence work. The remaining balance of $5,950 shall be paid according to the milestone schedule below. All amounts are stated in U.S. dollars.\n\nPayment Schedule (milestone):\n- Deposit due on signing (non-refundable except as stated below): $2,550\n- Upon delivery of Logo concepts (due Jan 30, 2025): $2,000 (minus any deposit applied)\n- Upon delivery of Selected logo refinement (due Feb 15, 2025): $1,500\n- Upon delivery of Brand guidelines document (due Mar 1, 2025): $2,500\n- Upon delivery of Asset package (due Mar 15, 2025): $2,500\n\nClient shall pay invoices within fourteen (14) calendar days of receipt. Late payments shall accrue interest at 1.5% per month (18% per annum) or the highest rate permitted by law, whichever is lower. Freelancer may suspend work if Client fails to pay any undisputed invoice within seven (7) days after receipt of written notice of non-payment.",
+          "type": "standard",
+          "order": 2
+        },
+        {
+          "id": "3.0",
+          "title": "Acceptance; Review Period",
+          "content": "For each deliverable, Client shall have seven (7) business days from receipt to review and either (a) provide written acceptance, or (b) provide written comments requesting revisions. If Client fails to provide timely written acceptance or comments within the seven (7) business day review period, the deliverable will be deemed accepted and Freelancer may invoice for the applicable milestone payment. Acceptance shall not relieve Client of its obligation to pay any outstanding fees.",
+          "type": "standard",
+          "order": 3
+        },
+        {
+          "id": "4.0",
+          "title": "Revisions",
+          "content": "Freelancer will include up to three (3) rounds of revisions for each deliverable at no additional cost. A \"round\" of revision is defined as a single set of consolidated comments submitted by Client. Additional revision rounds requested by Client beyond the three (3) included rounds will be billed at Freelancer's hourly rate of $120 per hour, or at a fixed fee agreed in writing by the Parties. Substantive scope changes (e.g., new creative direction or additional deliverables) shall be treated as Change Orders under Clause 10.",
+          "type": "standard",
+          "order": 4
+        },
+        {
+          "id": "5.0",
+          "title": "Timeline and Deadline",
+          "content": "Freelancer shall use commercially reasonable efforts to meet the project deadlines set forth in Clause 1.0. The Project Deadline for completion of all Deliverables is March 15, 2025. Delivery dates assume timely feedback and approvals from Client. Freelancer is not responsible for delays caused by Client's failure to provide materials, approvals, or timely feedback. Any revisions to the timeline must be agreed to in writing by both Parties.",
+          "type": "standard",
+          "order": 5
+        },
+        {
+          "id": "6.0",
+          "title": "Client Responsibilities",
+          "content": "Client shall provide Freelancer with timely access to Client personnel, materials, brand assets, factual information, and approvals necessary for Freelancer to perform the services. Client is responsible for the accuracy of materials provided to Freelancer. Freelancer shall not be responsible for defects in materials provided by Client or for delays attributable to Client's failure to cooperate.",
+          "type": "standard",
+          "order": 6
+        },
+        {
+          "id": "7.0",
+          "title": "Ownership and Intellectual Property",
+          "content": "Upon full payment of all fees and expenses owed under this Agreement, Freelancer assigns to Client all right, title and interest in and to the final Deliverables created specifically for Client under this Agreement, excluding Freelancer's pre-existing materials, processes, templates, concepts and tools (\"Freelancer Materials\"), which remain the sole property of Freelancer. Freelancer hereby grants Client a perpetual, worldwide, exclusive, transferable license to use the Freelancer Materials only to the extent incorporated in the final Deliverables. Freelancer retains the right to display the Deliverables and samples of work in Freelancer's portfolio and marketing materials, provided such display does not disclose Client's confidential information.",
+          "type": "standard",
+          "order": 7
+        },
+        {
+          "id": "8.0",
+          "title": "Confidentiality",
+          "content": "Each Party agrees to keep confidential all non-public information of the other Party disclosed in connection with the Project (\"Confidential Information\") and to use such information only for the purposes of performing under this Agreement. Confidential Information does not include information that is (a) or becomes publicly known through no breach by the receiving Party, (b) is already known by the receiving Party without restriction, (c) received from a third party without breach of any obligation of confidentiality, or (d) independently developed by the receiving Party. The confidentiality obligations survive termination of this Agreement for a period of three (3) years, except for trade secrets which are protected for as long as they remain trade secrets under law.",
+          "type": "standard",
+          "order": 8
+        },
+        {
+          "id": "9.0",
+          "title": "Representations and Warranties",
+          "content": "Freelancer represents that (a) Freelancer has the right and authority to enter into this Agreement and to grant the rights granted herein; and (b) to Freelancer's knowledge, the Deliverables will not infringe any third party's intellectual property rights when used in accordance with this Agreement. Client represents that it has the right to provide to Freelancer any materials provided and that such materials will not infringe third party rights. EXCEPT AS EXPRESSLY SET FORTH IN THIS CLAUSE, FREELANCER DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.",
+          "type": "standard",
+          "order": 9
+        },
+        {
+          "id": "10.0",
+          "title": "Change Orders; Additional Work",
+          "content": "Any changes to the Scope of Services, Deliverables, schedule or fees shall be made only by a written change order signed by both Parties (a \"Change Order\"). Additional services beyond the Scope of Services will be billed at the hourly rate of $120 per hour or at such other rate as the Parties may agree in writing. Change Orders may affect the schedule and fees; Freelancer is not obligated to commence extra work until the Parties agree in writing on any additional fees and schedule adjustments.",
+          "type": "standard",
+          "order": 10
+        },
+        {
+          "id": "11.0",
+          "title": "Termination",
+          "content": "Either Party may terminate this Agreement for material breach by the other Party if the breaching Party fails to cure such breach within ten (10) days of receipt of written notice specifying the breach. Client may terminate for convenience upon fifteen (15) days' written notice. In the event of termination by Client for convenience, Freelancer shall be entitled to payment for work performed through the effective date of termination (calculated on a pro rata basis) plus reimbursement of any non-cancelable expenses; the deposit shall be applied against such amounts. If Client has paid more than the earned amount, Freelancer shall refund the unearned portion within thirty (30) days. If Freelancer terminates other than for Client's breach, Freelancer shall refund any unearned portion of prepaid fees, including the deposit, within thirty (30) days; provided that Freelancer may retain payment for work actually performed. Termination does not relieve Client of the obligation to pay for accepted deliverables.",
+          "type": "standard",
+          "order": 11
+        },
+        {
+          "id": "12.0",
+          "title": "Indemnification",
+          "content": "Each Party (\"Indemnifying Party\") shall indemnify, defend and hold harmless the other Party and its officers, directors, employees and agents (\"Indemnified Party\") from and against any losses, damages, liabilities, costs and expenses (including reasonable attorneys' fees) arising out of third-party claims to the extent caused by (a) the Indemnifying Party's breach of this Agreement, or (b) the Indemnifying Party's gross negligence or willful misconduct. The Indemnified Party shall provide prompt written notice of any claim and cooperate reasonably in the defense. The Indemnifying Party shall control the defense and settlement of such claim, provided that no settlement that imposes liability or injunctive relief on the Indemnified Party may be made without the Indemnified Party's prior written consent (not to be unreasonably withheld).",
+          "type": "standard",
+          "order": 12
+        },
+        {
+          "id": "13.0",
+          "title": "Limitation of Liability",
+          "content": "EXCEPT FOR LIABILITY ARISING FROM A PARTY'S GROSS NEGLIGENCE, WILLFUL MISCONDUCT, OR A PARTY'S INDEMNIFICATION OBLIGATIONS, NEITHER PARTY SHALL BE LIABLE TO THE OTHER FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES (INCLUDING LOST PROFITS OR BUSINESS INTERRUPTION) EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. THE TOTAL AGGREGATE LIABILITY OF EITHER PARTY ARISING OUT OF OR RELATED TO THIS AGREEMENT SHALL NOT EXCEED THE AMOUNTS PAID OR PAYABLE BY CLIENT TO FREELANCER UNDER THIS AGREEMENT.",
+          "type": "standard",
+          "order": 13
+        },
+        {
+          "id": "14.0",
+          "title": "Independent Contractor; Taxes",
+          "content": "Freelancer is an independent contractor and not an employee, agent or partner of Client. Freelancer shall be solely responsible for all taxes, withholdings, and other statutory or contractual obligations of any sort, including workers' compensation insurance, if applicable. Client shall not control the means or methods by which Freelancer performs the services, except as expressly provided in this Agreement.",
+          "type": "standard",
+          "order": 14
+        },
+        {
+          "id": "15.0",
+          "title": "Insurance (Optional)",
+          "content": "Freelancer is encouraged to maintain professional liability and general liability insurance appropriate for Freelancer's business. If Client requires proof of insurance, Client shall request such proof in writing and the Parties shall meet to agree on scope and cost allocation. Unless otherwise agreed in writing, no specific insurance coverage is required under this Agreement.",
+          "type": "optional",
+          "order": 15
+        },
+        {
+          "id": "16.0",
+          "title": "Publicity",
+          "content": "Freelancer may include Client's name and the Deliverables in Freelancer's portfolio, website, social media, and promotional materials, provided that such use does not disclose Client's Confidential Information or proprietary information. Client grants Freelancer a non-exclusive, non-transferable license to show the Deliverables for the foregoing promotional use. Client may require removal of specific portfolio items upon reasonable written request and for reasonable cause.",
+          "type": "negotiable",
+          "order": 16
+        },
+        {
+          "id": "17.0",
+          "title": "Dispute Resolution; Governing Law",
+          "content": "The Parties shall attempt in good faith to resolve any dispute arising out of or relating to this Agreement through negotiation between executives who have authority to settle. If the dispute is not resolved by negotiation within thirty (30) days, the Parties agree to participate in non-binding mediation in California before resorting to litigation. If mediation does not resolve the dispute, any legal action shall be brought exclusively in the state or federal courts located in the County of San Francisco, California. This Agreement shall be governed by and construed in accordance with the laws of the State of California, without regard to its conflicts of laws principles.",
+          "type": "standard",
+          "order": 17
+        },
+        {
+          "id": "18.0",
+          "title": "Force Majeure",
+          "content": "Neither Party shall be liable for any delay or failure in performance under this Agreement (except for payment obligations) to the extent such delay or failure is caused by events beyond the reasonable control of the affected Party, including acts of God, labor disputes, pandemics, governmental actions, acts of terrorism, or severe weather. The affected Party shall promptly notify the other Party of such event and shall use commercially reasonable efforts to resume performance.",
+          "type": "standard",
+          "order": 18
+        },
+        {
+          "id": "19.0",
+          "title": "Notices",
+          "content": "All notices required or permitted under this Agreement shall be in writing and shall be delivered by hand, overnight courier, certified mail (return receipt requested), or email with confirmation of receipt to the addresses set forth below or to such other address as either Party may designate in writing. Notice is effective upon receipt.",
+          "type": "standard",
+          "order": 19
+        },
+        {
+          "id": "20.0",
+          "title": "Severability; Entire Agreement; Amendments",
+          "content": "If any provision of this Agreement is held to be invalid or unenforceable, the remaining provisions shall remain in full force and effect. This Agreement (including any exhibits or attachments) constitutes the entire agreement between the Parties with respect to the subject matter hereof and supersedes all prior agreements, understandings, and representations. Any amendment or modification to this Agreement must be in writing and signed by both Parties.",
+          "type": "standard",
+          "order": 20
+        },
+        {
+          "id": "21.0",
+          "title": "Waiver; Assignment",
+          "content": "No failure or delay by either Party in exercising any right under this Agreement shall operate as a waiver of that right. Neither Party may assign its rights or delegate its obligations under this Agreement without the prior written consent of the other Party, except that Client may assign this Agreement in connection with a merger, acquisition, or sale of all or substantially all of its assets provided that the assignee assumes Client's obligations under this Agreement.",
+          "type": "standard",
+          "order": 21
+        },
+        {
+          "id": "22.0",
+          "title": "Taxes and Expenses",
+          "content": "Client shall be responsible for all sales, use, value added, or similar taxes (other than Freelancer's income taxes) arising from this Agreement. Any project-related expenses (stock imagery, licensed fonts, third-party plug-ins, courier costs, etc.) will be pre-approved by Client in writing and reimbursed upon submission of receipts or invoices unless otherwise included in the agreed fee.",
+          "type": "standard",
+          "order": 22
+        },
+        {
+          "id": "23.0",
+          "title": "Portfolio and Credit",
+          "content": "Freelancer shall have the right to include the work performed under this Agreement in Freelancer's professional portfolio and to attribute design credit to Freelancer and/or Chen Creative Studio on deliverables or marketing materials. Client may require removal of portfolio items if they contain sensitive or Confidential Information, in which case Client will identify those items and the Parties will work in good faith to accommodate Client's concerns.",
+          "type": "negotiable",
+          "order": 23
+        }
+      ],
+      "signatureBlock": "CLIENT:\n\nTechStartup Inc.\nBy: ________________________________\nName: Sarah Johnson\nTitle: Marketing Director\nDate: _______________________________\n\nAddress for notices: TechStartup Inc., [insert mailing address], Attention: Sarah Johnson; Email: [insert email]\n\n\nFREELANCER:\n\nChen Creative Studio\nBy: ________________________________\nName: Alex Chen\nTitle: Senior Designer\nDate: _______________________________\n\nAddress for notices: Chen Creative Studio, [insert mailing address]; Email: [insert email]\n\n\nAgreed and Accepted:\nThis Agreement may be executed in counterparts, each of which shall be deemed an original and all of which together shall constitute one and the same instrument. Signatures transmitted electronically (including by PDF or image) shall be deemed original signatures for all purposes.\n\nKey Project Summary:\nProject: Brand Refresh 2025\nEffective Date: 2025-01-15\nProject Deadline: 2025-03-15\nTotal Fee: $8,500\nDeposit: $2,550 (due on signing)\nDeliverables and milestone dates/fees as set forth in Clause 1.0."
+    }
+  },
+  {
+    "model": "gpt-5-mini",
+    "effort": "medium",
+    "prompt": "enhanced",
+    "latencyMs": 97750,
+    "inputTokens": 589,
+    "outputTokens": 7169,
+    "reasoningTokens": 2112,
+    "totalCost": 0.01870925,
+    "clauseCount": 20,
+    "wordCount": 2973,
+    "hasDefinitions": true,
+    "hasNumberedSections": true,
+    "hasKillFee": true,
+    "hasMoralRights": true,
+    "contract": {
+      "title": "Freelance Services Agreement (Brand Refresh 2025)",
+      "preamble": "This Freelance Services Agreement (the \"Agreement\") is entered into as of 2025-01-15 (the \"Effective Date\") by and between TechStartup Inc., by and through Sarah Johnson, Marketing Director (\"Client\"), and Chen Creative Studio, by and through Alex Chen, Senior Designer (\"Freelancer\"). The parties agree as follows.",
+      "recitals": "WHEREAS, Client desires to engage Freelancer to perform a complete visual identity redesign for Client's Project known as \"Brand Refresh 2025\" including logo, color palette, typography, and a brand guidelines document; and WHEREAS, Freelancer has the skills, experience and expertise to perform the services set forth in this Agreement; NOW, THEREFORE, in consideration of the mutual covenants set forth below, the parties agree as follows.",
+      "clauses": [
+        {
+          "id": "1",
+          "title": "DEFINITIONS",
+          "content": "1.1 \"Services\" means the design, development and delivery services to be provided by Freelancer under this Agreement for Brand Refresh 2025, including concept development, design, refinement, consultations, and delivery of assets and documentation described in Section 2.2.\n\n1.2 \"Deliverables\" means the tangible items to be delivered by Freelancer to Client during the Project as listed in Section 2.2, including but not limited to logo concepts, refined logo artwork, brand guidelines document, and asset packages.\n\n1.3 \"Final Deliverables\" means the version(s) of Deliverables that: (a) Freelancer delivers as completed Work Product; and (b) Client accepts in accordance with Section 2.5 or that are deemed accepted under Section 2.5.\n\n1.4 \"Client Materials\" means any materials, information, data, artwork, copy, trademarks, trade names, domain names, proprietary marks, and other content provided by Client to Freelancer for use in connection with the Services.\n\n1.5 \"Freelancer Tools\" means Freelancer's pre-existing templates, methodologies, processes, software tools, source files (including native design files), fonts, code, techniques, and know-how that Freelancer uses in providing the Services and which are not created specifically for Client as part of the Final Deliverables.\n\n1.6 \"Work Product\" means all original works of authorship, inventions, concepts, ideas, designs, graphics, logos, documentation and other results developed and delivered by Freelancer specifically for Client under this Agreement, including Final Deliverables but excluding Freelancer Tools, Preliminary Works and any Third-Party Materials.",
+          "type": "standard",
+          "order": 1
+        },
+        {
+          "id": "2",
+          "title": "SCOPE OF SERVICES; DELIVERABLES; SCHEDULE",
+          "content": "2.1 Scope. Freelancer will provide the Services described in this Agreement for the Project titled \"Brand Refresh 2025,\" consisting of a complete visual identity redesign including logo, color palette, typography, and a brand guidelines document.\n\n2.2 Deliverables; Due Dates; Fees. The Deliverables, due dates and associated amounts are:\n  2.2.1 Logo concepts (3 options) — due January 30, 2025 — $2,000.\n  2.2.2 Selected logo refinement — due February 15, 2025 — $1,500.\n  2.2.3 Brand guidelines document — due March 1, 2025 — $2,500.\n  2.2.4 Asset package delivery — due March 15, 2025 — $2,500.\n  2.2.5 Total Project Fee: $8,500.\n\n2.3 Effective Date and Project Deadline. The Effective Date is 2025-01-15. The Project Deadline for delivery of all Deliverables is March 15, 2025.\n\n2.4 Revisions. Client is entitled to up to three (3) rounds of revision per Deliverable as part of the fees. Additional revisions beyond three rounds will be billed at Freelancer's standard hourly rate, subject to prior notice and Client approval.\n\n2.5 Acceptance. Client shall review each Deliverable and provide written acceptance or reasonably specific written comments within seven (7) business days of receipt. If Client does not provide acceptance or comments within seven (7) business days, the Deliverable will be deemed accepted.",
+          "type": "standard",
+          "order": 2
+        },
+        {
+          "id": "3",
+          "title": "PAYMENT; DEPOSIT; INVOICING",
+          "content": "3.1 Deposit. Client shall pay a non-refundable deposit of $2,550 (30% of the Total Project Fee) within seven (7) days of executing this Agreement. The deposit will be applied to the Total Project Fee.\n\n3.2 Milestone Payments; Invoicing. Freelancer shall invoice Client for the remainder of the Total Project Fee in accordance with the milestones and amounts set forth in Section 2.2. Each invoice is due and payable within fourteen (14) days of invoice date unless otherwise agreed in writing.\n\n3.3 Payment Method. Payments shall be made by check, ACH, wire transfer, or other mutually agreed method. Client is responsible for any bank fees or transaction costs associated with payment.\n\n3.4 Late Payments. Any amount not paid when due shall accrue interest at the lesser of 1.5% per month or the maximum rate permitted by law, plus Freelancer's costs to collect overdue amounts, including reasonable attorneys' fees.\n\n3.5 Allocation of Deposit. The deposit will be credited against invoices issued for the Deliverables. If the deposit exceeds the first invoice amount, the remaining deposit credit will be applied to subsequent invoices.",
+          "type": "standard",
+          "order": 3
+        },
+        {
+          "id": "4",
+          "title": "KILL FEE; TERMINATION FOR CONVENIENCE",
+          "content": "4.1 Termination for Convenience by Client. Client may terminate this Agreement for convenience at any time upon written notice to Freelancer.\n\n4.2 Kill Fee. If Client terminates for convenience after Freelancer has commenced performance of the Services, Client shall pay Freelancer a kill fee equal to ten percent (10%) of the unpaid amount of the Total Project Fee at the time of termination, up to a maximum of $850. For clarity, the \"unpaid amount\" means Total Project Fee minus amounts already paid by Client prior to the effective date of termination.\n\n4.3 Payment of Fees Upon Termination. Upon termination for convenience or for cause, Client shall pay Freelancer for all Services performed and Deliverables provided up to the effective date of termination, including any applicable kill fee under Section 4.2, and any non-cancellable expenses incurred by Freelancer. Payment is due within fourteen (14) days of Freelancer's final invoice.\n\n4.4 Termination for Cause. Either party may terminate this Agreement for material breach by the other party if the breaching party fails to cure the breach within fourteen (14) days after written notice specifying the breach.",
+          "type": "standard",
+          "order": 4
+        },
+        {
+          "id": "5",
+          "title": "OWNERSHIP; LICENSES; WORK PRODUCT",
+          "content": "5.1 Ownership of Work Product Upon Payment. Subject to Sections 5.3 and 10.1, upon Freelancer's receipt of full and final payment of all amounts due under this Agreement, Freelancer assigns to Client all right, title and interest in and to the Final Deliverables and Work Product created specifically for Client under this Agreement, including copyrights therein, except for rights reserved under Freelancer Tools and Preliminary Works.\n\n5.2 Freelancer Tools; Reservation of Rights. Freelancer retains ownership of all Freelancer Tools. Freelancer grants Client a perpetual, non-exclusive, worldwide license to use Freelancer Tools only to the extent included in the Final Deliverables and solely as incorporated into those Final Deliverables.\n\n5.3 Third-Party Materials. Any third-party materials or third-party licensed elements used in the Deliverables are subject to the applicable third-party license terms. Client is responsible for any additional licensing fees required by third parties.\n\n5.4 Client Materials. Client retains ownership of its Client Materials. Client grants Freelancer a limited, non-exclusive license to use Client Materials solely to perform the Services under this Agreement.",
+          "type": "standard",
+          "order": 5
+        },
+        {
+          "id": "6",
+          "title": "MORAL RIGHTS",
+          "content": "6.1 Waiver of Moral Rights. To the maximum extent permitted by applicable law, Freelancer hereby irrevocably waives and agrees not to assert any moral rights, droit moral, or similar rights in or to the Work Product and Final Deliverables transferred to Client under this Agreement. Where such waiver is not possible under applicable law, Freelancer agrees to provide Client with a written waiver or consent in the fullest extent possible.\n\n6.2 Further Assurances. Freelancer shall execute and deliver any documents and take any actions reasonably requested by Client to effect, perfect or confirm the waivers and assignments described in this Section 6.",
+          "type": "standard",
+          "order": 6
+        },
+        {
+          "id": "7",
+          "title": "PORTFOLIO USE; PUBLICITY",
+          "content": "7.1 Portfolio Use. Freelancer may display Final Deliverables and non-confidential Deliverables in Freelancer's portfolio, on Freelancer's website, in marketing materials and in competitions after Client's public launch of the new identity, unless Client notifies Freelancer in writing prior to publication that particular Deliverables are confidential for legitimate business reasons.\n\n7.2 Public Launch. For purposes of this Agreement, \"public launch\" means the date Client first uses the Final Deliverables publicly in any external communications, marketing, website, or product launch. If there is no public launch within twelve (12) months after delivery of Final Deliverables, Freelancer may use the Deliverables in Freelancer's portfolio unless Client has provided prior written notice of confidentiality per Section 7.1.\n\n7.3 Attribution. Freelancer may include Client's name and a brief description of the Project when using Deliverables in Freelancer's portfolio.",
+          "type": "standard",
+          "order": 7
+        },
+        {
+          "id": "8",
+          "title": "TRADEMARK DISCLAIMER",
+          "content": "8.1 Trademark Clearance. Client is solely responsible for clearance, registration, and protection of any trademarks, service marks, trade names, logos, trade dress or other proprietary rights related to the Deliverables.\n\n8.2 No Legal Advice. Freelancer is not a trademark attorney, and nothing in this Agreement shall be construed as legal advice or as a warranty that any Deliverable is free from claims of trademark or other intellectual property infringement. Client should obtain independent legal advice regarding trademark clearance and registration.",
+          "type": "standard",
+          "order": 8
+        },
+        {
+          "id": "9",
+          "title": "PRELIMINARY WORKS; UNUSED CONCEPTS",
+          "content": "9.1 Preliminary Works. Preliminary concepts, sketches, mock-ups, mood boards, alternative concepts and other unused or non-finalized materials prepared by Freelancer in the course of performing the Services but not included in the Final Deliverables (\"Preliminary Works\") remain the sole property of Freelancer and need not be delivered to Client.\n\n9.2 License to Client. Freelancer may, at Freelancer's discretion, grant Client a license to use certain Preliminary Works by separate written agreement and consideration.\n\n9.3 Protection of Freelancer's Work. Client shall not use Preliminary Works in a manner that would misrepresent their status as non-final or that would harm Freelancer's reputation.",
+          "type": "standard",
+          "order": 9
+        },
+        {
+          "id": "10",
+          "title": "INFRINGEMENT CLAIMS; REMEDIES",
+          "content": "10.1 Notice of Claim. If any claim, suit or proceeding is brought against Client alleging that any Final Deliverable infringes a third party's intellectual property rights, Client shall promptly notify Freelancer in writing and provide reasonable cooperation and information requested by Freelancer.\n\n10.2 Freelancer Remedies. In the event of such an infringement claim, Freelancer's sole obligation and Client's exclusive remedies shall be, at Freelancer's election and expense, one of the following:\n  (i) To procure for Client the right to continue using the affected Final Deliverable; or\n  (ii) To replace or modify the affected Final Deliverable so that it becomes non-infringing and substantially equivalent in function and appearance; or\n  (iii) If (i) and (ii) are not commercially practicable within a reasonable period, to terminate the license to the affected Final Deliverable and refund Client a prorated portion of the fee paid for that affected Final Deliverable.\n\n10.3 Exclusions. The foregoing remedies do not apply to the extent an infringement claim results from (a) Client's modification of the Final Deliverable not authorized by Freelancer, (b) use of the Final Deliverable in combination with items not provided by Freelancer, or (c) Client Materials supplied by Client.\n\n10.4 Limitation. Freelancer has no liability for infringement claims arising from trademarks or marks provided by Client or chosen by Client without Freelancer's advice on clearance.",
+          "type": "standard",
+          "order": 10
+        },
+        {
+          "id": "11",
+          "title": "INDEMNIFICATION",
+          "content": "11.1 Client Indemnity. Client shall defend, indemnify and hold harmless Freelancer and Freelancer's officers, directors, employees and agents from and against any third-party claims, damages, liabilities and expenses (including reasonable attorneys' fees) arising from (a) Client's use of the Deliverables after delivery (except as permitted by this Agreement), (b) Client Materials, (c) Client's breach of this Agreement, or (d) Client's trademarks or marks.\n\n11.2 Freelancer Indemnity. Freelancer shall defend, indemnify and hold Client harmless from and against third-party claims that the Final Deliverables (excluding Client Materials and Freelancer Tools) infringe such third party's United States intellectual property rights, subject to the remedies set forth in Section 10.2 and the exclusions in Section 10.3.\n\n11.3 Procedure. The indemnified party shall provide prompt written notice of any claim to the indemnifying party, allow the indemnifying party sole control of the defense and settlement of the claim, and reasonably cooperate at the indemnifying party's expense.",
+          "type": "standard",
+          "order": 11
+        },
+        {
+          "id": "12",
+          "title": "CONFIDENTIALITY",
+          "content": "12.1 Confidential Information. \"Confidential Information\" means non-public information designated as confidential or that reasonably should be understood to be confidential given its nature and the circumstances of disclosure, including Client Materials and non-public aspects of the Project.\n\n12.2 Obligations. Each party shall (a) keep Confidential Information of the other party confidential using at least the same degree of care it uses to protect its own confidential information but not less than reasonable care, (b) not disclose Confidential Information to any third party except as permitted by this Agreement, and (c) use Confidential Information only to perform its obligations under this Agreement.\n\n12.3 Exceptions. Confidential Information does not include information that (a) is or becomes publicly known through no breach by the receiving party, (b) was rightfully in the receiving party's possession prior to receipt, (c) is rightfully received from a third party without restriction, or (d) is independently developed without use of the disclosing party's Confidential Information.\n\n12.4 Compelled Disclosure. If a party is compelled by law to disclose Confidential Information, that party shall provide the other party with prompt notice and, if permitted, cooperate in seeking a protective order or other remedy.",
+          "type": "standard",
+          "order": 12
+        },
+        {
+          "id": "13",
+          "title": "WARRANTIES; DISCLAIMERS",
+          "content": "13.1 Freelancer Warranty. Freelancer warrants that the Final Deliverables will be original to Freelancer and will not knowingly infringe the intellectual property rights of any third party. The warranty in this Section 13.1 is limited to claims brought within one (1) year after delivery of the Final Deliverables and subject to the remedies in Section 10.2.\n\n13.2 Disclaimer. EXCEPT AS EXPRESSLY SET FORTH IN THIS AGREEMENT, THE SERVICES AND DELIVERABLES ARE PROVIDED \"AS IS\" AND FREELANCER DISCLAIMS ALL OTHER WARRANTIES, EXPRESS OR IMPLIED, INCLUDING IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.\n\n13.3 No Guarantee of Business Results. Freelancer does not warrant or guarantee any specific business results, market acceptance, increase in sales or other business metrics arising from use of the Deliverables.",
+          "type": "standard",
+          "order": 13
+        },
+        {
+          "id": "14",
+          "title": "LIMITATION OF LIABILITY",
+          "content": "14.1 Cap on Liability. EXCEPT FOR A PARTY'S GROSS NEGLIGENCE, WILLFUL MISCONDUCT, OR A PARTY'S INDEMNIFICATION OBLIGATIONS HEREUNDER, EACH PARTY'S AGGREGATE LIABILITY ARISING OUT OF OR RELATED TO THIS AGREEMENT SHALL NOT EXCEED THE TOTAL AMOUNTS PAID OR PAYABLE BY CLIENT TO FREELANCER UNDER THIS AGREEMENT.\n\n14.2 Exclusion of Consequential Damages. IN NO EVENT SHALL EITHER PARTY BE LIABLE FOR ANY INDIRECT, SPECIAL, INCIDENTAL, PUNITIVE OR CONSEQUENTIAL DAMAGES, INCLUDING LOSS OF PROFITS OR BUSINESS INTERRUPTION, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.\n\n14.3 Carve-Outs. The limitations in this Section 14 shall not apply to liability arising from (a) a party's gross negligence or willful misconduct, or (b) a party's indemnification obligations under Section 11 for third-party claims.",
+          "type": "standard",
+          "order": 14
+        },
+        {
+          "id": "15",
+          "title": "ASSIGNMENT",
+          "content": "15.1 Assignment by Parties. Neither party may assign, delegate or transfer this Agreement or any right or obligation hereunder without the prior written consent of the other party, except that either party may assign this Agreement without consent to an affiliate or to a successor in connection with a merger, consolidation or sale of all or substantially all of its assets or equity (a \"Change of Control\"). Any purported assignment in violation of this Section 15.1 is void.\n\n15.2 Binding Effect. Subject to the foregoing, this Agreement shall be binding upon and inure to the benefit of the parties and their respective permitted successors and assigns.",
+          "type": "standard",
+          "order": 15
+        },
+        {
+          "id": "16",
+          "title": "SUBCONTRACTING",
+          "content": "16.1 Use of Subcontractors. Freelancer may engage qualified subcontractors or contractors to perform portions of the Services. Freelancer shall remain responsible for the performance of its subcontractors and for fulfilling Freelancer's obligations under this Agreement.\n\n16.2 Disclosure. Upon Client's reasonable request, Freelancer will identify subcontractors engaged on the Project, provided that Freelancer may withhold proprietary information regarding subcontractors' identities or rates.\n\n16.3 Payment. Freelancer shall pay all subcontractors and shall remain liable for all amounts due to subcontractors.",
+          "type": "standard",
+          "order": 16
+        },
+        {
+          "id": "17",
+          "title": "TERMINATION; EFFECTS OF TERMINATION",
+          "content": "17.1 Termination. This Agreement will terminate upon completion of the Services and payment of all amounts owed, or earlier pursuant to Section 4.\n\n17.2 Effects of Termination. Upon expiration or termination of this Agreement for any reason: (a) Client shall pay Freelancer for all Services performed and Deliverables delivered through the effective date of termination (including any applicable kill fee under Section 4.2); (b) Freelancer shall deliver to Client all Final Deliverables for which Freelancer has received full payment; and (c) all licenses and rights granted hereunder shall survive only as expressly stated in this Agreement.\n\n17.3 Survival. Sections 1, 3, 4, 5, 6, 8, 10, 11, 12, 13, 14, 15, 17, 19 and 20 and any other provisions that by their nature should survive, shall survive termination or expiration of this Agreement.",
+          "type": "standard",
+          "order": 17
+        },
+        {
+          "id": "18",
+          "title": "NOTICES",
+          "content": "18.1 Method. All notices required or permitted under this Agreement shall be in writing and delivered by hand, courier, nationally recognized overnight carrier, certified mail (return receipt requested), or email with confirmation of receipt to the addresses set forth below or such other address as a party may designate by written notice.\n\n18.2 Addresses for Notice. Notices to Client shall be to Sarah Johnson, Marketing Director, TechStartup Inc. Notices to Freelancer shall be to Alex Chen, Chen Creative Studio. Either party may update its notice address by written notice to the other party.",
+          "type": "standard",
+          "order": 18
+        },
+        {
+          "id": "19",
+          "title": "GOVERNING LAW; JURISDICTION",
+          "content": "19.1 Governing Law. This Agreement shall be governed by and construed in accordance with the laws of the State of California, without regard to conflict of law principles.\n\n19.2 Jurisdiction; Venue. The parties submit to the exclusive jurisdiction and venue of the state and federal courts located in California for any disputes arising out of or related to this Agreement.",
+          "type": "standard",
+          "order": 19
+        },
+        {
+          "id": "20",
+          "title": "MISCELLANEOUS",
+          "content": "20.1 Independent Contractor. Freelancer is an independent contractor and not an employee, agent or partner of Client. Freelancer is solely responsible for all taxes, withholdings and other statutory obligations.\n\n20.2 Force Majeure. Neither party shall be liable for delays or failures to perform caused by events beyond its reasonable control, provided that the affected party promptly notifies the other and uses reasonable efforts to resume performance.\n\n20.3 Entire Agreement. This Agreement constitutes the entire agreement between the parties concerning the subject matter hereof and supersedes all prior agreements and understandings, whether written or oral.\n\n20.4 Amendments. No amendment to this Agreement will be effective unless in writing and signed by both parties.\n\n20.5 Severability. If any provision of this Agreement is held invalid or unenforceable, the remaining provisions shall remain in full force and effect.\n\n20.6 Counterparts; Electronic Signatures. This Agreement may be executed in counterparts and by electronic signature, each of which shall be deemed an original and all of which together shall constitute one and the same instrument.",
+          "type": "standard",
+          "order": 20
+        }
+      ],
+      "signatureBlock": "CLIENT:\nTechStartup Inc.\n\nBy: _______________________________\nPrinted Name: Sarah Johnson\nTitle: Marketing Director\nCompany: TechStartup Inc.\nDate: _____________________________\n\nFREELANCER:\nChen Creative Studio\n\nBy: _______________________________\nPrinted Name: Alex Chen\nTitle: Senior Designer\nCompany: Chen Creative Studio\nDate: _____________________________"
+    }
+  }
+]

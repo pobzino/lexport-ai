@@ -170,7 +170,7 @@ INSTRUCTIONS:
 
     // Call OpenAI with function calling
     const response = await getOpenAI().chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4.1-mini",
       max_tokens: 2000,
       messages: [
         { role: "system", content: systemPrompt },

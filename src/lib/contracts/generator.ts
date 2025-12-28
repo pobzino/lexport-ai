@@ -36,7 +36,7 @@ function getOpenAI(): OpenAI {
 // Models
 const GENERATION_MODEL = "gpt-5-mini"; // Fast, cost-effective for generation
 const REASONING_EFFORT = "low"; // Low effort is sufficient with manifest guidance
-const CHAT_MODEL = "gpt-4o"; // Keep GPT-4o for chat/explanations
+const CHAT_MODEL = "gpt-4.1-mini"; // Fast, cost-effective for chat/explanations
 
 // Map contract types to manifest keys
 const MANIFEST_KEY_MAP: Record<ContractType, string> = {

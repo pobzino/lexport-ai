@@ -1,0 +1,507 @@
+{
+  "gpt-4.1": {
+    "timing": 15097,
+    "tokens": 2586,
+    "score": 125,
+    "found": 12,
+    "missed": 0,
+    "extras": 0,
+    "totalFindings": 14,
+    "riskLevel": "high",
+    "critical": 6,
+    "warning": 2,
+    "info": 0,
+    "response": {
+      "overall_risk_level": "high",
+      "overall_summary": "This Independent Contractor Agreement contains multiple provisions that are unenforceable under California law, highly one-sided in favor of the Company, and expose the Contractor to substantial liability and risks of misclassification. There are critical issues with the non-compete, exclusivity, IP, compensation, termination, indemnification, and liability clauses. There are also missing statutory carve-outs and required legal protections for a compliant independent contractor relationship under California law.",
+      "clause_risks": [
+        {
+          "clauseId": "services",
+          "clauseTitle": "SERVICES",
+          "severity": "critical",
+          "category": "Non-compete/Exclusivity",
+          "title": "Exclusive Services & Non-Solicitation",
+          "description": "Requires the Contractor to work exclusively for Company, which is inconsistent with an independent contractor relationship and could result in misclassification as an employee. Furthermore, prohibiting services to competitors constitutes a non-compete, likely unenforceable in California.",
+          "problematicText": "Contractor shall work exclusively for Company during the term of this Agreement and shall not provide services to any competitors.",
+          "suggestion": "Remove exclusivity and non-compete requirements to reduce misclassification risk and comply with California law (BPC 16600, AB5/ABC test)."
+        },
+        {
+          "clauseId": "compensation",
+          "clauseTitle": "COMPENSATION",
+          "severity": "warning",
+          "category": "Payment Terms",
+          "title": "Delayed Payment, No Interest",
+          "description": "Requires payment within 90 days of invoice submission, and does not provide interest on late payments. This is unusually delayed and puts an unfair financial burden on the Contractor.",
+          "problematicText": "Payment shall be made within 90 days of invoice submission. Late payments shall not accrue interest.",
+          "suggestion": "Reduce payment terms to 15-30 days; provide interest or penalties on late payments."
+        },
+        {
+          "clauseId": "ip_assignment",
+          "clauseTitle": "INTELLECTUAL PROPERTY",
+          "severity": "critical",
+          "category": "IP Assignment",
+          "title": "Overbroad IP Assignment; No Statutory Carve-Outs",
+          "description": "Assigns all inventions, even those not related to Company's business or created outside of services, in violation of California Labor Code §2870. Also attempts to assign moral rights, which is problematic. Lacks required statutory carve-out notice for inventions unrelated to Company business created on own time without Company resources.",
+          "problematicText": "All work product, inventions, ideas, and developments created by Contractor, whether or not related to the services or created during working hours, shall be the sole property of Company.",
+          "suggestion": "Limit assignment to work created within engagement and related to Company's business; add statutory invention rights notice (Lab. Code 2870)."
+        },
+        {
+          "clauseId": "non_compete",
+          "clauseTitle": "NON-COMPETE",
+          "severity": "critical",
+          "category": "Non-compete",
+          "title": "Unenforceable Non-Compete; Liquidated Damages Penalty",
+          "description": "Prohibits Contractor from working in the tech industry nationwide for 3 years post-termination. This is void and unenforceable under California BPC §16600. The liquidated damages penalty is also invalid.",
+          "problematicText": "Contractor shall not work for any company in the technology industry within the United States. Violation ... liquidated damages of $500,000.",
+          "suggestion": "Delete the entire clause to comply with California law."
+        },
+        {
+          "clauseId": "termination",
+          "clauseTitle": "TERMINATION",
+          "severity": "critical",
+          "category": "Unfair Termination",
+          "title": "One-Sided & Unfair Termination",
+          "description": "Allows Company to terminate immediately without notice but Contractor must provide 60 days notice. Waives Contractor right to unpaid earned compensation — likely unlawful under CA wage laws and inconsistent with fair contracting.",
+          "problematicText": "Upon termination by Company, Contractor shall not be entitled to any unpaid compensation for work already performed.",
+          "suggestion": "Make termination notice mutual (or eliminate), and ensure Contractor paid for all services rendered up to termination."
+        },
+        {
+          "clauseId": "indemnification",
+          "clauseTitle": "INDEMNIFICATION",
+          "severity": "critical",
+          "category": "Indemnification",
+          "title": "Overbroad Indemnification",
+          "description": "Contractor must indemnify Company for all claims, even if due to Company's own negligence or misconduct. This is unfair and exposes Contractor to extreme liability.",
+          "problematicText": "... arising out of or related to Contractor's services, regardless of fault or negligence by Company.",
+          "suggestion": "Limit indemnification to Contractor's own misconduct or negligence, not those caused by Company."
+        },
+        {
+          "clauseId": "liability",
+          "clauseTitle": "LIABILITY",
+          "severity": "critical",
+          "category": "Liability Allocation",
+          "title": "Uncapped, One-Sided Liability",
+          "description": "Contractor bears unlimited liability; Company has none. This allocation is extremely one-sided and could render clause unconscionable under California law.",
+          "problematicText": "No limitation on Contractor's liability to Company. Company shall not be liable ... for any damages whatsoever.",
+          "suggestion": "Negotiate mutual limitation of liability and carve out minimum coverage for damages caused by Company."
+        },
+        {
+          "clauseId": "governing_law",
+          "clauseTitle": "GOVERNING LAW",
+          "severity": "warning",
+          "category": "Dispute Resolution",
+          "title": "Unfair Arbitration Fees",
+          "description": "All arbitration fees are to be paid by Contractor, regardless of outcome, which is unfair and likely contrary to unconscionability doctrines in California.",
+          "problematicText": "arbitrator's fees paid entirely by Contractor.",
+          "suggestion": "Specify equal sharing of arbitration costs or follow JAMS/AAA procedural fairness rules."
+        }
+      ],
+      "missing_protections": [
+        {
+          "severity": "critical",
+          "title": "ABC Test Compliance/Misclassification",
+          "description": "Agreement contains hallmarks of employment (exclusivity, control, prohibition on other work, one-sided termination) and lacks affirmative references to independent business status, opportunities for profit/loss, use of own tools, or right to work for others. Lacks representations affirming independent contractor status and responsibility for own taxes.",
+          "suggestion": "Add express provisions affirming Contractor's independent business, control over means/method, right to work for others, responsibility for own taxes, and compliance with the ABC test."
+        },
+        {
+          "severity": "critical",
+          "title": "California Labor Code §2870 IP Rights Notice",
+          "description": "Missing required statutory language giving notice of Contractor's rights to inventions unrelated to Company business and created with no Company resources (Labor Code §2870).",
+          "suggestion": "Insert full statutory language and notice required by Labor Code §2870."
+        },
+        {
+          "severity": "warning",
+          "title": "Expense Reimbursement; Worker's Comp Exclusion",
+          "description": "No provision addressing reimbursement of out-of-pocket expenses necessary for services, or clear exclusion from employee insurance/benefits.",
+          "suggestion": "Add expense reimbursement and clarify no eligibility for employee benefits or worker's comp."
+        }
+      ],
+      "jurisdiction_alerts": [
+        {
+          "severity": "critical",
+          "jurisdiction": "California",
+          "title": "Unenforceable Non-Compete",
+          "description": "Any restriction on post-termination competition is void in California. (Bus. & Prof. Code §16600)",
+          "legalReference": "Bus. & Prof. Code §16600",
+          "affectedClauseId": "non_compete"
+        },
+        {
+          "severity": "critical",
+          "jurisdiction": "California",
+          "title": "IP Assignment Must Follow Labor Code §2870",
+          "description": "Assignment of inventions is invalid to the extent inventions are unrelated to business or created on Contractor's own time without Company resources. Agreement lacks required notice. (Labor Code §2870)",
+          "legalReference": "Labor Code §2870",
+          "affectedClauseId": "ip_assignment"
+        },
+        {
+          "severity": "critical",
+          "jurisdiction": "California",
+          "title": "ABC Test for Independent Contractors",
+          "description": "California law (AB5) uses the ABC test to distinguish contractors from employees. This contract contains employment-like terms that may not pass the test, subjecting Company to liability for misclassification.",
+          "legalReference": "AB5 / Dynamex / Labor Code §§2750.3, 2775",
+          "affectedClauseId": "services"
+        }
+      ]
+    }
+  },
+  "gpt-4.1-mini": {
+    "timing": 23864,
+    "tokens": 2666,
+    "score": 120,
+    "found": 11,
+    "missed": 1,
+    "extras": 0,
+    "totalFindings": 14,
+    "riskLevel": "high",
+    "critical": 3,
+    "warning": 5,
+    "info": 0,
+    "response": {
+      "overall_risk_level": "high",
+      "overall_summary": "This Independent Contractor Agreement contains multiple critical legal risks under California law, including an unenforceable non-compete clause, potential misclassification risks under AB5, overly one-sided indemnification and liability clauses, and missing protections for the contractor. Several terms are unfair or unusual and could expose both parties to liability or enforcement issues.",
+      "clause_risks": [
+        {
+          "clauseId": "services",
+          "title": "Exclusive Services / Non-Compete",
+          "severity": "critical",
+          "category": "jurisdiction",
+          "description": "The clause requires the contractor to work exclusively for the Company during the term and not provide services to any competitors. Under California law, such restrictions may be considered an unlawful non-compete or restrictions on the right to contract.",
+          "problematicText": "Contractor shall work exclusively for Company during the term of this Agreement and shall not provide services to any competitors.",
+          "suggestion": "Remove the exclusivity and non-compete restriction. Instead, consider confidentiality or nonsolicitation clauses if appropriate."
+        },
+        {
+          "clauseId": "compensation",
+          "title": "Payment Terms and Delay",
+          "severity": "warning",
+          "category": "fairness",
+          "description": "Payment is due within 90 days with no interest on late payments, which is a long delay and disadvantageous to Contractor.",
+          "problematicText": "Payment shall be made within 90 days of invoice submission. Late payments shall not accrue interest.",
+          "suggestion": "Negotiate shorter payment terms (e.g., 30 days) and include interest or penalties for late payments."
+        },
+        {
+          "clauseId": "ip_assignment",
+          "title": "Intellectual Property Assignment",
+          "severity": "warning",
+          "category": "legal compliance",
+          "description": "The clause broadly assigns all inventions and works, regardless of relation to the services or creation time. Under California Labor Code Section 2870, certain inventions developed entirely on the contractor's own time without using company resources cannot be assigned.",
+          "problematicText": "All work product, inventions, ideas, and developments created by Contractor, whether or not related to the services or created during working hours, shall be the sole property of Company.",
+          "suggestion": "Carve out inventions developed entirely on contractor's own time without company resources as required by Labor Code Section 2870."
+        },
+        {
+          "clauseId": "non_compete",
+          "title": "Non-Compete Clause",
+          "severity": "critical",
+          "category": "jurisdiction",
+          "description": "Non-compete clauses are generally void and unenforceable in California under Business & Professions Code Section 16600. The 3-year restriction and $500,000 liquidated damages render this clause legally unenforceable and potentially void.",
+          "problematicText": "For a period of 3 years following termination, Contractor shall not work for any company in the technology industry within the United States.",
+          "suggestion": "Remove the non-compete clause entirely. Consider using a narrowly tailored nonsolicitation or confidentiality clause instead."
+        },
+        {
+          "clauseId": "termination",
+          "title": "Termination and Notice",
+          "severity": "critical",
+          "category": "fairness",
+          "description": "The company may terminate the agreement at any time without notice, while the contractor must provide 60 days notice. Also, contractor is not entitled to unpaid compensation upon company termination, which can be unfair or unlawful.",
+          "problematicText": "Company may terminate this Agreement at any time without notice and for any reason. Contractor must provide 60 days written notice before termination. Upon termination by Company, Contractor shall not be entitled to any unpaid compensation for work already performed.",
+          "suggestion": "Include mutual termination notice rights or at least some minimal notice by the company. Ensure contractor is paid for all work performed before termination."
+        },
+        {
+          "clauseId": "indemnification",
+          "title": "Indemnification Clause",
+          "severity": "warning",
+          "category": "fairness",
+          "description": "Contractor indemnifies the Company for all claims regardless of fault or negligence by the Company. This one-sided obligation may be overly burdensome and unfair.",
+          "problematicText": "Contractor shall indemnify...regardless of fault or negligence by Company.",
+          "suggestion": "Limit indemnification to contractor's own negligence or misconduct and exclude company negligence."
+        },
+        {
+          "clauseId": "liability",
+          "title": "Limitation of Liability",
+          "severity": "warning",
+          "category": "fairness",
+          "description": "The Company disclaims all liability but places no limitation on contractor liability, creating a very one-sided risk allocation.",
+          "problematicText": "Company shall not be liable...There is no limitation on Contractor's liability to Company.",
+          "suggestion": "Negotiate a mutual limitation of liability to balance risk."
+        },
+        {
+          "clauseId": "governing_law",
+          "title": "Arbitration Fees Allocation",
+          "severity": "warning",
+          "category": "fairness",
+          "description": "All arbitration fees are to be paid by Contractor, which may be an unfair burden depending on dispute circumstances.",
+          "problematicText": "The arbitrator's fees paid entirely by Contractor.",
+          "suggestion": "Consider splitting arbitration fees or tying allocation to outcome."
+        }
+      ],
+      "missing_protections": [
+        {
+          "severity": "warning",
+          "title": "Independent Contractor Classification Compliance",
+          "description": "The agreement does not establish that the contractor meets the California ABC test required for independent contractor classification, risking misclassification and liability.",
+          "suggestion": "Add provisions confirming the contractor meets the ABC test and that the contractor controls work methods, hours, and is engaged in an independent business."
+        },
+        {
+          "severity": "warning",
+          "title": "Confidentiality Clause",
+          "description": "No confidentiality or data protection clause is included to protect company proprietary information.",
+          "suggestion": "Add a confidentiality clause consistent with California law."
+        },
+        {
+          "severity": "info",
+          "title": "At-Will Relationship Clarification",
+          "description": "The contract does not clarify the at-will nature of the relationship explicitly, which helps avoid ambiguity regarding termination rights.",
+          "suggestion": "Include explicit at-will language for both parties if applicable."
+        }
+      ],
+      "jurisdiction_alerts": [
+        {
+          "severity": "critical",
+          "jurisdiction": "California",
+          "title": "Non-Compete Clause Violation",
+          "description": "Non-compete clauses are unenforceable in California (Business & Professions Code Section 16600). This agreement's non-compete clause must be removed or rendered void.",
+          "legalReference": "Cal. Bus. & Prof. Code § 16600",
+          "affectedClauseId": "non_compete"
+        },
+        {
+          "severity": "critical",
+          "jurisdiction": "California",
+          "title": "Employee Invention Assignment Restrictions",
+          "description": "Assignment of inventions must comply with California Labor Code Section 2870 which limits assignments of inventions developed on personal time without company resources.",
+          "legalReference": "Cal. Labor Code § 2870",
+          "affectedClauseId": "ip_assignment"
+        },
+        {
+          "severity": "warning",
+          "jurisdiction": "California",
+          "title": "Potential Independent Contractor Misclassification",
+          "description": "Under AB5 and the ABC test, independent contractors must meet strict criteria. This contract's exclusivity and control terms may risk misclassification.",
+          "legalReference": "Dynamex Operations West, Inc. v. Superior Court; AB5",
+          "affectedClauseId": "services"
+        }
+      ]
+    }
+  },
+  "gpt-5": {
+    "error": "No function call",
+    "timing": 53104,
+    "tokens": 0,
+    "score": 0
+  },
+  "gpt-5.2": {
+    "timing": 48707,
+    "tokens": 4554,
+    "score": 125,
+    "found": 12,
+    "missed": 0,
+    "extras": 7,
+    "totalFindings": 22,
+    "riskLevel": "high",
+    "critical": 8,
+    "warning": 4,
+    "info": 0,
+    "response": {
+      "overall_risk_level": "high",
+      "overall_summary": "This agreement contains multiple provisions that are likely unenforceable under California law (notably broad non-compete and exclusivity restraints), creates significant misclassification exposure under California’s ABC test (AB5/Dynamex) given the degree of control and exclusivity, and includes highly one-sided payment, termination, indemnity, liability, IP assignment, and arbitration cost-shifting terms that increase Company and Contractor litigation risk. Several clauses would be challenged as against public policy (non-compete), unconscionable (arbitrator fees entirely on Contractor; forfeiture of earned pay), or inconsistent with California statutory protections (invention assignment carve-outs).",
+      "clause_risks": [
+        {
+          "clauseId": "services",
+          "clauseTitle": "Services",
+          "severity": "critical",
+          "category": "Misclassification / Restraint of Trade",
+          "title": "Exclusivity + direction/control increases AB5 (ABC test) misclassification risk and functions as restraint of trade",
+          "description": "Requiring the Contractor to work “exclusively” for Company and providing services “as directed by Company” signals employee-like control and a lack of independent business operations. Under California’s ABC test (Dynamex/AB5), the Company must show: (A) freedom from control/direction; (B) work outside usual course of business; and (C) independently established trade. Software development for a tech company is likely within the Company’s usual course of business (risk under prong B), and exclusivity undermines prong C. Misclassification can trigger wage/hour liabilities, tax penalties, and PAGA exposure.",
+          "problematicText": "“Contractor shall provide software development services as directed by Company. Contractor shall work exclusively for Company…”",
+          "suggestion": "Remove exclusivity; clarify Contractor controls manner/means, provides services to multiple clients, supplies tools, sets schedule, and operates an independent business. Consider whether a true IC relationship is feasible under AB5; if not, treat as employment or fit within a specific statutory exemption with compliant contract terms."
+        },
+        {
+          "clauseId": "services",
+          "clauseTitle": "Services",
+          "severity": "critical",
+          "category": "California Non-Compete / 16600",
+          "title": "Ban on serving competitors during the term is likely an unlawful non-compete in California",
+          "description": "A prohibition on providing services to “any competitors” during the term can be treated as a non-compete/restraint of trade. In California, post-termination non-competes are void, and even in-term restraints can be unlawful if they substantially restrain lawful profession, trade, or business beyond protection of trade secrets. The clause is overly broad and not tied to trade secret protection.",
+          "problematicText": "“…shall not provide services to any competitors.”",
+          "suggestion": "Replace with a narrowly tailored confidentiality + trade secret protection clause and, if needed, a limited non-solicitation of employees/clients only to the extent enforceable (and drafted carefully under current CA law)."
+        },
+        {
+          "clauseId": "compensation",
+          "clauseTitle": "Compensation",
+          "severity": "warning",
+          "category": "Payment Terms / Cash Flow",
+          "title": "90-day payment terms are unusually long and one-sided; no interest for late payment",
+          "description": "A 90-day payment window creates significant cash-flow risk for the Contractor and may incentivize delayed payment. No interest removes deterrence for late payments and may be challenged as unconscionable in extreme cases. Also increases dispute risk around invoices/acceptance.",
+          "problematicText": "“Payment shall be made within 90 days… Late payments shall not accrue interest.”",
+          "suggestion": "Shorten payment term (e.g., net 15/30). Add reasonable late fee/interest (e.g., 1–1.5% per month) and define invoice approval/undisputed amounts and a prompt-pay obligation for undisputed portions."
+        },
+        {
+          "clauseId": "ip_assignment",
+          "clauseTitle": "Intellectual Property",
+          "severity": "critical",
+          "category": "IP / Labor Code 2870",
+          "title": "Overbroad invention assignment violates California employee/contractor invention assignment carve-outs and is likely unenforceable as written",
+          "description": "The clause assigns “all… inventions… whether or not related to the services” and regardless of when created. California has strong public policy protections limiting assignment of inventions developed entirely on one’s own time without using employer resources and not related to the business (Labor Code §2870; while framed for employees, contractors often negotiate similar carve-outs and CA policy disfavors overreach). The assignment of unrelated future inventions is likely overbroad and invites litigation.",
+          "problematicText": "“All work product, inventions, ideas… whether or not related to the services… shall be the sole property of Company.”",
+          "suggestion": "Limit assignment to work product created within scope of services or using Company confidential info/resources; include a clear Labor Code §2870-style carve-out for inventions developed on Contractor’s own time without Company resources and not related to Company’s business or anticipated R&D."
+        },
+        {
+          "clauseId": "ip_assignment",
+          "clauseTitle": "Intellectual Property",
+          "severity": "warning",
+          "category": "Moral Rights / Practical Enforceability",
+          "title": "Broad waiver/assignment of moral rights may be limited or ineffective depending on jurisdiction and subject matter",
+          "description": "The clause purports to assign/waive “moral rights” in perpetuity. Moral rights treatment varies by type of work and jurisdiction; for certain works, full assignment/waiver may not be recognized or may require specific language. It also raises negotiation friction.",
+          "problematicText": "“…assigns all rights, including moral rights, to Company in perpetuity.”",
+          "suggestion": "Use standard IP assignment language: present assignment of copyrights in work made for hire (where applicable), confirm assignment, and include a waiver of moral rights “to the extent permitted by law,” plus further assurances."
+        },
+        {
+          "clauseId": "non_compete",
+          "clauseTitle": "Non-Compete",
+          "severity": "critical",
+          "category": "California Non-Compete / 16600",
+          "title": "Post-termination non-compete is void under California law; liquidated damages likely unenforceable",
+          "description": "A 3-year nationwide restriction on working in the technology industry is a classic non-compete and is generally void in California (Bus. & Prof. Code §16600) absent narrow statutory exceptions (sale of business, dissolution of partnership/LLC). The $500,000 liquidated damages provision is likely an unlawful penalty and reinforces unenforceability; recent CA legislation also increases employer exposure for attempting to enforce unlawful non-competes.",
+          "problematicText": "“For a period of 3 years… shall not work for any company in the technology industry within the United States… liquidated damages of $500,000.”",
+          "suggestion": "Delete the non-compete entirely for CA-governed relationships. Use confidentiality, trade secret, and narrow non-solicitation (if any) provisions drafted to comply with current CA law; avoid punitive liquidated damages."
+        },
+        {
+          "clauseId": "termination",
+          "clauseTitle": "Termination",
+          "severity": "critical",
+          "category": "Wage/Payment For Earned Work",
+          "title": "Forfeiture of unpaid earned compensation is likely unenforceable and creates major liability",
+          "description": "The clause states that upon Company termination the Contractor is not entitled to unpaid compensation for work already performed. This is highly likely to be unenforceable as against public policy and could trigger statutory claims (including wage claims if misclassified as employee) and contract damages. It also invites claims of unjust enrichment.",
+          "problematicText": "“Upon termination by Company, Contractor shall not be entitled to any unpaid compensation for work already performed.”",
+          "suggestion": "Provide that Contractor will be paid for all services performed through the effective termination date, including approved expenses, within a defined timeframe. Add a clear final invoice process."
+        },
+        {
+          "clauseId": "termination",
+          "clauseTitle": "Termination",
+          "severity": "warning",
+          "category": "One-sided Termination",
+          "title": "One-sided termination notice (Company anytime/no notice; Contractor 60 days) is imbalanced",
+          "description": "The asymmetry increases Contractor risk and may be viewed as unconscionable depending on bargaining power. It also conflicts with an IC relationship if the Company can end at will without paying for committed time while locking the Contractor in for 60 days.",
+          "problematicText": "“Company may terminate… at any time without notice… Contractor must provide 60 days written notice…”",
+          "suggestion": "Make termination mutual with equal notice (e.g., 14–30 days), include immediate termination for cause for either party, and clarify payment for work performed and any wind-down obligations."
+        },
+        {
+          "clauseId": "indemnification",
+          "clauseTitle": "Indemnification",
+          "severity": "critical",
+          "category": "Indemnity / Negligence / Public Policy",
+          "title": "Contractor indemnifies Company even for Company’s own negligence/fault—extremely one-sided and likely challenged",
+          "description": "Indemnity “regardless of fault or negligence by Company” attempts to shift liability for the Company’s own negligence to the Contractor. This is unusually broad and may be limited by California public policy and indemnity rules, and will materially increase Contractor exposure (including defense costs).",
+          "problematicText": "“…arising out of… Contractor's services, regardless of fault or negligence by Company.”",
+          "suggestion": "Limit indemnity to losses caused by Contractor’s breach, willful misconduct, or negligence; exclude Company’s negligence, IP provided by Company, and specifications; add mutual indemnities (e.g., Company indemnifies for its materials, workplace, and directives)."
+        },
+        {
+          "clauseId": "liability",
+          "clauseTitle": "Liability",
+          "severity": "critical",
+          "category": "Limitation of Liability",
+          "title": "Complete disclaimer of Company liability + unlimited Contractor liability is highly one-sided and increases dispute/unconscionability risk",
+          "description": "Eliminating all Company liability “for any damages whatsoever” (including direct damages) while leaving Contractor liability unlimited is unusually harsh and may be attacked as unconscionable, especially when combined with forced arbitration and fee shifting. It also creates major financial exposure for Contractor for consequential damages.",
+          "problematicText": "“Company shall not be liable… for any damages whatsoever… There is no limitation on Contractor's liability…”",
+          "suggestion": "Adopt a mutual limitation of liability (e.g., exclude consequential/punitive damages for both sides; cap direct damages to fees paid/paid in last 6–12 months), with standard carve-outs (IP infringement, confidentiality breach, willful misconduct)."
+        },
+        {
+          "clauseId": "governing_law",
+          "clauseTitle": "Governing Law / Arbitration",
+          "severity": "critical",
+          "category": "Arbitration / Unconscionability",
+          "title": "Arbitration clause fee-shifts all arbitrator fees to Contractor—high risk of unenforceability",
+          "description": "Requiring the Contractor to pay the arbitrator’s fees entirely is a classic substantive unconscionability issue in California, particularly where the clause functions like an employment arbitration agreement or in adhesive settings. California generally requires the drafting party/employer to bear costs unique to arbitration for statutory claims. Even in commercial IC settings, extreme cost-shifting can chill claims and be struck or lead to severance litigation.",
+          "problematicText": "“…binding arbitration in San Francisco, with the arbitrator's fees paid entirely by Contractor.”",
+          "suggestion": "Allocate arbitration fees per applicable rules or have Company pay fees unique to arbitration, with each party bearing its own attorneys’ fees unless a statute/contract provides otherwise; include severability and a clear set of arbitration rules (AAA/JAMS)."
+        },
+        {
+          "clauseId": "governing_law",
+          "clauseTitle": "Governing Law / Arbitration",
+          "severity": "warning",
+          "category": "Forum / Practical Burden",
+          "title": "Mandatory San Francisco arbitration may be burdensome depending on Contractor location",
+          "description": "If the Contractor is not in the Bay Area, mandatory venue can be oppressive and increase costs, feeding an unconscionability argument. Also consider remote hearings.",
+          "problematicText": "“binding arbitration in San Francisco”",
+          "suggestion": "Use a mutually convenient venue (Contractor’s county or remote), or allow hearings by videoconference; specify venue based on where services are performed."
+        }
+      ],
+      "missing_protections": [
+        {
+          "severity": "critical",
+          "title": "Independent contractor compliance terms (AB5/ABC test) and operational independence details are missing",
+          "description": "The agreement lacks the usual IC provisions needed to support classification: Contractor control over manner/means, ability to hire assistants, provision of tools, separate business location, ability to set schedule, multiple clients, and acknowledgment that services are outside Company’s usual course (where true). Given software development for a tech company, the relationship may not qualify as IC under AB5 without a specific exemption.",
+          "suggestion": "Add robust IC independence provisions and evaluate AB5 applicability/exemptions. If prong B cannot be met, consider employment classification or a compliant staffing/vendor structure."
+        },
+        {
+          "severity": "warning",
+          "title": "Confidentiality and trade secret protection clause is missing (instead of unenforceable non-competes)",
+          "description": "The contract relies on broad exclusivity/non-compete rather than a tailored confidentiality/trade secret and return-of-materials obligation. This increases Company risk of IP leakage while also creating unenforceable restraints.",
+          "suggestion": "Add confidentiality, trade secret, data security, return/destruction of materials, and injunctive relief provisions tailored to protect legitimate interests without restraining lawful work."
+        },
+        {
+          "severity": "warning",
+          "title": "Scope of work, deliverables, acceptance criteria, and expense reimbursement are not defined",
+          "description": "Only “software development services as directed” is vague, increasing disputes over what is owed and when invoices can be rejected. Expenses are not addressed.",
+          "suggestion": "Attach a Statement of Work: deliverables, milestones, acceptance, change control, rates, invoicing cadence, reimbursable expenses, and pre-approval process."
+        },
+        {
+          "severity": "warning",
+          "title": "No mutual attorneys’ fees / prevailing party provision (or clear allocation)",
+          "description": "Arbitration clause addresses arbitrator fees only; attorneys’ fees allocation is unclear, raising uncertainty and leverage issues in disputes.",
+          "suggestion": "Include a balanced fees clause (each bears own fees unless statute allows shifting; or prevailing party for contract claims) and ensure compatibility with arbitration rules and CA law."
+        },
+        {
+          "severity": "info",
+          "title": "No insurance requirements / risk allocation for professional liability",
+          "description": "Given broad indemnity and unlimited liability, lack of insurance terms is a gap. Company may want Contractor to carry E&O/cyber; Contractor needs limits aligned to coverage.",
+          "suggestion": "Add reasonable insurance requirements (GL, E&O) and align indemnity/liability caps to available coverage."
+        },
+        {
+          "severity": "info",
+          "title": "No force majeure, suspension, or change-in-law provisions",
+          "description": "Operational contingencies are not addressed, increasing disruption risk.",
+          "suggestion": "Add standard force majeure and change-in-law clauses, plus suspension rights tied to payment."
+        }
+      ],
+      "jurisdiction_alerts": [
+        {
+          "severity": "critical",
+          "jurisdiction": "California",
+          "title": "Non-compete restraints are generally void in California",
+          "description": "California Business & Professions Code §16600 broadly prohibits contracts that restrain anyone from engaging in a lawful profession, trade, or business, subject to narrow statutory exceptions. Both the post-termination non-compete and broad in-term competitor restriction are high-risk.",
+          "legalReference": "Cal. Bus. & Prof. Code §16600; related CA public policy and recent statutory amendments strengthening enforcement against unlawful non-competes",
+          "affectedClauseId": "non_compete"
+        },
+        {
+          "severity": "critical",
+          "jurisdiction": "California",
+          "title": "Independent contractor classification risk under AB5/Dynamex ABC test",
+          "description": "California generally applies the ABC test for worker classification. The agreement’s control language, exclusivity, and the fact that software development may be within the Company’s usual course of business create substantial risk that Contractor would be deemed an employee, exposing Company to wage/hour, tax, benefits, and penalties.",
+          "legalReference": "Dynamex Operations W. v. Superior Court; AB5 (Cal. Lab. Code §2775 et seq.)",
+          "affectedClauseId": "services"
+        },
+        {
+          "severity": "critical",
+          "jurisdiction": "California",
+          "title": "Overbroad invention assignment conflicts with California’s invention assignment limitations/public policy",
+          "description": "California limits employer claims to inventions developed on an individual’s own time without using employer resources and not related to the employer’s business or anticipated research (commonly referenced under Labor Code §2870). Overreaching assignment clauses risk being unenforceable and can create statutory compliance issues.",
+          "legalReference": "Cal. Labor Code §2870 (and related sections)",
+          "affectedClauseId": "ip_assignment"
+        },
+        {
+          "severity": "critical",
+          "jurisdiction": "California",
+          "title": "Arbitration cost-shifting to worker can be unconscionable and unenforceable",
+          "description": "California courts scrutinize arbitration provisions for procedural/substantive unconscionability. Requiring the Contractor to pay all arbitrator fees can be invalid, particularly if the relationship resembles employment or involves statutory rights.",
+          "legalReference": "CA unconscionability doctrine; Armendariz principles (employment context) often influential",
+          "affectedClauseId": "governing_law"
+        }
+      ]
+    }
+  },
+  "gpt-5-mini": {
+    "error": "No function call",
+    "timing": 47427,
+    "tokens": 0,
+    "score": 0
+  }
+}
