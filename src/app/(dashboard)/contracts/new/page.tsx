@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,13 +16,32 @@ import {
   Check,
   DollarSign,
   Info,
+  RefreshCw,
+  FileStack,
+  Play,
+  X,
 } from "lucide-react";
+
+// Placeholder type for system templates
+interface Placeholder {
+  id: string;
+  token: string;
+  label: string;
+  description?: string;
+  category: string;
+  type: "text" | "email" | "date" | "number" | "textarea";
+  required: boolean;
+  autofillKey?: string;
+}
 import {
   CONTRACT_TYPES,
   JURISDICTION_NAMES,
   type ContractType,
   type Jurisdiction,
 } from "@/lib/contracts/schemas";
+import { ContactInput } from "@/components/contacts/ContactAutocomplete";
+import { DynamicSignersSection, type SignerGroup, createSignerGroups } from "@/components/dynamic-signers";
+import type { Template } from "@/db/types";
 
 // Step indicators
 const STEPS = [
@@ -46,6 +65,18 @@ export default function NewContractPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Creation mode state - default to template
+  const [creationMode, setCreationMode] = useState<"generate" | "template">("template");
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [isUsingTemplate, setIsUsingTemplate] = useState(false);
+
+  // Placeholder modal state for system templates
+  const [selectedTemplate, setSelectedTemplate] = useState<(Template & { content?: { placeholders?: Placeholder[] } }) | null>(null);
+  const [showPlaceholderModal, setShowPlaceholderModal] = useState(false);
+  const [placeholderValues, setPlaceholderValues] = useState<Record<string, string>>({});
+
   // Form state
   const [selectedType, setSelectedType] = useState<ContractType | null>(null);
   const [jurisdiction, setJurisdiction] = useState<Jurisdiction>("us_california");
@@ -53,10 +84,29 @@ export default function NewContractPage() {
 
   // Payment settings state
   const [paymentRequired, setPaymentRequired] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState<string>("");
   const [paymentCurrency, setPaymentCurrency] = useState("usd");
   const [paymentStructure, setPaymentStructure] = useState<"full" | "deposit_balance" | "bnpl">("full");
-  const [depositPercentage, setDepositPercentage] = useState<string>("30");
+
+  // Derive payment amount from form data (totalAmount or paymentAmount fields)
+  const derivedPaymentAmount = (() => {
+    const total = formData.totalAmount as number | undefined;
+    const payment = formData.paymentAmount as number | undefined;
+    const investment = formData.investmentAmount as number | undefined;
+    return total || payment || investment || 0;
+  })();
+
+  // Derive deposit amount from form data or calculate from percentage
+  const derivedDepositAmount = (() => {
+    const deposit = formData.depositAmount as number | undefined;
+    if (deposit) return deposit;
+    // Calculate default 30% deposit if not specified
+    return Math.round(derivedPaymentAmount * 0.3);
+  })();
+
+  // Calculate deposit percentage from amounts
+  const depositPercentage = derivedPaymentAmount > 0
+    ? Math.round((derivedDepositAmount / derivedPaymentAmount) * 100)
+    : 30;
 
   const handleTypeSelect = (type: ContractType) => {
     setSelectedType(type);
@@ -85,10 +135,11 @@ export default function NewContractPage() {
       const paymentConfig = paymentRequired
         ? {
             paymentRequired: true,
-            paymentAmount: paymentAmount ? parseFloat(paymentAmount) : undefined,
+            paymentAmount: derivedPaymentAmount || undefined,
             paymentCurrency,
             paymentStructure,
-            depositPercentage: paymentStructure === "deposit_balance" ? parseInt(depositPercentage) : undefined,
+            depositPercentage: paymentStructure === "deposit_balance" ? depositPercentage : undefined,
+            depositAmount: paymentStructure === "deposit_balance" ? derivedDepositAmount : undefined,
           }
         : undefined;
 
@@ -114,6 +165,98 @@ export default function NewContractPage() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  // Fetch templates when template mode is active
+  useEffect(() => {
+    if (creationMode !== "template") return;
+
+    const fetchTemplates = async () => {
+      setTemplatesLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (templateSearch) params.set("search", templateSearch);
+        params.set("public", "all");
+
+        const response = await fetch(`/api/templates?${params}`);
+        if (response.ok) {
+          const data = await response.json();
+          setTemplates(data.templates || []);
+        }
+      } catch (err) {
+        console.error("Error fetching templates:", err);
+      } finally {
+        setTemplatesLoading(false);
+      }
+    };
+
+    const debounce = setTimeout(fetchTemplates, 300);
+    return () => clearTimeout(debounce);
+  }, [creationMode, templateSearch]);
+
+  // Handle clicking on a template - show modal for system templates
+  const handleUseTemplate = (template: Template) => {
+    const isSystem = 'is_system' in template && (template as { is_system?: boolean }).is_system === true;
+    const templateWithContent = template as Template & { content?: { placeholders?: Placeholder[] } };
+
+    // For system templates with placeholders, show the fill-in modal
+    if (isSystem && templateWithContent.content?.placeholders?.length) {
+      setSelectedTemplate(templateWithContent);
+      setPlaceholderValues({});
+      setShowPlaceholderModal(true);
+    } else {
+      // For user templates or templates without placeholders, create directly
+      createContractFromTemplate(template.id);
+    }
+  };
+
+  // Actually create the contract from template (with optional placeholder values)
+  const createContractFromTemplate = async (templateId: string, values?: Record<string, string>) => {
+    setIsUsingTemplate(true);
+    setError(null);
+
+    try {
+      // Map values from placeholder IDs to placeholder tokens (what the API expects)
+      let mappedValues: Record<string, string> = {};
+      if (values && selectedTemplate?.content?.placeholders) {
+        const placeholders = selectedTemplate.content.placeholders;
+        for (const [id, value] of Object.entries(values)) {
+          const placeholder = placeholders.find(p => p.id === id);
+          if (placeholder && value) {
+            // Strip {{}} from token to get the key the API expects
+            const tokenKey = placeholder.token.replace(/\{\{|\}\}/g, "");
+            mappedValues[tokenKey] = value;
+          }
+        }
+      } else {
+        mappedValues = values || {};
+      }
+
+      const response = await fetch(`/api/templates/${templateId}/use`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          placeholderValues: mappedValues,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create contract from template");
+      }
+
+      const data = await response.json();
+      setShowPlaceholderModal(false);
+      router.push(`/contracts/${data.contract.id}/edit`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      setIsUsingTemplate(false);
+    }
+  };
+
+  // Handle submitting the placeholder form
+  const handlePlaceholderSubmit = () => {
+    if (!selectedTemplate) return;
+    createContractFromTemplate(selectedTemplate.id, placeholderValues);
   };
 
   return (
@@ -182,91 +325,289 @@ export default function NewContractPage() {
           <div className="space-y-6">
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold text-slate-900">
-                What type of contract do you need?
+                {creationMode === "generate"
+                  ? "What type of contract do you need?"
+                  : "Choose a template to start"}
               </h2>
               <p className="text-slate-600 mt-2">
-                Select a contract type to get started. Our AI will generate a
-                customized contract for you.
+                {creationMode === "generate"
+                  ? "Select a contract type to get started. Our AI will generate a customized contract for you."
+                  : "Start from a saved template and customize it for your needs."}
               </p>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.values(CONTRACT_TYPES).map((type) => {
-                const Icon = CONTRACT_ICONS[type.icon] || Shield;
-                const isSelected = selectedType === type.id;
-
-                return (
-                  <button
-                    key={type.id}
-                    onClick={() => handleTypeSelect(type.id)}
-                    className={`p-6 rounded-xl border-2 text-left transition-all ${
-                      isSelected
-                        ? "border-violet-500 bg-violet-50"
-                        : "border-slate-200 bg-white hover:border-violet-300"
-                    }`}
-                  >
-                    <div
-                      className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${
-                        isSelected ? "bg-violet-100" : "bg-slate-100"
-                      }`}
-                    >
-                      <Icon
-                        className={`w-6 h-6 ${isSelected ? "text-violet-600" : "text-slate-600"}`}
-                      />
-                    </div>
-                    <h3 className="font-semibold text-slate-900 mb-1">
-                      {type.name}
-                    </h3>
-                    <p className="text-sm text-slate-600 mb-3">
-                      {type.description}
-                    </p>
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <Sparkles className="w-3 h-3" />
-                      <span>~{type.estimatedTime} with AI</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Jurisdiction Selection */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 mt-8">
-              <h3 className="font-semibold text-slate-900 mb-4">
-                Jurisdiction
-              </h3>
-              <p className="text-sm text-slate-600 mb-4">
-                Select the jurisdiction where this contract will be enforced.
-                This affects the legal language and clauses.
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {(
-                  Object.entries(JURISDICTION_NAMES) as [Jurisdiction, string][]
-                ).map(([key, name]) => {
-                  // Filter out UK for SAFE notes
-                  if (selectedType === "safe_note" && key === "uk") return null;
-
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => setJurisdiction(key)}
-                      className={`px-4 py-3 rounded-lg border text-sm font-medium transition-all ${
-                        jurisdiction === key
-                          ? "border-violet-500 bg-violet-50 text-violet-700"
-                          : "border-slate-200 text-slate-600 hover:border-violet-300"
-                      }`}
-                    >
-                      {name}
-                    </button>
-                  );
-                })}
+            {/* Mode Toggle */}
+            <div className="flex justify-center mb-6">
+              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
+                <button
+                  onClick={() => setCreationMode("generate")}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    creationMode === "generate"
+                      ? "bg-violet-100 text-violet-700"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Generate New
+                </button>
+                <button
+                  onClick={() => setCreationMode("template")}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    creationMode === "template"
+                      ? "bg-violet-100 text-violet-700"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <FileStack className="w-4 h-4" />
+                  Use Template
+                </button>
               </div>
             </div>
+
+            {/* Generate Mode - Contract Type Selection */}
+            {creationMode === "generate" && (
+              <>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Object.values(CONTRACT_TYPES).map((type) => {
+                    const Icon = CONTRACT_ICONS[type.icon] || Shield;
+                    const isSelected = selectedType === type.id;
+
+                    return (
+                      <button
+                        key={type.id}
+                        onClick={() => handleTypeSelect(type.id)}
+                        className={`p-6 rounded-xl border-2 text-left transition-all ${
+                          isSelected
+                            ? "border-violet-500 bg-violet-50"
+                            : "border-slate-200 bg-white hover:border-violet-300"
+                        }`}
+                      >
+                        <div
+                          className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${
+                            isSelected ? "bg-violet-100" : "bg-slate-100"
+                          }`}
+                        >
+                          <Icon
+                            className={`w-6 h-6 ${isSelected ? "text-violet-600" : "text-slate-600"}`}
+                          />
+                        </div>
+                        <h3 className="font-semibold text-slate-900 mb-1">
+                          {type.name}
+                        </h3>
+                        <p className="text-sm text-slate-600 mb-3">
+                          {type.description}
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <Sparkles className="w-3 h-3" />
+                          <span>~{type.estimatedTime} with AI</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Template Mode - Template Browser */}
+            {creationMode === "template" && (
+              <div className="space-y-4">
+                {/* Search */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search templates..."
+                    value={templateSearch}
+                    onChange={(e) => setTemplateSearch(e.target.value)}
+                    className="w-full px-4 py-3 pl-10 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                  />
+                  <svg
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+
+                {/* Loading State */}
+                {templatesLoading && (
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="bg-white border border-slate-200 rounded-xl p-4 animate-pulse">
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="w-10 h-10 bg-slate-200 rounded-lg" />
+                          <div className="space-y-2">
+                            <div className="h-4 w-20 bg-slate-200 rounded" />
+                            <div className="h-3 w-16 bg-slate-100 rounded" />
+                          </div>
+                        </div>
+                        <div className="h-5 w-3/4 bg-slate-200 rounded mb-2" />
+                        <div className="h-4 w-full bg-slate-100 rounded" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {!templatesLoading && templates.length === 0 && (
+                  <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <FileStack className="w-8 h-8 text-slate-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                      {templateSearch ? "No templates found" : "No templates yet"}
+                    </h3>
+                    <p className="text-slate-500 mb-4 max-w-md mx-auto">
+                      {templateSearch
+                        ? "Try a different search term or create a new contract with AI."
+                        : "Create contracts and save them as templates to reuse later."}
+                    </p>
+                    <button
+                      onClick={() => setCreationMode("generate")}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-violet-600 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Generate with AI instead
+                    </button>
+                  </div>
+                )}
+
+                {/* Template Cards */}
+                {!templatesLoading && templates.length > 0 && (
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {templates.map((template) => {
+                      const Icon = CONTRACT_ICONS[template.type as keyof typeof CONTRACT_ICONS] || Shield;
+                      const typeName = CONTRACT_TYPES[template.type as ContractType]?.name || template.type;
+                      const jurisdictionName = JURISDICTION_NAMES[template.jurisdiction as Jurisdiction] || template.jurisdiction;
+                      const isSystem = 'is_system' in template && (template as { is_system?: boolean }).is_system === true;
+
+                      return (
+                        <div
+                          key={template.id}
+                          className={`group bg-white border rounded-xl p-4 hover:shadow-md transition-all ${
+                            isSystem
+                              ? "border-emerald-200 hover:border-emerald-300"
+                              : "border-slate-200 hover:border-violet-300"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3 mb-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                              isSystem ? "bg-emerald-100" : "bg-violet-100"
+                            }`}>
+                              <Icon className={`w-5 h-5 ${
+                                isSystem ? "text-emerald-600" : "text-violet-600"
+                              }`} />
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {isSystem && (
+                                <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                                  Pre-built
+                                </span>
+                              )}
+                              <span className="text-xs font-medium text-violet-600 bg-violet-50 px-2 py-0.5 rounded">
+                                {typeName}
+                              </span>
+                              <span className="text-xs text-slate-500">{jurisdictionName}</span>
+                            </div>
+                          </div>
+                          <h3 className="font-semibold text-slate-900 mb-1 line-clamp-1">
+                            {template.name}
+                          </h3>
+                          {template.description && (
+                            <p className="text-sm text-slate-500 line-clamp-2 mb-3">
+                              {template.description}
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                            <span className="text-xs text-slate-400">
+                              {isSystem ? "Ready to use" : `${template.usage_count || 0} uses`}
+                            </span>
+                            <button
+                              onClick={() => handleUseTemplate(template)}
+                              disabled={isUsingTemplate}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
+                                isSystem
+                                  ? "text-emerald-600 bg-emerald-50 hover:bg-emerald-100"
+                                  : "text-violet-600 bg-violet-50 hover:bg-violet-100"
+                              }`}
+                            >
+                              {isUsingTemplate ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Play className="w-4 h-4" />
+                              )}
+                              Use
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Link to full template library */}
+                {!templatesLoading && templates.length > 0 && (
+                  <div className="text-center pt-4">
+                    <Link
+                      href="/templates"
+                      className="text-sm text-violet-600 hover:text-violet-700 font-medium"
+                    >
+                      Browse all templates →
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Jurisdiction Selection - Only in Generate Mode */}
+            {creationMode === "generate" && (
+              <div className="bg-white rounded-xl border border-slate-200 p-6 mt-8">
+                <h3 className="font-semibold text-slate-900 mb-4">
+                  Jurisdiction
+                </h3>
+                <p className="text-sm text-slate-600 mb-4">
+                  Select the jurisdiction where this contract will be enforced.
+                  This affects the legal language and clauses.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {(
+                    Object.entries(JURISDICTION_NAMES) as [Jurisdiction, string][]
+                  ).map(([key, name]) => {
+                    // Filter out UK for SAFE notes
+                    if (selectedType === "safe_note" && key === "uk") return null;
+
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setJurisdiction(key)}
+                        className={`px-4 py-3 rounded-lg border text-sm font-medium transition-all ${
+                          jurisdiction === key
+                            ? "border-violet-500 bg-violet-50 text-violet-700"
+                            : "border-slate-200 text-slate-600 hover:border-violet-300"
+                        }`}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Step 2: Enter Details */}
         {step === 2 && selectedType && (
           <div className="space-y-6">
+            {/* Smart Templates Banner */}
+            <SmartTemplatesBanner />
+
             <ContractDetailsForm
               contractType={selectedType}
               jurisdiction={jurisdiction}
@@ -274,7 +615,8 @@ export default function NewContractPage() {
               onChange={setFormData}
             />
 
-            {/* Payment Settings Section */}
+            {/* Payment Settings Section - Only for service/work contracts */}
+            {selectedType && !["nda_mutual", "nda_one_way", "safe_note"].includes(selectedType) && (
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
@@ -308,21 +650,23 @@ export default function NewContractPage() {
 
               {paymentRequired && (
                 <div className="mt-4 space-y-4">
-                  {/* Amount and Currency */}
+                  {/* Amount Display (derived from project details) */}
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Amount
                       </label>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
-                        <input
-                          type="number"
-                          value={paymentAmount}
-                          onChange={(e) => setPaymentAmount(e.target.value)}
-                          placeholder="0.00"
-                          className="w-full pl-8 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                        />
+                        <div className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 font-medium">
+                          {derivedPaymentAmount > 0 ? (
+                            <span>${derivedPaymentAmount.toLocaleString()}</span>
+                          ) : (
+                            <span className="text-slate-400">Enter amount in project details above</span>
+                          )}
+                        </div>
+                        {derivedPaymentAmount > 0 && (
+                          <p className="text-xs text-slate-500 mt-1">From Total Amount in project details</p>
+                        )}
                       </div>
                     </div>
                     <div>
@@ -386,31 +730,31 @@ export default function NewContractPage() {
                     </div>
                   </div>
 
-                  {/* Deposit Percentage (only for deposit_balance) */}
+                  {/* Deposit Details (only for deposit_balance) */}
                   {paymentStructure === "deposit_balance" && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Deposit Percentage
+                    <div className="p-4 bg-emerald-50 rounded-lg">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Payment Split
                       </label>
-                      <div className="flex items-center gap-4">
-                        <input
-                          type="range"
-                          min="10"
-                          max="90"
-                          step="5"
-                          value={depositPercentage}
-                          onChange={(e) => setDepositPercentage(e.target.value)}
-                          className="flex-1"
-                        />
-                        <span className="w-16 text-center font-medium text-slate-900">
-                          {depositPercentage}%
-                        </span>
-                      </div>
-                      {paymentAmount && (
-                        <div className="flex justify-between text-xs text-slate-500 mt-2">
-                          <span>Deposit: ${((parseFloat(paymentAmount) || 0) * parseInt(depositPercentage) / 100).toFixed(2)}</span>
-                          <span>Balance: ${((parseFloat(paymentAmount) || 0) * (100 - parseInt(depositPercentage)) / 100).toFixed(2)}</span>
+                      {derivedPaymentAmount > 0 ? (
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div className="bg-white rounded-lg p-3 border border-emerald-200">
+                            <p className="text-xs text-slate-500 mb-1">Deposit ({depositPercentage}%)</p>
+                            <p className="text-lg font-semibold text-emerald-600">
+                              ${derivedDepositAmount.toLocaleString()}
+                            </p>
+                            <p className="text-xs text-slate-500">Due at signing</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-3 border border-slate-200">
+                            <p className="text-xs text-slate-500 mb-1">Balance ({100 - depositPercentage}%)</p>
+                            <p className="text-lg font-semibold text-slate-900">
+                              ${(derivedPaymentAmount - derivedDepositAmount).toLocaleString()}
+                            </p>
+                            <p className="text-xs text-slate-500">Due on completion</p>
+                          </div>
                         </div>
+                      ) : (
+                        <p className="text-sm text-slate-500">Enter Total Amount and Deposit in project details above</p>
                       )}
                     </div>
                   )}
@@ -421,15 +765,16 @@ export default function NewContractPage() {
                     <div className="text-sm text-blue-800">
                       <p className="font-medium">How Payment Works</p>
                       <p className="mt-1">
-                        {paymentStructure === "full" && "The signer will pay the full amount when signing the contract. You'll receive funds via Stripe."}
-                        {paymentStructure === "deposit_balance" && `The signer pays ${depositPercentage}% deposit upfront, and the remaining ${100 - parseInt(depositPercentage)}% upon completion.`}
-                        {paymentStructure === "bnpl" && "The signer can pay in installments via Klarna or Afterpay. You receive the full amount immediately."}
+                        {paymentStructure === "full" && `The signer will pay ${derivedPaymentAmount > 0 ? `$${derivedPaymentAmount.toLocaleString()}` : 'the full amount'} when signing the contract. You'll receive funds via Stripe.`}
+                        {paymentStructure === "deposit_balance" && `The signer pays $${derivedDepositAmount.toLocaleString()} (${depositPercentage}%) deposit upfront, and the remaining $${(derivedPaymentAmount - derivedDepositAmount).toLocaleString()} upon completion.`}
+                        {paymentStructure === "bnpl" && `The signer can pay $${derivedPaymentAmount.toLocaleString()} in installments via Klarna or Afterpay. You receive the full amount immediately.`}
                       </p>
                     </div>
                   </div>
                 </div>
               )}
             </div>
+            )}
           </div>
         )}
 
@@ -461,8 +806,11 @@ export default function NewContractPage() {
                     {JURISDICTION_NAMES[jurisdiction]}
                   </p>
                 </div>
-                {/* Show key details based on form data */}
-                {Object.entries(formData).slice(0, 4).map(([key, value]) => (
+                {/* Show key details based on form data (exclude complex fields) */}
+                {Object.entries(formData)
+                  .filter(([key]) => !["signerGroups", "deliverables"].includes(key))
+                  .slice(0, 4)
+                  .map(([key, value]) => (
                   <div key={key}>
                     <p className="text-sm text-slate-500">
                       {formatFieldLabel(key)}
@@ -473,10 +821,35 @@ export default function NewContractPage() {
                   </div>
                 ))}
               </div>
+
+              {/* Signers Summary - Show when multi-signatory */}
+              {(formData.signerGroups as SignerGroup[] | undefined)?.length && (
+                <div className="mt-6 pt-6 border-t border-slate-200">
+                  <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    Signers ({(formData.signerGroups as SignerGroup[]).reduce((acc, g) => acc + g.signers.length, 0)} total)
+                  </h4>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {(formData.signerGroups as SignerGroup[]).map((group) => (
+                      <div key={group.role} className="bg-slate-50 rounded-lg p-3">
+                        <p className="text-xs font-medium text-slate-500 mb-2">{group.roleLabel}</p>
+                        <div className="space-y-1">
+                          {group.signers.map((signer, idx) => (
+                            <div key={signer.id || idx} className="text-sm">
+                              <span className="font-medium text-slate-900">{signer.name || "Unnamed"}</span>
+                              {signer.title && <span className="text-slate-500"> · {signer.title}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Payment Settings Summary */}
-            {paymentRequired && (
+            {/* Payment Settings Summary - Only for service/work contracts */}
+            {paymentRequired && selectedType && !["nda_mutual", "nda_one_way", "safe_note"].includes(selectedType) && (
               <div className="bg-white rounded-xl border border-emerald-200 p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
@@ -488,29 +861,29 @@ export default function NewContractPage() {
                   <div>
                     <p className="text-sm text-slate-500">Amount</p>
                     <p className="font-medium text-slate-900">
-                      {paymentAmount ? `${paymentCurrency.toUpperCase()} ${parseFloat(paymentAmount).toFixed(2)}` : "Not specified"}
+                      {derivedPaymentAmount > 0 ? `${paymentCurrency.toUpperCase()} ${derivedPaymentAmount.toLocaleString()}` : "Not specified"}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-slate-500">Payment Structure</p>
                     <p className="font-medium text-slate-900">
                       {paymentStructure === "full" && "Full Payment Upfront"}
-                      {paymentStructure === "deposit_balance" && `${depositPercentage}% Deposit + ${100 - parseInt(depositPercentage)}% Balance`}
+                      {paymentStructure === "deposit_balance" && `${depositPercentage}% Deposit + ${100 - depositPercentage}% Balance`}
                       {paymentStructure === "bnpl" && "Buy Now, Pay Later (Klarna/Afterpay)"}
                     </p>
                   </div>
-                  {paymentStructure === "deposit_balance" && paymentAmount && (
+                  {paymentStructure === "deposit_balance" && derivedPaymentAmount > 0 && (
                     <>
                       <div>
                         <p className="text-sm text-slate-500">Deposit Amount</p>
                         <p className="font-medium text-emerald-600">
-                          {paymentCurrency.toUpperCase()} {((parseFloat(paymentAmount) || 0) * parseInt(depositPercentage) / 100).toFixed(2)}
+                          {paymentCurrency.toUpperCase()} {derivedDepositAmount.toLocaleString()}
                         </p>
                       </div>
                       <div>
                         <p className="text-sm text-slate-500">Balance Due</p>
                         <p className="font-medium text-slate-900">
-                          {paymentCurrency.toUpperCase()} {((parseFloat(paymentAmount) || 0) * (100 - parseInt(depositPercentage)) / 100).toFixed(2)}
+                          {paymentCurrency.toUpperCase()} {(derivedPaymentAmount - derivedDepositAmount).toLocaleString()}
                         </p>
                       </div>
                     </>
@@ -547,55 +920,73 @@ export default function NewContractPage() {
           </div>
         )}
 
-        {/* Navigation Buttons */}
-        <div className="flex justify-between mt-8 pt-6 border-t border-slate-200">
-          <button
-            onClick={handleBack}
-            disabled={step === 1}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
-              step === 1
-                ? "text-slate-400 cursor-not-allowed"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </button>
-
-          {step < 3 ? (
+        {/* Navigation Buttons - Hide on step 1 in template mode */}
+        {!(step === 1 && creationMode === "template") && (
+          <div className="flex justify-between mt-8 pt-6 border-t border-slate-200">
             <button
-              onClick={handleNext}
-              disabled={step === 1 && !selectedType}
+              onClick={handleBack}
+              disabled={step === 1}
               className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
-                step === 1 && !selectedType
-                  ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                  : "bg-violet-600 text-white hover:bg-violet-700"
+                step === 1
+                  ? "text-slate-400 cursor-not-allowed"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
-              Continue
-              <ArrowRight className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4" />
+              Back
             </button>
-          ) : (
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className="flex items-center gap-2 px-8 py-3 rounded-lg font-medium bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-700 hover:to-purple-700 transition-all disabled:opacity-50"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Generate Contract
-                </>
-              )}
-            </button>
-          )}
-        </div>
+
+            {step < 3 ? (
+              <button
+                onClick={handleNext}
+                disabled={step === 1 && !selectedType}
+                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
+                  step === 1 && !selectedType
+                    ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                    : "bg-violet-600 text-white hover:bg-violet-700"
+                }`}
+              >
+                Continue
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                className="flex items-center gap-2 px-8 py-3 rounded-lg font-medium bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-700 hover:to-purple-700 transition-all disabled:opacity-50"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Generate Contract
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        )}
       </main>
+
+      {/* Placeholder Fill-in Modal for System Templates */}
+      {showPlaceholderModal && selectedTemplate && (
+        <TemplatePlaceholderModal
+          template={selectedTemplate}
+          placeholderValues={placeholderValues}
+          onValuesChange={setPlaceholderValues}
+          onSubmit={handlePlaceholderSubmit}
+          onClose={() => {
+            setShowPlaceholderModal(false);
+            setSelectedTemplate(null);
+            setIsUsingTemplate(false);
+          }}
+          isSubmitting={isUsingTemplate}
+        />
+      )}
     </div>
   );
 }
@@ -633,6 +1024,7 @@ function ContractDetailsForm({
           formData={formData}
           updateField={updateField}
           updateNestedField={updateNestedField}
+          onChange={onChange}
           isMutual={contractType === "nda_mutual"}
         />
       );
@@ -643,6 +1035,7 @@ function ContractDetailsForm({
           formData={formData}
           updateField={updateField}
           updateNestedField={updateNestedField}
+          onChange={onChange}
         />
       );
 
@@ -652,6 +1045,7 @@ function ContractDetailsForm({
           formData={formData}
           updateField={updateField}
           updateNestedField={updateNestedField}
+          onChange={onChange}
         />
       );
 
@@ -661,6 +1055,7 @@ function ContractDetailsForm({
           formData={formData}
           updateField={updateField}
           updateNestedField={updateNestedField}
+          onChange={onChange}
         />
       );
 
@@ -670,6 +1065,7 @@ function ContractDetailsForm({
           formData={formData}
           updateField={updateField}
           updateNestedField={updateNestedField}
+          onChange={onChange}
         />
       );
 
@@ -686,13 +1082,61 @@ function NDAForm({
   formData,
   updateField,
   updateNestedField,
+  onChange,
   isMutual,
 }: {
   formData: Record<string, unknown>;
   updateField: (field: string, value: unknown) => void;
   updateNestedField: (parent: string, field: string, value: unknown) => void;
+  onChange: (data: Record<string, unknown>) => void;
   isMutual: boolean;
 }) {
+  // Initialize signer groups from form data or create defaults
+  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+    {
+      role: "disclosingParty",
+      roleLabel: isMutual ? "Party A" : "Disclosing Party",
+      name: (formData.disclosingParty as Record<string, string>)?.name || "",
+      email: (formData.disclosingParty as Record<string, string>)?.email || "",
+      company: (formData.disclosingParty as Record<string, string>)?.company || "",
+    },
+    {
+      role: "receivingParty",
+      roleLabel: isMutual ? "Party B" : "Receiving Party",
+      name: (formData.receivingParty as Record<string, string>)?.name || "",
+      email: (formData.receivingParty as Record<string, string>)?.email || "",
+      company: (formData.receivingParty as Record<string, string>)?.company || "",
+    },
+  ]);
+
+  const handleSignerGroupsChange = (groups: SignerGroup[]) => {
+    // Combine all updates into a single onChange call to avoid state race conditions
+    const disclosing = groups.find(g => g.role === "disclosingParty");
+    const receiving = groups.find(g => g.role === "receivingParty");
+
+    const updates: Record<string, unknown> = {
+      ...formData,
+      signerGroups: groups,
+    };
+
+    if (disclosing?.signers[0]) {
+      updates.disclosingParty = {
+        name: disclosing.signers[0].name,
+        email: disclosing.signers[0].email,
+        company: disclosing.signers[0].title || "",
+      };
+    }
+    if (receiving?.signers[0]) {
+      updates.receivingParty = {
+        name: receiving.signers[0].name,
+        email: receiving.signers[0].email,
+        company: receiving.signers[0].title || "",
+      };
+    }
+
+    onChange(updates);
+  };
+
   return (
     <div className="space-y-6">
       <div className="text-center mb-8">
@@ -704,63 +1148,15 @@ function NDAForm({
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Disclosing Party */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">
-            {isMutual ? "Party A" : "Disclosing Party"}
-          </h3>
-          <div className="space-y-4">
-            <FormInput
-              label="Full Name"
-              value={(formData.disclosingParty as Record<string, string>)?.name || ""}
-              onChange={(v) => updateNestedField("disclosingParty", "name", v)}
-              placeholder="John Smith"
-            />
-            <FormInput
-              label="Email"
-              type="email"
-              value={(formData.disclosingParty as Record<string, string>)?.email || ""}
-              onChange={(v) => updateNestedField("disclosingParty", "email", v)}
-              placeholder="john@company.com"
-            />
-            <FormInput
-              label="Company (optional)"
-              value={(formData.disclosingParty as Record<string, string>)?.company || ""}
-              onChange={(v) => updateNestedField("disclosingParty", "company", v)}
-              placeholder="Company Inc."
-            />
-          </div>
-        </div>
-
-        {/* Receiving Party */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">
-            {isMutual ? "Party B" : "Receiving Party"}
-          </h3>
-          <div className="space-y-4">
-            <FormInput
-              label="Full Name"
-              value={(formData.receivingParty as Record<string, string>)?.name || ""}
-              onChange={(v) => updateNestedField("receivingParty", "name", v)}
-              placeholder="Jane Doe"
-            />
-            <FormInput
-              label="Email"
-              type="email"
-              value={(formData.receivingParty as Record<string, string>)?.email || ""}
-              onChange={(v) => updateNestedField("receivingParty", "email", v)}
-              placeholder="jane@company.com"
-            />
-            <FormInput
-              label="Company (optional)"
-              value={(formData.receivingParty as Record<string, string>)?.company || ""}
-              onChange={(v) => updateNestedField("receivingParty", "company", v)}
-              placeholder="Company Inc."
-            />
-          </div>
-        </div>
-      </div>
+      {/* Dynamic Signers Section */}
+      <DynamicSignersSection
+        signerGroups={signerGroups}
+        onChange={handleSignerGroupsChange}
+        allowAddRole={isMutual}
+        availableRoles={isMutual ? [
+          { role: "additionalParty", label: "Additional Party" },
+        ] : []}
+      />
 
       {/* Agreement Details */}
       <div className="bg-white rounded-xl border border-slate-200 p-6">
@@ -807,6 +1203,17 @@ function NDAForm({
             checked={(formData.includeNonCompete as boolean) || false}
             onChange={(v) => updateField("includeNonCompete", v)}
           />
+          {(formData.includeNonCompete as boolean) && (
+            <div className="ml-7 mt-2">
+              <FormInput
+                label="Non-Compete Period (months)"
+                type="number"
+                value={(formData.nonCompetePeriod as string) || "12"}
+                onChange={(v) => updateField("nonCompetePeriod", parseInt(v))}
+                placeholder="12"
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -817,11 +1224,55 @@ function ContractorForm({
   formData,
   updateField,
   updateNestedField,
+  onChange,
 }: {
   formData: Record<string, unknown>;
   updateField: (field: string, value: unknown) => void;
   updateNestedField: (parent: string, field: string, value: unknown) => void;
+  onChange: (data: Record<string, unknown>) => void;
 }) {
+  // Initialize signer groups from form data or create defaults
+  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+    {
+      role: "client",
+      roleLabel: "Client (Company)",
+      name: (formData.client as Record<string, string>)?.name || "",
+      email: (formData.client as Record<string, string>)?.email || "",
+    },
+    {
+      role: "contractor",
+      roleLabel: "Contractor",
+      name: (formData.contractor as Record<string, string>)?.name || "",
+      email: (formData.contractor as Record<string, string>)?.email || "",
+    },
+  ]);
+
+  const handleSignerGroupsChange = (groups: SignerGroup[]) => {
+    // Combine all updates into a single onChange call to avoid state race conditions
+    const clientGroup = groups.find(g => g.role === "client");
+    const contractorGroup = groups.find(g => g.role === "contractor");
+
+    const updates: Record<string, unknown> = {
+      ...formData,
+      signerGroups: groups,
+    };
+
+    if (clientGroup?.signers[0]) {
+      updates.client = {
+        name: clientGroup.signers[0].name,
+        email: clientGroup.signers[0].email,
+      };
+    }
+    if (contractorGroup?.signers[0]) {
+      updates.contractor = {
+        name: contractorGroup.signers[0].name,
+        email: contractorGroup.signers[0].email,
+      };
+    }
+
+    onChange(updates);
+  };
+
   return (
     <div className="space-y-6">
       <div className="text-center mb-8">
@@ -833,47 +1284,11 @@ function ContractorForm({
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Client */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Client</h3>
-          <div className="space-y-4">
-            <FormInput
-              label="Company/Name"
-              value={(formData.client as Record<string, string>)?.name || ""}
-              onChange={(v) => updateNestedField("client", "name", v)}
-              placeholder="Acme Corp"
-            />
-            <FormInput
-              label="Email"
-              type="email"
-              value={(formData.client as Record<string, string>)?.email || ""}
-              onChange={(v) => updateNestedField("client", "email", v)}
-              placeholder="contact@acme.com"
-            />
-          </div>
-        </div>
-
-        {/* Contractor */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Contractor</h3>
-          <div className="space-y-4">
-            <FormInput
-              label="Full Name"
-              value={(formData.contractor as Record<string, string>)?.name || ""}
-              onChange={(v) => updateNestedField("contractor", "name", v)}
-              placeholder="Jane Contractor"
-            />
-            <FormInput
-              label="Email"
-              type="email"
-              value={(formData.contractor as Record<string, string>)?.email || ""}
-              onChange={(v) => updateNestedField("contractor", "email", v)}
-              placeholder="jane@email.com"
-            />
-          </div>
-        </div>
-      </div>
+      {/* Dynamic Signers Section */}
+      <DynamicSignersSection
+        signerGroups={signerGroups}
+        onChange={handleSignerGroupsChange}
+      />
 
       {/* Services & Payment */}
       <div className="bg-white rounded-xl border border-slate-200 p-6">
@@ -942,11 +1357,55 @@ function ConsultingForm({
   formData,
   updateField,
   updateNestedField,
+  onChange,
 }: {
   formData: Record<string, unknown>;
   updateField: (field: string, value: unknown) => void;
   updateNestedField: (parent: string, field: string, value: unknown) => void;
+  onChange: (data: Record<string, unknown>) => void;
 }) {
+  // Initialize signer groups from form data or create defaults
+  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+    {
+      role: "client",
+      roleLabel: "Client",
+      name: (formData.client as Record<string, string>)?.name || "",
+      email: (formData.client as Record<string, string>)?.email || "",
+    },
+    {
+      role: "consultant",
+      roleLabel: "Consultant",
+      name: (formData.consultant as Record<string, string>)?.name || "",
+      email: (formData.consultant as Record<string, string>)?.email || "",
+    },
+  ]);
+
+  const handleSignerGroupsChange = (groups: SignerGroup[]) => {
+    // Combine all updates into a single onChange call to avoid state race conditions
+    const clientGroup = groups.find(g => g.role === "client");
+    const consultantGroup = groups.find(g => g.role === "consultant");
+
+    const updates: Record<string, unknown> = {
+      ...formData,
+      signerGroups: groups,
+    };
+
+    if (clientGroup?.signers[0]) {
+      updates.client = {
+        name: clientGroup.signers[0].name,
+        email: clientGroup.signers[0].email,
+      };
+    }
+    if (consultantGroup?.signers[0]) {
+      updates.consultant = {
+        name: consultantGroup.signers[0].name,
+        email: consultantGroup.signers[0].email,
+      };
+    }
+
+    onChange(updates);
+  };
+
   return (
     <div className="space-y-6">
       <div className="text-center mb-8">
@@ -958,41 +1417,11 @@ function ConsultingForm({
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Client</h3>
-          <div className="space-y-4">
-            <FormInput
-              label="Company/Name"
-              value={(formData.client as Record<string, string>)?.name || ""}
-              onChange={(v) => updateNestedField("client", "name", v)}
-            />
-            <FormInput
-              label="Email"
-              type="email"
-              value={(formData.client as Record<string, string>)?.email || ""}
-              onChange={(v) => updateNestedField("client", "email", v)}
-            />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Consultant</h3>
-          <div className="space-y-4">
-            <FormInput
-              label="Full Name"
-              value={(formData.consultant as Record<string, string>)?.name || ""}
-              onChange={(v) => updateNestedField("consultant", "name", v)}
-            />
-            <FormInput
-              label="Email"
-              type="email"
-              value={(formData.consultant as Record<string, string>)?.email || ""}
-              onChange={(v) => updateNestedField("consultant", "email", v)}
-            />
-          </div>
-        </div>
-      </div>
+      {/* Dynamic Signers Section */}
+      <DynamicSignersSection
+        signerGroups={signerGroups}
+        onChange={handleSignerGroupsChange}
+      />
 
       <div className="bg-white rounded-xl border border-slate-200 p-6">
         <h3 className="font-semibold text-slate-900 mb-4">Engagement Details</h3>
@@ -1031,11 +1460,55 @@ function SAFEForm({
   formData,
   updateField,
   updateNestedField,
+  onChange,
 }: {
   formData: Record<string, unknown>;
   updateField: (field: string, value: unknown) => void;
   updateNestedField: (parent: string, field: string, value: unknown) => void;
+  onChange: (data: Record<string, unknown>) => void;
 }) {
+  // Initialize signer groups from form data or create defaults
+  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+    {
+      role: "company",
+      roleLabel: "Company",
+      name: (formData.company as Record<string, string>)?.name || "",
+      email: (formData.company as Record<string, string>)?.email || "",
+    },
+    {
+      role: "investor",
+      roleLabel: "Investor",
+      name: (formData.investor as Record<string, string>)?.name || "",
+      email: (formData.investor as Record<string, string>)?.email || "",
+    },
+  ]);
+
+  const handleSignerGroupsChange = (groups: SignerGroup[]) => {
+    // Combine all updates into a single onChange call to avoid state race conditions
+    const companyGroup = groups.find(g => g.role === "company");
+    const investorGroup = groups.find(g => g.role === "investor");
+
+    const updates: Record<string, unknown> = {
+      ...formData,
+      signerGroups: groups,
+    };
+
+    if (companyGroup?.signers[0]) {
+      updates.company = {
+        name: companyGroup.signers[0].name,
+        email: companyGroup.signers[0].email,
+      };
+    }
+    if (investorGroup?.signers[0]) {
+      updates.investor = {
+        name: investorGroup.signers[0].name,
+        email: investorGroup.signers[0].email,
+      };
+    }
+
+    onChange(updates);
+  };
+
   return (
     <div className="space-y-6">
       <div className="text-center mb-8">
@@ -1045,41 +1518,15 @@ function SAFEForm({
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Company</h3>
-          <div className="space-y-4">
-            <FormInput
-              label="Company Name"
-              value={(formData.company as Record<string, string>)?.name || ""}
-              onChange={(v) => updateNestedField("company", "name", v)}
-            />
-            <FormInput
-              label="Email"
-              type="email"
-              value={(formData.company as Record<string, string>)?.email || ""}
-              onChange={(v) => updateNestedField("company", "email", v)}
-            />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Investor</h3>
-          <div className="space-y-4">
-            <FormInput
-              label="Investor Name"
-              value={(formData.investor as Record<string, string>)?.name || ""}
-              onChange={(v) => updateNestedField("investor", "name", v)}
-            />
-            <FormInput
-              label="Email"
-              type="email"
-              value={(formData.investor as Record<string, string>)?.email || ""}
-              onChange={(v) => updateNestedField("investor", "email", v)}
-            />
-          </div>
-        </div>
-      </div>
+      {/* Dynamic Signers Section - allows multiple founders or investors */}
+      <DynamicSignersSection
+        signerGroups={signerGroups}
+        onChange={handleSignerGroupsChange}
+        allowAddRole={true}
+        availableRoles={[
+          { role: "additionalInvestor", label: "Additional Investor" },
+        ]}
+      />
 
       <div className="bg-white rounded-xl border border-slate-200 p-6">
         <h3 className="font-semibold text-slate-900 mb-4">Investment Terms</h3>
@@ -1134,11 +1581,55 @@ function FreelanceForm({
   formData,
   updateField,
   updateNestedField,
+  onChange,
 }: {
   formData: Record<string, unknown>;
   updateField: (field: string, value: unknown) => void;
   updateNestedField: (parent: string, field: string, value: unknown) => void;
+  onChange: (data: Record<string, unknown>) => void;
 }) {
+  // Initialize signer groups from form data or create defaults
+  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+    {
+      role: "client",
+      roleLabel: "Client",
+      name: (formData.client as Record<string, string>)?.name || "",
+      email: (formData.client as Record<string, string>)?.email || "",
+    },
+    {
+      role: "freelancer",
+      roleLabel: "Freelancer",
+      name: (formData.freelancer as Record<string, string>)?.name || "",
+      email: (formData.freelancer as Record<string, string>)?.email || "",
+    },
+  ]);
+
+  const handleSignerGroupsChange = (groups: SignerGroup[]) => {
+    // Combine all updates into a single onChange call to avoid state race conditions
+    const clientGroup = groups.find(g => g.role === "client");
+    const freelancerGroup = groups.find(g => g.role === "freelancer");
+
+    const updates: Record<string, unknown> = {
+      ...formData,
+      signerGroups: groups,
+    };
+
+    if (clientGroup?.signers[0]) {
+      updates.client = {
+        name: clientGroup.signers[0].name,
+        email: clientGroup.signers[0].email,
+      };
+    }
+    if (freelancerGroup?.signers[0]) {
+      updates.freelancer = {
+        name: freelancerGroup.signers[0].name,
+        email: freelancerGroup.signers[0].email,
+      };
+    }
+
+    onChange(updates);
+  };
+
   return (
     <div className="space-y-6">
       <div className="text-center mb-8">
@@ -1150,41 +1641,11 @@ function FreelanceForm({
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Client</h3>
-          <div className="space-y-4">
-            <FormInput
-              label="Name/Company"
-              value={(formData.client as Record<string, string>)?.name || ""}
-              onChange={(v) => updateNestedField("client", "name", v)}
-            />
-            <FormInput
-              label="Email"
-              type="email"
-              value={(formData.client as Record<string, string>)?.email || ""}
-              onChange={(v) => updateNestedField("client", "email", v)}
-            />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Freelancer</h3>
-          <div className="space-y-4">
-            <FormInput
-              label="Full Name"
-              value={(formData.freelancer as Record<string, string>)?.name || ""}
-              onChange={(v) => updateNestedField("freelancer", "name", v)}
-            />
-            <FormInput
-              label="Email"
-              type="email"
-              value={(formData.freelancer as Record<string, string>)?.email || ""}
-              onChange={(v) => updateNestedField("freelancer", "email", v)}
-            />
-          </div>
-        </div>
-      </div>
+      {/* Dynamic Signers Section */}
+      <DynamicSignersSection
+        signerGroups={signerGroups}
+        onChange={handleSignerGroupsChange}
+      />
 
       <div className="bg-white rounded-xl border border-slate-200 p-6">
         <h3 className="font-semibold text-slate-900 mb-4">Project Details</h3>
@@ -1214,14 +1675,94 @@ function FreelanceForm({
               value={(formData.depositAmount as string) || ""}
               onChange={(v) => updateField("depositAmount", parseFloat(v))}
             />
-            <FormInput
-              label="Revision Rounds"
-              type="number"
-              value={(formData.revisionRounds as string) || "2"}
-              onChange={(v) => updateField("revisionRounds", parseInt(v))}
-            />
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Revision Rounds
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.revisionRounds === -1 ? "" : ((formData.revisionRounds as string) || "2")}
+                  onChange={(e) => updateField("revisionRounds", e.target.value ? parseInt(e.target.value) : 2)}
+                  disabled={formData.revisionRounds === -1}
+                  placeholder="2"
+                  className={`flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent ${
+                    formData.revisionRounds === -1 ? "bg-slate-100 text-slate-400" : ""
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => updateField("revisionRounds", formData.revisionRounds === -1 ? 2 : -1)}
+                  className={`px-3 py-2 text-xs font-medium rounded-lg border transition-colors ${
+                    formData.revisionRounds === -1
+                      ? "bg-violet-100 border-violet-300 text-violet-700"
+                      : "bg-white border-slate-200 text-slate-600 hover:border-violet-300"
+                  }`}
+                >
+                  Unlimited
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Smart Templates Banner Component
+// ============================================================================
+
+function SmartTemplatesBanner() {
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ created: number; updated: number } | null>(null);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    setSyncResult(null);
+    try {
+      const response = await fetch("/api/contacts/sync", { method: "POST" });
+      if (response.ok) {
+        const data = await response.json();
+        setSyncResult({ created: data.created, updated: data.updated });
+      }
+    } catch (error) {
+      console.error("Error syncing contacts:", error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  return (
+    <div className="bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 rounded-xl p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Sparkles className="w-5 h-5 text-violet-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-slate-900">Smart Auto-Fill</h3>
+            <p className="text-sm text-slate-600 mt-1">
+              Start typing to see suggestions from your frequently used contacts.
+              We learn from your past contracts to speed up your workflow.
+            </p>
+            {syncResult && (
+              <p className="text-xs text-violet-600 mt-2">
+                Synced {syncResult.created} new + {syncResult.updated} updated contacts
+              </p>
+            )}
+          </div>
+        </div>
+        <button
+          onClick={handleSync}
+          disabled={isSyncing}
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-violet-700 bg-white border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
+          <span className="hidden sm:inline">{isSyncing ? "Syncing..." : "Sync Contacts"}</span>
+        </button>
       </div>
     </div>
   );
@@ -1356,11 +1897,16 @@ function buildMetadata(
 ): Record<string, unknown> {
   const today = new Date().toISOString().split("T")[0];
 
+  // Get signer groups if present (for multi-signatory support)
+  const signerGroups = formData.signerGroups as SignerGroup[] | undefined;
+
   // Base metadata with defaults
   const base = {
     contractType,
     jurisdiction,
     effectiveDate: (formData.effectiveDate as string) || today,
+    // Include signerGroups for the generation API to use
+    signerGroups: signerGroups || undefined,
   };
 
   switch (contractType) {
@@ -1384,6 +1930,7 @@ function buildMetadata(
         confidentialityPeriod: (formData.confidentialityPeriod as number) || 2,
         includeNonSolicit: (formData.includeNonSolicit as boolean) || false,
         includeNonCompete: (formData.includeNonCompete as boolean) || false,
+        nonCompetePeriod: (formData.nonCompetePeriod as number) || 12,
       };
 
     case "independent_contractor":
@@ -1468,7 +2015,7 @@ function buildMetadata(
         totalAmount: (formData.totalAmount as number) || 1000,
         depositAmount: (formData.depositAmount as number) || undefined,
         paymentSchedule: "milestone",
-        revisionRounds: (formData.revisionRounds as number) || 2,
+        revisionRounds: (formData.revisionRounds as number) === -1 ? "unlimited" : ((formData.revisionRounds as number) || 2),
         deliverables: [
           {
             description: (formData.projectDescription as string) || "Project deliverable",
@@ -1496,4 +2043,185 @@ function formatFieldValue(value: unknown): string {
   }
   if (typeof value === "boolean") return value ? "Yes" : "No";
   return String(value);
+}
+
+// ============================================================================
+// Template Placeholder Modal
+// ============================================================================
+
+interface TemplatePlaceholderModalProps {
+  template: Template & { content?: { placeholders?: Placeholder[] } };
+  placeholderValues: Record<string, string>;
+  onValuesChange: (values: Record<string, string>) => void;
+  onSubmit: () => void;
+  onClose: () => void;
+  isSubmitting: boolean;
+}
+
+function TemplatePlaceholderModal({
+  template,
+  placeholderValues,
+  onValuesChange,
+  onSubmit,
+  onClose,
+  isSubmitting,
+}: TemplatePlaceholderModalProps) {
+  const placeholders = template.content?.placeholders || [];
+
+  // Group placeholders by category
+  const groupedPlaceholders = placeholders.reduce((acc, p) => {
+    const category = p.category || "other";
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(p);
+    return acc;
+  }, {} as Record<string, Placeholder[]>);
+
+  // Category display names
+  const categoryNames: Record<string, string> = {
+    party_a: "Your Information",
+    party_b: "Other Party",
+    dates: "Important Dates",
+    terms: "Agreement Terms",
+    other: "Other Details",
+  };
+
+  // Category order
+  const categoryOrder = ["party_a", "party_b", "dates", "terms", "other"];
+
+  // Get ordered categories
+  const orderedCategories = categoryOrder.filter(c => groupedPlaceholders[c]?.length);
+
+  // Count required fields
+  const requiredFields = placeholders.filter(p => p.required);
+  const filledRequired = requiredFields.filter(p => placeholderValues[p.id]?.trim());
+
+  const updateValue = (id: string, value: string) => {
+    onValuesChange({ ...placeholderValues, [id]: value });
+  };
+
+  const canSubmit = requiredFields.every(p => placeholderValues[p.id]?.trim());
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/50 transition-opacity"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className="relative bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-green-50">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">
+                Fill in Contract Details
+              </h2>
+              <p className="text-sm text-slate-600 mt-0.5">
+                {template.name}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Progress indicator */}
+          <div className="px-6 py-3 bg-slate-50 border-b border-slate-100">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-600">
+                {filledRequired.length} of {requiredFields.length} required fields completed
+              </span>
+              <div className="w-48 h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500 transition-all duration-300"
+                  style={{ width: `${requiredFields.length ? (filledRequired.length / requiredFields.length) * 100 : 100}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Form content */}
+          <div className="px-6 py-6 overflow-y-auto max-h-[calc(90vh-220px)]">
+            <div className="space-y-8">
+              {orderedCategories.map((category) => (
+                <div key={category}>
+                  <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-emerald-500 rounded-full" />
+                    {categoryNames[category] || category}
+                  </h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {groupedPlaceholders[category].map((placeholder) => (
+                      <div key={placeholder.id} className={placeholder.type === "textarea" ? "md:col-span-2" : ""}>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                          {placeholder.label}
+                          {placeholder.required && (
+                            <span className="text-red-500 ml-1">*</span>
+                          )}
+                        </label>
+                        {placeholder.description && (
+                          <p className="text-xs text-slate-500 mb-1.5">
+                            {placeholder.description}
+                          </p>
+                        )}
+                        {placeholder.type === "textarea" ? (
+                          <textarea
+                            value={placeholderValues[placeholder.id] || ""}
+                            onChange={(e) => updateValue(placeholder.id, e.target.value)}
+                            placeholder={`Enter ${placeholder.label.toLowerCase()}`}
+                            rows={3}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none"
+                          />
+                        ) : (
+                          <input
+                            type={placeholder.type === "number" ? "number" : placeholder.type === "date" ? "date" : placeholder.type === "email" ? "email" : "text"}
+                            value={placeholderValues[placeholder.id] || ""}
+                            onChange={(e) => updateValue(placeholder.id, e.target.value)}
+                            placeholder={`Enter ${placeholder.label.toLowerCase()}`}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-50">
+            <button
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onSubmit}
+              disabled={!canSubmit || isSubmitting}
+              className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Create Contract
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

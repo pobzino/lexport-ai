@@ -74,6 +74,29 @@ export const PartySchema = z.object({
 export type Party = z.infer<typeof PartySchema>;
 
 // ============================================================================
+// Multi-Signatory Schemas (for 3+ signer support)
+// ============================================================================
+
+export const SignerSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+  title: z.string().optional(),
+});
+
+export type Signer = z.infer<typeof SignerSchema>;
+
+export const SignerGroupSchema = z.object({
+  role: z.string(),
+  roleLabel: z.string(),
+  signers: z.array(SignerSchema),
+  minSigners: z.number().optional(),
+  maxSigners: z.number().optional(),
+});
+
+export type SignerGroup = z.infer<typeof SignerGroupSchema>;
+
+// ============================================================================
 // Contract Metadata Schemas (per type)
 // ============================================================================
 
@@ -91,6 +114,7 @@ export const NDAMetadataSchema = z.object({
   includeNonCompete: z.boolean().default(false),
   nonCompetePeriod: z.number().optional(), // months
   geographicScope: z.string().optional(),
+  signerGroups: z.array(SignerGroupSchema).optional(), // Multi-signatory support
 });
 
 export type NDAMetadata = z.infer<typeof NDAMetadataSchema>;
@@ -111,6 +135,7 @@ export const ContractorMetadataSchema = z.object({
   includeIPAssignment: z.boolean().default(true),
   includeConfidentiality: z.boolean().default(true),
   terminationNoticeDays: z.number().default(14),
+  signerGroups: z.array(SignerGroupSchema).optional(), // Multi-signatory support
 });
 
 export type ContractorMetadata = z.infer<typeof ContractorMetadataSchema>;
@@ -134,6 +159,7 @@ export const ConsultingMetadataSchema = z.object({
   includeConfidentiality: z.boolean().default(true),
   includeNonCompete: z.boolean().default(false),
   nonCompetePeriod: z.number().optional(),
+  signerGroups: z.array(SignerGroupSchema).optional(), // Multi-signatory support
 });
 
 export type ConsultingMetadata = z.infer<typeof ConsultingMetadataSchema>;
@@ -150,6 +176,7 @@ export const SAFEMetadataSchema = z.object({
   proRataRights: z.boolean().default(false),
   effectiveDate: z.string(),
   jurisdiction: z.enum(["us_california", "us_texas", "us_new_york"]), // US only
+  signerGroups: z.array(SignerGroupSchema).optional(), // Multi-signatory support
 });
 
 export type SAFEMetadata = z.infer<typeof SAFEMetadataSchema>;
@@ -174,6 +201,7 @@ export const FreelanceMetadataSchema = z.object({
   deadline: z.string().optional(),
   jurisdiction: JurisdictionEnum,
   includeIPAssignment: z.boolean().default(true),
+  signerGroups: z.array(SignerGroupSchema).optional(), // Multi-signatory support
 });
 
 export type FreelanceMetadata = z.infer<typeof FreelanceMetadataSchema>;
