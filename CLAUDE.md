@@ -10,7 +10,7 @@ Lexport is an AI-powered legal platform for startup founders and freelancers. Cr
 - **Runtime**: Bun
 - **Backend**: Supabase (PostgreSQL, Auth, Storage)
 - **Styling**: Tailwind CSS v4
-- **AI**: OpenAI GPT-4o
+- **AI**: OpenAI (GPT-5-mini for generation, GPT-4o for analysis/chat)
 - **Hosting**: Netlify
 
 ## Project Structure
@@ -117,6 +117,18 @@ Copy `.env.example` to `.env` and fill in:
 - Stripe integration for contract payments
 - Payment status tracking
 - Payment fields in signature flow
+
+### AI Contract Generation
+- **GPT-5-mini**: Contract generation with manifest-based prompts (~$0.009/contract)
+- **GPT-4o**: Risk analysis, clause explanations, chat, modifications
+- Clause manifests in `src/lib/contracts/manifests/` define required clauses per contract type
+- Jurisdiction-aware prompts (CA non-competes unenforceable, UK GDPR, etc.)
+
+### Risk Analysis
+- AI-powered contract review for unusual clauses, missing protections
+- Severity levels: critical, warning, info
+- Cached by content hash to avoid redundant API calls
+- Results stored in `contract_risk_analysis` table
 
 ## Development Guidelines
 
