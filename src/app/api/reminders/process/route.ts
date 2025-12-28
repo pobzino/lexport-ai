@@ -1,45 +1,73 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
+import { sendBalanceReminderEmail } from "@/lib/email";
 
-// This endpoint should be called by a cron job (e.g., Netlify Scheduled Functions)
-// to process and send reminders for pending signatures
+// Use service role for cron job (bypasses RLS)
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+interface ContractWithBalance {
+  id: string;
+  title: string;
+  user_id: string;
+  payment_amount: number;
+  payment_currency: string;
+  deposit_percentage: number;
+  balance_due_date: string | null;
+  last_reminder_sent: string | null;
+}
+
+interface ReminderSchedule {
+  daysBeforeDue: number;
+  reminderType: "first" | "second" | "final";
+}
+
+// Reminder schedule configuration
+const REMINDER_SCHEDULE: ReminderSchedule[] = [
+  { daysBeforeDue: 7, reminderType: "first" },
+  { daysBeforeDue: 3, reminderType: "second" },
+  { daysBeforeDue: 1, reminderType: "final" },
+  { daysBeforeDue: 0, reminderType: "final" }, // On due date
+  { daysBeforeDue: -1, reminderType: "final" }, // 1 day overdue
+  { daysBeforeDue: -3, reminderType: "final" }, // 3 days overdue
+  { daysBeforeDue: -7, reminderType: "final" }, // 7 days overdue
+];
 
 export async function POST(request: NextRequest) {
   try {
     // Verify cron secret for security
-    const authHeader = request.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
-
+    const authHeader = request.headers.get("authorization");
+    
     if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = await createClient();
     const now = new Date();
+    const results = {
+      processed: 0,
+      remindersSent: 0,
+      skipped: 0,
+      errors: [] as string[],
+    };
 
-    // Find contracts that need reminders
-    const { data: contracts, error: fetchError } = await supabase
+    // Find contracts with deposit paid but balance unpaid
+    // These are contracts with deposit_balance structure where we have a deposit payment but no balance payment
+    const { data: contracts, error: contractsError } = await supabaseAdmin
       .from("contracts")
       .select(`
-        id,
-        title,
-        reminder_interval_days,
-        signature_requests!inner (
-          id,
-          signer_email,
-          signer_name,
-          signer_role,
-          status,
-          token,
-          last_reminder_sent_at
-        )
+        id, title, user_id,
+        payment_amount, payment_currency, deposit_percentage,
+        balance_due_date, last_reminder_sent
       `)
-      .eq("status", "pending_signature")
-      .eq("reminder_enabled", true)
-      .lte("next_reminder_at", now.toISOString());
+      .eq("payment_structure", "deposit_balance")
+      .eq("payment_required", true)
+      .not("balance_due_date", "is", null);
 
-    if (fetchError) {
-      console.error("Error fetching contracts for reminders:", fetchError);
+    if (contractsError) {
+      console.error("Failed to fetch contracts:", contractsError);
       return NextResponse.json(
         { error: "Failed to fetch contracts" },
         { status: 500 }
@@ -48,85 +76,176 @@ export async function POST(request: NextRequest) {
 
     if (!contracts || contracts.length === 0) {
       return NextResponse.json({
-        success: true,
-        message: "No reminders to send",
-        processed: 0
+        message: "No contracts with balance due dates found",
+        ...results,
       });
     }
 
-    let remindersSent = 0;
-    const errors: string[] = [];
+    // Process each contract
+    for (const contract of contracts as ContractWithBalance[]) {
+      results.processed++;
 
-    for (const contract of contracts) {
-      // Get pending signature requests
-      const pendingRequests = (contract.signature_requests as {
-        id: string;
-        signer_email: string;
-        signer_name: string;
-        signer_role: string;
-        status: string;
-        token: string;
-        last_reminder_sent_at: string | null;
-      }[]).filter((r) => r.status === "pending");
+      try {
+        // Check if deposit is paid and balance is not
+        const { data: payments } = await supabaseAdmin
+          .from("payments")
+          .select("id, payment_type, status, payer_email, payer_name")
+          .eq("contract_id", contract.id)
+          .eq("status", "succeeded");
 
-      for (const sigRequest of pendingRequests) {
-        try {
-          // Send reminder email (placeholder - integrate with email service)
-          const signingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3500"}/sign/${sigRequest.token}`;
+        const depositPayment = payments?.find(p => p.payment_type === "deposit");
+        const balancePayment = payments?.find(p => p.payment_type === "balance");
 
-          console.log(`[Reminder] Would send email to ${sigRequest.signer_email}:`);
-          console.log(`  Contract: ${contract.title}`);
-          console.log(`  Signing URL: ${signingUrl}`);
-
-          // TODO: Integrate with email service (Resend, SendGrid, etc.)
-          // await sendReminderEmail({
-          //   to: sigRequest.signer_email,
-          //   signerName: sigRequest.signer_name,
-          //   contractTitle: contract.title,
-          //   signingUrl,
-          // });
-
-          // Update last_reminder_sent_at on signature request
-          await supabase
-            .from("signature_requests")
-            .update({
-              last_reminder_sent_at: now.toISOString(),
-              updated_at: now.toISOString(),
-            })
-            .eq("id", sigRequest.id);
-
-          remindersSent++;
-        } catch (err) {
-          const errorMsg = `Failed to send reminder for ${sigRequest.signer_email}: ${err}`;
-          console.error(errorMsg);
-          errors.push(errorMsg);
+        // Skip if deposit not paid or balance already paid
+        if (!depositPayment || balancePayment) {
+          results.skipped++;
+          continue;
         }
+
+        // Get recipient email from deposit payment
+        const recipientEmail = depositPayment.payer_email;
+        const recipientName = depositPayment.payer_name;
+
+        if (!recipientEmail) {
+          results.skipped++;
+          continue;
+        }
+
+        // Calculate days until due
+        const dueDate = new Date(contract.balance_due_date!);
+        const daysUntilDue = Math.ceil(
+          (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        // Find the appropriate reminder to send
+        const reminderToSend = REMINDER_SCHEDULE.find(
+          (r) => r.daysBeforeDue === daysUntilDue
+        );
+
+        if (!reminderToSend) {
+          results.skipped++;
+          continue;
+        }
+
+        // Check if we already sent this type of reminder
+        const { data: existingReminders } = await supabaseAdmin
+          .from("payment_reminders")
+          .select("id, reminder_type")
+          .eq("contract_id", contract.id)
+          .eq("reminder_type", reminderToSend.reminderType);
+
+        // For "first" and "second", only send once
+        // For "final", allow multiple (overdue reminders)
+        if (existingReminders && existingReminders.length > 0) {
+          if (reminderToSend.reminderType !== "final") {
+            results.skipped++;
+            continue;
+          }
+
+          // For final reminders, check 24-hour cooldown
+          const lastReminder = await supabaseAdmin
+            .from("payment_reminders")
+            .select("sent_at")
+            .eq("contract_id", contract.id)
+            .order("sent_at", { ascending: false })
+            .limit(1)
+            .single();
+
+          if (lastReminder.data) {
+            const hoursSinceLastReminder =
+              (now.getTime() - new Date(lastReminder.data.sent_at).getTime()) /
+              (1000 * 60 * 60);
+            if (hoursSinceLastReminder < 24) {
+              results.skipped++;
+              continue;
+            }
+          }
+        }
+
+        // Get contract owner info for sender details
+        const { data: ownerData } = await supabaseAdmin
+          .from("users")
+          .select("name, email")
+          .eq("id", contract.user_id)
+          .single();
+
+        // Calculate amounts
+        const totalAmount = Math.round(contract.payment_amount * 100);
+        const depositPercentage = contract.deposit_percentage || 30;
+        const depositAmount = Math.round(totalAmount * (depositPercentage / 100));
+        const balanceAmount = totalAmount - depositAmount;
+
+        // Build payment URL
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexport.app";
+        const paymentUrl = `${baseUrl}/portal/contracts/${contract.id}?action=pay`;
+
+        // Send the reminder
+        const emailResult = await sendBalanceReminderEmail({
+          to: recipientEmail,
+          recipientName: recipientName || "Valued Customer",
+          contractTitle: contract.title,
+          balanceAmount,
+          currency: contract.payment_currency || "usd",
+          dueDate: contract.balance_due_date || undefined,
+          paymentUrl,
+          depositPaidAmount: depositAmount,
+          senderName: ownerData?.name || undefined,
+          reminderType: reminderToSend.reminderType,
+        });
+
+        // Record the reminder
+        await supabaseAdmin.from("payment_reminders").insert({
+          contract_id: contract.id,
+          payment_id: depositPayment.id,
+          recipient_email: recipientEmail,
+          recipient_name: recipientName,
+          reminder_type: reminderToSend.reminderType,
+          amount: balanceAmount,
+          currency: contract.payment_currency || "usd",
+          email_id: emailResult.id || null,
+        });
+
+        // Update contract's last_reminder_sent
+        await supabaseAdmin
+          .from("contracts")
+          .update({
+            last_reminder_sent: now.toISOString(),
+            updated_at: now.toISOString(),
+          })
+          .eq("id", contract.id);
+
+        // Log audit event
+        await supabaseAdmin.from("audit_logs").insert({
+          contract_id: contract.id,
+          user_id: contract.user_id,
+          event_type: "auto_balance_reminder_sent",
+          ip_address: "cron",
+          user_agent: "netlify-scheduled-function",
+          metadata: {
+            reminder_type: reminderToSend.reminderType,
+            days_until_due: daysUntilDue,
+            recipient_email: recipientEmail,
+            balance_amount: balanceAmount,
+          },
+        });
+
+        results.remindersSent++;
+        console.log(
+          `Sent ${reminderToSend.reminderType} reminder for contract ${contract.id} (${daysUntilDue} days until due)`
+        );
+      } catch (contractError) {
+        const errorMsg = `Failed to process contract ${contract.id}: ${contractError}`;
+        console.error(errorMsg);
+        results.errors.push(errorMsg);
       }
-
-      // Calculate next reminder time
-      const nextReminderAt = new Date(
-        now.getTime() + (contract.reminder_interval_days || 3) * 24 * 60 * 60 * 1000
-      );
-
-      // Update contract's last reminder and next reminder times
-      await supabase
-        .from("contracts")
-        .update({
-          last_reminder_sent_at: now.toISOString(),
-          next_reminder_at: nextReminderAt.toISOString(),
-          updated_at: now.toISOString(),
-        })
-        .eq("id", contract.id);
     }
 
-    // Create audit logs for reminders sent
-    // (optional: could add reminder_sent event type)
+    console.log("Reminder processing complete:", results);
 
     return NextResponse.json({
       success: true,
-      message: `Processed ${contracts.length} contracts`,
-      remindersSent,
-      errors: errors.length > 0 ? errors : undefined,
+      message: `Processed ${results.processed} contracts, sent ${results.remindersSent} reminders`,
+      ...results,
     });
   } catch (error) {
     console.error("Error processing reminders:", error);
@@ -137,47 +256,17 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET endpoint to check reminder status (for debugging)
-export async function GET() {
-  try {
-    const supabase = await createClient();
-    const now = new Date();
+// Also support GET for manual testing
+export async function GET(request: NextRequest) {
+  // For GET requests, require the cron secret as a query param
+  const { searchParams } = new URL(request.url);
+  const secret = searchParams.get("secret");
+  const cronSecret = process.env.CRON_SECRET;
 
-    const { data: pendingReminders, error } = await supabase
-      .from("contracts")
-      .select(`
-        id,
-        title,
-        next_reminder_at,
-        reminder_interval_days,
-        signature_requests (
-          id,
-          signer_email,
-          status,
-          last_reminder_sent_at
-        )
-      `)
-      .eq("status", "pending_signature")
-      .eq("reminder_enabled", true)
-      .order("next_reminder_at", { ascending: true })
-      .limit(10);
-
-    if (error) {
-      return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
-    }
-
-    return NextResponse.json({
-      currentTime: now.toISOString(),
-      pendingReminders: pendingReminders?.map((c) => ({
-        id: c.id,
-        title: c.title,
-        nextReminderAt: c.next_reminder_at,
-        intervalDays: c.reminder_interval_days,
-        pendingSigners: (c.signature_requests as { status: string }[])
-          .filter((r) => r.status === "pending").length,
-      })),
-    });
-  } catch (error) {
-    return NextResponse.json({ error: "Failed" }, { status: 500 });
+  if (cronSecret && secret !== cronSecret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Forward to POST handler
+  return POST(request);
 }

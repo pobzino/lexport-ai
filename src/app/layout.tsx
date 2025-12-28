@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { Toaster } from "@/components/ui/toast";
+import { CookieConsent } from "@/components/cookie-consent";
+import { NavigationProgress } from "@/components/navigation-progress";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -9,41 +13,81 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://lexport.ai"),
   title: {
-    default: "Lexport - AI-Powered Legal Contracts",
+    default: "Lexport - AI-Powered Legal Contracts & E-Signatures",
     template: "%s | Lexport",
   },
   description:
-    "Create legally binding contracts with AI. E-signatures, contract management, and templates for startup founders and freelancers.",
+    "Generate legally binding contracts with AI in minutes. E-signatures, payment collection, and contract management for startup founders, freelancers, and small businesses. Supports CA, TX, NY, and UK law.",
   keywords: [
-    "legal contracts",
-    "AI contracts",
-    "e-signature",
-    "NDA",
+    "AI legal contracts",
+    "e-signature platform",
+    "NDA generator",
     "contractor agreement",
     "freelance contract",
-    "startup legal",
+    "startup legal documents",
+    "AI contract generator",
+    "electronic signature",
+    "legal document automation",
+    "contract management software",
   ],
-  authors: [{ name: "Lexport" }],
+  authors: [{ name: "Lexport", url: "https://lexport.ai" }],
+  creator: "Lexport",
+  publisher: "Lexport",
+  formatDetection: {
+    email: false,
+    telephone: false,
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-touch-icon.svg",
+  },
+  manifest: "/manifest.json",
   openGraph: {
     type: "website",
     locale: "en_US",
     url: "https://lexport.ai",
     siteName: "Lexport",
-    title: "Lexport - AI-Powered Legal Contracts",
+    title: "Lexport - AI-Powered Legal Contracts & E-Signatures",
     description:
-      "Create legally binding contracts with AI. E-signatures, contract management, and templates for startup founders and freelancers.",
+      "Generate legally binding contracts with AI in minutes. E-signatures, payment collection, and contract management for startups and freelancers.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Lexport - AI-Powered Legal Contracts",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Lexport - AI-Powered Legal Contracts",
+    title: "Lexport - AI-Powered Legal Contracts & E-Signatures",
     description:
-      "Create legally binding contracts with AI. E-signatures, contract management, and templates for startup founders and freelancers.",
+      "Generate legally binding contracts with AI in minutes. E-signatures and payment collection for startups and freelancers.",
+    images: ["/og-image.png"],
+    creator: "@lexport_ai",
   },
   robots: {
     index: true,
     follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
   },
+  verification: {
+    // Add these when you have them
+    // google: "your-google-verification-code",
+    // yandex: "your-yandex-verification-code",
+  },
+  category: "Legal Technology",
 };
 
 export default function RootLayout({
@@ -63,8 +107,16 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.variable} font-sans`}>
-        <Providers>{children}</Providers>
+        <Providers>
+          <Suspense fallback={null}>
+            <NavigationProgress />
+          </Suspense>
+          {children}
+          <Toaster />
+          <CookieConsent />
+        </Providers>
       </body>
     </html>
   );
 }
+

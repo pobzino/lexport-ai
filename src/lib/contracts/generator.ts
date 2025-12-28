@@ -418,7 +418,14 @@ FORMATTING REQUIREMENTS:
 2. Include a Definitions section for key terms
 3. Use professional signature block with "By:" line format
 4. All clauses must be appropriate for the specific contract type
-5. For optional fields not provided, use placeholder format: _____ (5 underscores) that users can fill in later`;
+5. For optional fields not provided, use placeholder format: _____ (5 underscores) that users can fill in later
+
+SIGNATURE BLOCK FOR MULTIPLE SIGNERS:
+When there are multiple signers for the same party (e.g., multiple investors, multiple founders, co-clients):
+- Create a separate signature section for EACH individual signer
+- Group signers by their role/party type with a header
+- Each signer must have their own: Signature line, Printed Name, Title (if provided), Date
+- Example for 2 founders: "COMPANY (Founders):" followed by two separate signature blocks`;
 
   if (manifest) {
     const requiredList = manifest.requiredClauses
@@ -510,17 +517,55 @@ Please generate the complete contract using the generate_contract function. Incl
 Make the contract professional, comprehensive, and legally sound for ${JURISDICTION_NAMES[metadata.jurisdiction]}.`;
 }
 
+// Helper to format signers from signerGroups for the AI prompt
+function formatSignersForPrompt(metadata: ContractMetadata): string | null {
+  const meta = metadata as Record<string, unknown>;
+  const signerGroups = meta.signerGroups as Array<{
+    role: string;
+    roleLabel: string;
+    signers: Array<{ id: string; name: string; email: string; title?: string }>;
+  }> | undefined;
+
+  if (!signerGroups || signerGroups.length === 0) {
+    return null;
+  }
+
+  const lines: string[] = [];
+  for (const group of signerGroups) {
+    const signerCount = group.signers.filter(s => s.name || s.email).length;
+    if (signerCount === 0) continue;
+
+    if (signerCount === 1) {
+      const signer = group.signers[0];
+      lines.push(`- ${group.roleLabel}: ${signer.name}${signer.title ? `, ${signer.title}` : ""}`);
+    } else {
+      lines.push(`- ${group.roleLabel} (${signerCount} signers):`);
+      for (const signer of group.signers) {
+        if (signer.name || signer.email) {
+          lines.push(`  * ${signer.name}${signer.title ? `, ${signer.title}` : ""}`);
+        }
+      }
+    }
+  }
+
+  return lines.length > 0 ? lines.join("\n") : null;
+}
+
 function formatMetadataForPrompt(
   contractType: ContractType,
   metadata: ContractMetadata
 ): string {
+  // Check for multi-signatory signerGroups first
+  const signersPrompt = formatSignersForPrompt(metadata);
+
   switch (contractType) {
     case "nda_mutual":
     case "nda_one_way": {
       const m = metadata as import("./schemas").NDAMetadata;
-      return `
+      const partiesSection = signersPrompt || `
 - Disclosing Party: ${m.disclosingParty.name}${m.disclosingParty.title ? `, ${m.disclosingParty.title}` : ""}${m.disclosingParty.company ? ` of ${m.disclosingParty.company}` : ""}
-- Receiving Party: ${m.receivingParty.name}${m.receivingParty.title ? `, ${m.receivingParty.title}` : ""}${m.receivingParty.company ? ` of ${m.receivingParty.company}` : ""}
+- Receiving Party: ${m.receivingParty.name}${m.receivingParty.title ? `, ${m.receivingParty.title}` : ""}${m.receivingParty.company ? ` of ${m.receivingParty.company}` : ""}`;
+      return `${partiesSection}
 - Effective Date: ${m.effectiveDate}
 - Purpose: ${m.purpose}
 - Confidentiality Period: ${m.confidentialityPeriod} years
@@ -531,9 +576,10 @@ ${m.geographicScope ? `- Geographic Scope: ${m.geographicScope}` : ""}`;
 
     case "independent_contractor": {
       const m = metadata as import("./schemas").ContractorMetadata;
-      return `
+      const partiesSection = signersPrompt || `
 - Client: ${m.client.name}${m.client.title ? `, ${m.client.title}` : ""}${m.client.company ? ` of ${m.client.company}` : ""}
-- Contractor: ${m.contractor.name}${m.contractor.title ? `, ${m.contractor.title}` : ""}${m.contractor.company ? ` of ${m.contractor.company}` : ""}
+- Contractor: ${m.contractor.name}${m.contractor.title ? `, ${m.contractor.title}` : ""}${m.contractor.company ? ` of ${m.contractor.company}` : ""}`;
+      return `${partiesSection}
 - Effective Date: ${m.effectiveDate}
 ${m.endDate ? `- End Date: ${m.endDate}` : "- Ongoing engagement"}
 - Services: ${m.servicesDescription}
@@ -546,9 +592,10 @@ ${m.includeConfidentiality ? "- Include Confidentiality clause" : ""}`;
 
     case "consulting_agreement": {
       const m = metadata as import("./schemas").ConsultingMetadata;
-      return `
+      const partiesSection = signersPrompt || `
 - Client: ${m.client.name}${m.client.title ? `, ${m.client.title}` : ""}${m.client.company ? ` of ${m.client.company}` : ""}
-- Consultant: ${m.consultant.name}${m.consultant.title ? `, ${m.consultant.title}` : ""}${m.consultant.company ? ` of ${m.consultant.company}` : ""}
+- Consultant: ${m.consultant.name}${m.consultant.title ? `, ${m.consultant.title}` : ""}${m.consultant.company ? ` of ${m.consultant.company}` : ""}`;
+      return `${partiesSection}
 - Effective Date: ${m.effectiveDate}
 ${m.endDate ? `- End Date: ${m.endDate}` : "- Ongoing engagement"}
 - Scope: ${m.consultingScope}
@@ -562,9 +609,10 @@ ${m.includeNonCompete ? `- Include Non-Compete (${m.nonCompetePeriod} months)` :
 
     case "safe_note": {
       const m = metadata as import("./schemas").SAFEMetadata;
-      return `
+      const partiesSection = signersPrompt || `
 - Company: ${m.company.name}${m.company.title ? ` (signer: ${m.company.title})` : ""}
-- Investor: ${m.investor.name}${m.investor.title ? `, ${m.investor.title}` : ""}${m.investor.company ? ` of ${m.investor.company}` : ""}
+- Investor: ${m.investor.name}${m.investor.title ? `, ${m.investor.title}` : ""}${m.investor.company ? ` of ${m.investor.company}` : ""}`;
+      return `${partiesSection}
 - Investment Amount: $${m.investmentAmount.toLocaleString()}
 - SAFE Type: ${m.safeType.replace(/_/g, " ")}
 ${m.valuationCap ? `- Valuation Cap: $${m.valuationCap.toLocaleString()}` : ""}
@@ -578,9 +626,10 @@ ${m.discountRate ? `- Discount Rate: ${m.discountRate}%` : ""}
       const deliverablesList = m.deliverables
         .map((d) => `  - ${d.description}${d.dueDate ? ` (due: ${d.dueDate})` : ""}${d.amount ? ` - $${d.amount}` : ""}`)
         .join("\n");
-      return `
+      const partiesSection = signersPrompt || `
 - Client: ${m.client.name}${m.client.title ? `, ${m.client.title}` : ""}${m.client.company ? ` of ${m.client.company}` : ""}
-- Freelancer: ${m.freelancer.name}${m.freelancer.title ? `, ${m.freelancer.title}` : ""}${m.freelancer.company ? ` of ${m.freelancer.company}` : ""}
+- Freelancer: ${m.freelancer.name}${m.freelancer.title ? `, ${m.freelancer.title}` : ""}${m.freelancer.company ? ` of ${m.freelancer.company}` : ""}`;
+      return `${partiesSection}
 - Project: ${m.projectName}
 - Description: ${m.projectDescription}
 - Total Amount: $${m.totalAmount}

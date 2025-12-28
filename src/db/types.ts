@@ -12,21 +12,76 @@ export type PaymentStatus = "pending" | "processing" | "succeeded" | "failed" | 
 export type StripeConnectStatus = "not_connected" | "pending" | "active" | "restricted";
 export type PaymentType = "full" | "deposit" | "balance" | "installment";
 export type PaymentStructure = "full" | "deposit_balance" | "bnpl";
-export type InvoiceStatus = "draft" | "sent" | "paid" | "void";
+export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "cancelled" | "void";
+export type InvoiceTemplateType = "hourly" | "fixed_fee" | "milestone" | "retainer" | "custom";
+export type RetainerPeriod = "weekly" | "monthly" | "quarterly";
 export type AuditEventType =
+  // Contract lifecycle events
   | "contract_created"
   | "contract_updated"
+  | "contract_deleted"
   | "contract_sent"
+  | "contract_viewed"
+  | "contract_completed"
+  | "contract_expired"
+  | "contract_downloaded"
+  // Signature events
   | "signature_requested"
-  | "document_viewed"
+  | "signature_request_sent"
+  | "signature_request_viewed"
+  | "signature_request_resent"
   | "signature_completed"
   | "signature_declined"
-  | "contract_completed"
-  | "contract_downloaded"
+  // Document events
+  | "document_viewed"
+  | "document_printed"
+  | "pdf_generated"
+  | "pdf_downloaded"
+  // Payment events
+  | "payment_initiated"
   | "payment_completed"
   | "payment_failed"
   | "payment_refunded"
-  | "invoice_sent";
+  | "invoice_created"
+  | "invoice_sent"
+  | "invoice_paid"
+  // Field events
+  | "field_added"
+  | "field_updated"
+  | "field_deleted"
+  | "field_value_entered"
+  // Access events
+  | "access_granted"
+  | "access_revoked"
+  | "link_shared"
+  | "reminder_sent";
+
+// Geo location data from IP lookup
+export interface GeoLocation {
+  ip: string;
+  city?: string;
+  region?: string;
+  country?: string;
+  countryCode?: string;
+  timezone?: string;
+  latitude?: number;
+  longitude?: number;
+  isp?: string;
+}
+
+// Device information parsed from user agent
+export interface DeviceInfo {
+  browser?: string;
+  browserVersion?: string;
+  os?: string;
+  osVersion?: string;
+  device?: string;
+  deviceType?: "desktop" | "mobile" | "tablet" | "unknown";
+  isMobile?: boolean;
+}
+
+// Version history types
+export type VersionChangeType = "create" | "edit" | "ai_modification" | "rollback";
 export type Jurisdiction = "CA" | "TX" | "NY" | "UK" | "other";
 export type ContractType =
   | "nda_mutual"
@@ -50,6 +105,12 @@ export interface User {
   role: UserRole | null;
   jurisdiction: string | null;
   organization_id: string | null;
+  // Profile fields for autofill
+  company_name: string | null;
+  job_title: string | null;
+  address: string | null;
+  phone: string | null;
+  default_jurisdiction: string | null;
   // Stripe Connect
   stripe_connect_account_id: string | null;
   stripe_connect_status: StripeConnectStatus;
@@ -198,11 +259,30 @@ export interface AuditLog {
   signature_request_id: string | null;
   user_id: string | null;
   event_type: AuditEventType;
-  ip_address: string;
-  user_agent: string;
-  geo_location: Record<string, unknown> | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  // Actor information
+  actor_email: string | null;
+  actor_name: string | null;
+  // Enhanced tracking
+  geo_location: GeoLocation | null;
+  device_info: DeviceInfo | null;
+  // Change tracking
+  affected_fields: string[] | null;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  // Context
+  page_url: string | null;
+  session_id: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+}
+
+// Enhanced audit log for API responses with computed fields
+export interface AuditLogWithDetails extends AuditLog {
+  actor_display_name: string;
+  event_description: string;
+  time_ago: string;
 }
 
 export interface Template {
@@ -309,7 +389,8 @@ export interface PaymentInstallment {
 
 export interface Invoice {
   id: string;
-  contract_id: string;
+  contract_id: string | null; // Nullable to support standalone invoices
+  template_id: string | null; // Reference to invoice template used
   payment_id: string | null;
   user_id: string;
   invoice_number: string;
@@ -342,6 +423,100 @@ export interface InvoiceLineItem {
   amount: number; // cents
 }
 
+export interface InvoiceSettings {
+  user_id: string;
+  // Numbering settings
+  number_prefix: string;
+  next_number: number;
+  number_year: number;
+  // Branding
+  company_name: string | null;
+  company_address: string | null;
+  company_logo_url: string | null;
+  // Default settings
+  default_due_days: number;
+  default_notes: string | null;
+  default_payment_terms: string | null;
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+}
+
+// Invoice Template types
+export interface MilestoneConfig {
+  name: string;
+  percentage: number;
+  description?: string;
+}
+
+export interface InvoiceTemplate {
+  id: string;
+  user_id: string | null; // Null for system templates
+  name: string;
+  description: string | null;
+  template_type: InvoiceTemplateType;
+  is_system: boolean;
+  is_public: boolean;
+  // Template configuration
+  default_line_items: InvoiceLineItem[];
+  default_notes: string | null;
+  default_due_days: number;
+  default_payment_terms: string | null;
+  // Type-specific fields
+  hourly_rate: number | null; // cents - for hourly templates
+  milestones: MilestoneConfig[] | null; // for milestone templates
+  retainer_amount: number | null; // cents - for retainer templates
+  retainer_period: RetainerPeriod | null; // for retainer templates
+  // Metadata
+  usage_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Comments/Annotations
+export interface Comment {
+  id: string;
+  contract_id: string;
+  clause_id: string;
+  user_id: string;
+  parent_comment_id: string | null;
+  content: string;
+  selection_start: number | null;
+  selection_end: number | null;
+  selected_text: string | null;
+  is_resolved: boolean;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // Populated relations (optional)
+  user?: User;
+  replies?: Comment[];
+}
+
+export interface CommentMention {
+  id: string;
+  comment_id: string;
+  mentioned_user_id: string;
+  is_read: boolean;
+  read_at: string | null;
+  created_at: string;
+  // Populated relations (optional)
+  user?: User;
+  comment?: Comment;
+}
+
+// Comment with user info for display
+export interface CommentWithUser extends Omit<Comment, 'user' | 'replies'> {
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+    image: string | null;
+  };
+  replies?: CommentWithUser[];
+}
+
 // Insert types (for creating new records)
 export type NewUser = Omit<User, "id" | "created_at" | "updated_at">;
 export type NewOrganization = Omit<Organization, "id" | "created_at" | "updated_at">;
@@ -357,3 +532,45 @@ export type NewFieldTemplate = Omit<FieldTemplate, "id" | "created_at" | "update
 export type NewPayment = Omit<Payment, "id" | "created_at" | "updated_at">;
 export type NewPaymentSchedule = Omit<PaymentSchedule, "id" | "created_at" | "updated_at">;
 export type NewInvoice = Omit<Invoice, "id" | "created_at" | "updated_at" | "invoice_number">;
+export type NewInvoiceTemplate = Omit<InvoiceTemplate, "id" | "created_at" | "updated_at" | "usage_count">;
+export type NewComment = Omit<Comment, "id" | "created_at" | "updated_at" | "user" | "replies">;
+export type NewCommentMention = Omit<CommentMention, "id" | "created_at" | "user" | "comment">;
+
+// Contract Version interface
+export interface ContractVersion {
+  id: string;
+  contract_id: string;
+  version_number: number;
+  content: ContractContent;
+  metadata: Record<string, unknown> | null;
+  change_summary: string | null;
+  change_type: VersionChangeType;
+  created_by: string | null;
+  created_at: string;
+}
+
+export type NewContractVersion = Omit<ContractVersion, "id" | "created_at">;
+
+// Version comparison types
+export interface VersionDiff {
+  type: "added" | "removed" | "unchanged" | "modified";
+  value: string;
+  oldValue?: string;
+}
+
+export interface ClauseDiff {
+  clauseId: string;
+  clauseTitle: string;
+  status: "added" | "removed" | "modified" | "unchanged";
+  titleDiff?: VersionDiff[];
+  contentDiff?: VersionDiff[];
+}
+
+export interface VersionComparison {
+  fromVersion: number;
+  toVersion: number;
+  preambleDiff: VersionDiff[];
+  recitalsDiff: VersionDiff[];
+  clausesDiff: ClauseDiff[];
+  signatureBlockDiff: VersionDiff[];
+}

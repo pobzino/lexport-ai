@@ -19,6 +19,7 @@ import {
   Lock,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 // Initialize Stripe - make sure to set NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY in .env
 const stripePromise = loadStripe(
@@ -31,14 +32,20 @@ interface PaymentInfo {
   amount: number;
   currency: string;
   contractTitle?: string;
+  paymentType?: "full" | "deposit" | "balance";
+  totalAmount?: number;
+  depositPaid?: boolean;
+  balanceRemaining?: number;
 }
 
 function CheckoutForm({
   paymentInfo,
   returnUrl,
+  alreadySigned,
 }: {
   paymentInfo: PaymentInfo;
   returnUrl: string;
+  alreadySigned: boolean;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -77,28 +84,51 @@ function CheckoutForm({
       setProcessing(false);
     } else if (paymentIntent?.status === "succeeded") {
       setSucceeded(true);
-      // Redirect back to signing page after short delay
-      setTimeout(() => {
-        window.location.href = returnUrl;
-      }, 2000);
+      // Only redirect if not already signed and not a deposit payment
+      // For deposit payments after signing, stay on success message
+      if (!alreadySigned && paymentInfo.paymentType !== "deposit") {
+        setTimeout(() => {
+          window.location.href = returnUrl;
+        }, 2000);
+      }
     } else {
       setProcessing(false);
     }
   };
 
   if (succeeded) {
+    const isDeposit = paymentInfo.paymentType === "deposit";
+    const isBalance = paymentInfo.paymentType === "balance";
+
     return (
       <div className="text-center py-8">
         <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <Check className="w-8 h-8 text-emerald-600" />
         </div>
         <h2 className="text-xl font-bold text-slate-900 mb-2">
-          Payment Successful!
+          {isDeposit ? "Deposit Paid!" : isBalance ? "Balance Paid!" : "Payment Successful!"}
         </h2>
         <p className="text-slate-600 mb-4">
-          Redirecting you back to sign the contract...
+          {isDeposit && alreadySigned ? (
+            <>Your contract has been signed and your deposit has been received. The remaining balance will be collected when due.</>
+          ) : isBalance ? (
+            <>All payments are now complete. Thank you!</>
+          ) : alreadySigned ? (
+            <>Your payment has been received. Thank you!</>
+          ) : (
+            <>Redirecting you back to sign the contract...</>
+          )}
         </p>
-        <Loader2 className="w-5 h-5 animate-spin text-violet-600 mx-auto" />
+        {!alreadySigned && !isDeposit && (
+          <Loader2 className="w-5 h-5 animate-spin text-violet-600 mx-auto" />
+        )}
+        {(alreadySigned || isDeposit) && (
+          <div className="mt-6 p-4 bg-slate-50 rounded-xl">
+            <p className="text-sm text-slate-600">
+              You can close this page. A confirmation email will be sent to you shortly.
+            </p>
+          </div>
+        )}
       </div>
     );
   }
@@ -154,6 +184,7 @@ export default function PaymentPage() {
   const router = useRouter();
   const contractId = params.contractId as string;
   const returnToken = searchParams.get("token");
+  const alreadySigned = searchParams.get("signed") === "true";
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -186,16 +217,11 @@ export default function PaymentPage() {
           paymentIntentId: data.paymentIntentId,
           amount: data.amount,
           currency: data.currency,
+          paymentType: data.paymentType,
+          totalAmount: data.totalAmount,
+          depositPaid: data.depositPaid,
+          balanceRemaining: data.balanceRemaining,
         });
-
-        // Fetch contract title
-        const contractResponse = await fetch(
-          `/api/contracts/${contractId}/payment`
-        );
-        if (contractResponse.ok) {
-          const contractData = await contractResponse.json();
-          // Contract title would come from a different endpoint in production
-        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load payment");
       } finally {
@@ -257,10 +283,13 @@ export default function PaymentPage() {
         <div className="max-w-lg mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-                Lx
-              </div>
-              <span className="text-xl font-bold text-slate-900">Lexport</span>
+              <Image
+                src="/dark-logo.png"
+                alt="Lexport"
+                width={120}
+                height={32}
+                className="h-8 w-auto"
+              />
             </div>
             {returnToken && (
               <Link
@@ -280,15 +309,21 @@ export default function PaymentPage() {
           {/* Payment Header */}
           <div className="px-6 py-5 border-b border-slate-100 bg-slate-50">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
-                <CreditCard className="w-5 h-5 text-violet-600" />
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${alreadySigned ? "bg-emerald-100" : "bg-violet-100"}`}>
+                {alreadySigned ? (
+                  <Check className="w-5 h-5 text-emerald-600" />
+                ) : (
+                  <CreditCard className="w-5 h-5 text-violet-600" />
+                )}
               </div>
               <div>
                 <h1 className="text-lg font-semibold text-slate-900">
-                  Complete Payment
+                  {alreadySigned ? "Contract Signed!" : "Complete Payment"}
                 </h1>
                 <p className="text-sm text-slate-500">
-                  Payment required before signing
+                  {alreadySigned
+                    ? "Complete your payment to finalize the contract"
+                    : "Payment to complete your contract"}
                 </p>
               </div>
             </div>
@@ -296,8 +331,27 @@ export default function PaymentPage() {
 
           {/* Amount */}
           <div className="px-6 py-4 border-b border-slate-100">
+            {/* Payment type badge */}
+            {paymentInfo.paymentType && paymentInfo.paymentType !== "full" && (
+              <div className="mb-3">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  paymentInfo.paymentType === "deposit"
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-emerald-100 text-emerald-800"
+                }`}>
+                  {paymentInfo.paymentType === "deposit" ? "Deposit Payment" : "Balance Payment"}
+                </span>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
-              <span className="text-slate-600">Amount Due</span>
+              <span className="text-slate-600">
+                {paymentInfo.paymentType === "deposit"
+                  ? "Deposit Amount"
+                  : paymentInfo.paymentType === "balance"
+                  ? "Balance Due"
+                  : "Amount Due"}
+              </span>
               <span className="text-2xl font-bold text-slate-900">
                 {new Intl.NumberFormat("en-US", {
                   style: "currency",
@@ -305,6 +359,39 @@ export default function PaymentPage() {
                 }).format(paymentInfo.amount / 100)}
               </span>
             </div>
+
+            {/* Show total and remaining for split payments */}
+            {paymentInfo.paymentType === "deposit" && paymentInfo.totalAmount && (
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Total Contract Value</span>
+                  <span className="text-slate-700">
+                    {new Intl.NumberFormat("en-US", {
+                      style: "currency",
+                      currency: paymentInfo.currency,
+                    }).format(paymentInfo.totalAmount / 100)}
+                  </span>
+                </div>
+                {paymentInfo.balanceRemaining && paymentInfo.balanceRemaining > 0 && (
+                  <div className="flex items-center justify-between text-sm mt-1">
+                    <span className="text-slate-500">Balance Due Later</span>
+                    <span className="text-slate-700">
+                      {new Intl.NumberFormat("en-US", {
+                        style: "currency",
+                        currency: paymentInfo.currency,
+                      }).format(paymentInfo.balanceRemaining / 100)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {paymentInfo.depositPaid && paymentInfo.paymentType === "balance" && (
+              <div className="mt-3 flex items-center gap-2 text-sm text-emerald-600">
+                <Check className="w-4 h-4" />
+                <span>Deposit already paid</span>
+              </div>
+            )}
           </div>
 
           {/* Stripe Elements */}
@@ -322,7 +409,7 @@ export default function PaymentPage() {
                 },
               }}
             >
-              <CheckoutForm paymentInfo={paymentInfo} returnUrl={returnUrl} />
+              <CheckoutForm paymentInfo={paymentInfo} returnUrl={returnUrl} alreadySigned={alreadySigned} />
             </Elements>
           </div>
         </div>

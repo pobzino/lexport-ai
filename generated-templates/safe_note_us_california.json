@@ -1,0 +1,249 @@
+{
+  "contract_type": "safe_note",
+  "jurisdiction": "us_california",
+  "version": 1,
+  "title": "Simple Agreement for Future Equity (SAFE) — Valuation Cap and Discount (California)",
+  "preamble": "This Simple Agreement for Future Equity (this “SAFE” or this “Agreement”) is entered into and effective as of {{effective_date}} (the “Effective Date”) by and between {{party_a_company}}, with an address at {{party_a_address}} (the “Company”), and {{party_b_name}}, with an address at {{party_b_address}} (the “Investor”).",
+  "recitals": "WHEREAS, the Company desires to raise funds for its business and the Investor desires to provide funds to the Company on the terms set forth herein in exchange for the right to receive equity of the Company upon the occurrence of certain events; and\n\nWHEREAS, the parties intend that this SAFE constitutes a binding agreement under applicable law, including the laws of {{governing_jurisdiction}}.\n\nNOW, THEREFORE, in consideration of the mutual covenants and promises herein and other good and valuable consideration, the receipt and sufficiency of which are acknowledged, the parties agree as follows:",
+  "clauses": [
+    {
+      "id": "definitions",
+      "title": "1. DEFINITIONS",
+      "content": "1.1 “Capital Stock” means the shares of the Company’s capital stock, including any series of preferred stock and common stock, and any other equity securities of the Company.\n\n1.2 “Equity Financing” means a bona fide transaction or series of related transactions in which the Company issues and sells shares of its preferred stock (or other equity securities that are substantially similar) for the primary purpose of raising capital, excluding (a) issuances pursuant to employee equity incentive plans, (b) issuances upon conversion or exercise of outstanding convertible securities, and (c) issuances in connection with acquisitions, strategic transactions, or equipment/credit financings not principally for equity capital-raising.\n\n1.3 “Liquidity Event” means (a) a Change of Control of the Company, or (b) the sale, lease, transfer, exclusive license, or other disposition of all or substantially all of the Company’s assets, in each case in a single transaction or series of related transactions.\n\n1.4 “Change of Control” means (a) a merger, consolidation, or other reorganization of the Company after which the holders of the Company’s voting securities immediately prior to such transaction do not hold a majority of the voting power of the surviving or acquiring entity, or (b) any person or group becomes the beneficial owner of a majority of the voting power of the Company.\n\n1.5 “Dissolution Event” means (a) the voluntary termination of operations and winding up of the Company, (b) a general assignment for the benefit of the Company’s creditors, or (c) any other liquidation, dissolution, or winding up of the Company (other than a Liquidity Event).\n\n1.6 “Purchase Amount” means {{investment_amount}}.\n\n1.7 “Valuation Cap” means {{valuation_cap}}.\n\n1.8 “Discount Rate” means {{discount_rate}}.\n\n1.9 “Safe Securities” means the securities issued to the Investor upon conversion or settlement of this SAFE pursuant to this Agreement.\n\n1.10 “Company Capitalization” means, as of immediately prior to the closing of the Equity Financing, the fully-diluted capitalization of the Company, including issued and outstanding Capital Stock and all securities convertible into, exercisable for, or that may be settled in Capital Stock (including this SAFE and other SAFEs/convertible instruments), as determined in good faith by the Company’s board of directors (or other governing body) consistent with customary venture financing practice.\n\n1.11 “California Trade Secrets Law” means the California Uniform Trade Secrets Act, California Civil Code § 3426 et seq. (CUTSA).",
+      "type": "standard",
+      "order": 1
+    },
+    {
+      "id": "investment_amount",
+      "title": "2. PURCHASE AMOUNT; ISSUANCE",
+      "content": "2.1 Purchase. In consideration for the rights described in this SAFE, the Investor hereby agrees to pay the Company, and the Company hereby acknowledges receipt (or will receive receipt) of, the Purchase Amount of {{investment_amount}} (the “Purchase Amount”).\n\n2.2 Form of Payment. Payment will be made by wire transfer, ACH, check, or other means acceptable to the Company.\n\n2.3 No Interest; No Maturity Date. This SAFE (a) does not bear interest and (b) has no maturity date, and the Investor is entitled to receive Safe Securities or other consideration only in accordance with the express terms of this Agreement.\n\n2.4 Use of Proceeds. The Company may use the Purchase Amount for general corporate purposes, subject to applicable law and any fiduciary duties owed by the Company’s directors/officers.",
+      "type": "standard",
+      "order": 2
+    },
+    {
+      "id": "conversion_equity_financing",
+      "title": "3. CONVERSION UPON EQUITY FINANCING",
+      "content": "3.1 Automatic Conversion. Upon the closing of the first Equity Financing, this SAFE will automatically convert into the number of shares (or other equity securities) of the same series and class issued in such Equity Financing (the “Financing Securities”) equal to the Purchase Amount divided by the applicable “SAFE Price” determined under Section 3.2.\n\n3.2 SAFE Price. The “SAFE Price” per share (or per unit of the Financing Securities) will be the lower of:\n\n(a) the price per share based on the Valuation Cap (the “Cap Price”), calculated as: (Valuation Cap) divided by the Company Capitalization; and\n\n(b) the price per share based on the Discount Rate (the “Discount Price”), calculated as: (the price per share paid by investors purchasing the Financing Securities in the Equity Financing) multiplied by (1 − Discount Rate).\n\nIf the Equity Financing includes units or securities with complex pricing, the Company will determine in good faith an equivalent per-share price for purposes of this Section 3.\n\n3.3 Fractional Shares. No fractional shares will be issued upon conversion. In lieu of any fractional share, the Company will pay cash equal to such fraction multiplied by the SAFE Price, unless prohibited by the Equity Financing documents.\n\n3.4 Charter and Other Amendments. In connection with an Equity Financing, the Company may amend its governing documents to authorize and issue the Financing Securities and take other actions reasonably necessary to effect the conversion of this SAFE, provided such actions do not disproportionately and adversely affect the Investor relative to other holders of substantially similar SAFEs or convertible instruments converting in the same Equity Financing.\n\n3.5 Term Sheet/Closing Documents. As a condition to receiving Financing Securities, the Investor agrees to execute and deliver the definitive transaction documents for the Equity Financing that are generally applicable to investors receiving the same series of Financing Securities; provided, however, that such documents will not require the Investor to (a) make any additional cash investment beyond the Purchase Amount (except as may be required solely by operation of preemptive or pro rata rights expressly granted under this SAFE), (b) provide any personal guarantee, or (c) be subject to non-compete obligations (to the extent unenforceable under California Business and Professions Code § 16600).",
+      "type": "negotiable",
+      "order": 3
+    },
+    {
+      "id": "liquidity_event",
+      "title": "4. LIQUIDITY EVENT",
+      "content": "4.1 Treatment at Liquidity Event. If a Liquidity Event occurs prior to the conversion of this SAFE pursuant to Section 3, then the Investor will be entitled, at the Investor’s election, to receive either:\n\n(a) Cash-Out Amount. Cash equal to the Purchase Amount (or, if less, the amount payable per Section 4.3 based on available proceeds); or\n\n(b) Conversion Amount. The number of shares of common stock (or the most junior class of equity securities) equal to the Purchase Amount divided by the Liquidity Price.\n\n4.2 Liquidity Price. The “Liquidity Price” will be the lower of:\n\n(a) the price per share based on the Valuation Cap (Valuation Cap divided by Company Capitalization); and\n\n(b) the price per share based on the Discount Rate (the price per share implied by the Liquidity Event consideration for the Company’s common stock, multiplied by (1 − Discount Rate)), as determined in good faith by the Company.\n\n4.3 Seniority/Available Proceeds. Amounts payable under this Section 4 are subject to the rights and preferences of senior securities and the priorities applicable in the Liquidity Event. If the total consideration available for payment to holders of SAFEs and other instruments of similar priority is insufficient to pay all such holders in full, the Company will pay such holders pro rata based on their respective purchase amounts or principal-equivalent amounts.\n\n4.4 Form of Consideration. The consideration may be cash, securities, or other property, mirroring the form paid to holders of common stock in the Liquidity Event (subject to the election in Section 4.1 and applicable law).",
+      "type": "negotiable",
+      "order": 4
+    },
+    {
+      "id": "dissolution_event",
+      "title": "5. DISSOLUTION EVENT",
+      "content": "5.1 Payment upon Dissolution. If a Dissolution Event occurs prior to the conversion of this SAFE pursuant to Section 3, the Investor will be entitled to receive, prior to and in preference to any distribution of any of the Company’s assets to holders of common stock, an amount equal to the Purchase Amount, subject to Section 5.2.\n\n5.2 Pro Rata if Insufficient Assets. If the Company’s assets legally available for distribution are insufficient to pay the amounts owed to all holders of SAFEs and other instruments of similar priority in full, the Company will pay such holders pro rata in proportion to their respective purchase amounts or principal-equivalent amounts.\n\n5.3 No Further Rights. Upon payment (if any) under this Section 5, the Investor will have no further rights under this SAFE with respect to the Company.",
+      "type": "standard",
+      "order": 5
+    },
+    {
+      "id": "valuation_cap_discount",
+      "title": "6. VALUATION CAP AND DISCOUNT",
+      "content": "6.1 Valuation Cap. The Valuation Cap for purposes of this SAFE is {{valuation_cap}}.\n\n6.2 Discount Rate. The Discount Rate for purposes of this SAFE is {{discount_rate}}.\n\n6.3 Most-Favored Terms. This SAFE does not, by itself, grant most-favored-nation or other parity rights unless the Company expressly provides such rights in a written amendment executed in accordance with Section 11.3.",
+      "type": "negotiable",
+      "order": 6
+    },
+    {
+      "id": "pro_rata_rights",
+      "title": "7. OPTIONAL — PRO RATA RIGHTS",
+      "content": "7.1 Grant of Pro Rata Right. Subject to the limitations in this Section 7, the Company grants the Investor a pro rata right to purchase, at the same price and on the same terms as offered to other investors, additional securities issued by the Company in an Equity Financing in order to maintain the Investor’s percentage ownership in the Company on a fully-diluted basis immediately prior to such Equity Financing (the “Pro Rata Right”).\n\n7.2 Calculation. The Investor’s pro rata entitlement will be calculated in good faith by the Company based on Company Capitalization immediately prior to the closing of the Equity Financing, taking into account the conversion of this SAFE and other SAFEs/convertible instruments participating in the Equity Financing.\n\n7.3 Notice and Election. The Company will provide the Investor written notice (email to {{party_b_email}} is sufficient) describing the Equity Financing, the Investor’s pro rata allocation, and the deadline to elect participation. The election deadline will be no less than {{notice_period}} days after the notice is sent, unless the Equity Financing schedule reasonably requires a shorter period.\n\n7.4 Limitations and Exclusions. The Pro Rata Right does not apply to (a) issuances under employee or director equity incentive plans, (b) securities issued in connection with equipment financings, bank loans, lines of credit, or other debt financings not principally for equity capital-raising, (c) securities issued as consideration in acquisitions or strategic transactions, or (d) other excluded issuances approved in good faith by the Company’s board of directors.\n\n7.5 Transferability. The Pro Rata Right is non-transferable except in connection with a permitted transfer of this SAFE pursuant to Section 10.2.",
+      "type": "optional",
+      "order": 7
+    },
+    {
+      "id": "company_representations",
+      "title": "8. COMPANY REPRESENTATIONS AND WARRANTIES",
+      "content": "The Company represents and warrants to the Investor as of the Effective Date that:\n\n8.1 Organization and Authority. The Company is duly organized, validly existing, and in good standing (to the extent applicable) under the laws of its jurisdiction of formation and has the requisite power and authority to enter into this SAFE and perform its obligations hereunder.\n\n8.2 Authorization. The execution, delivery, and performance of this SAFE have been duly authorized by all necessary corporate or other organizational action, and this SAFE constitutes a legal, valid, and binding obligation of the Company enforceable against the Company in accordance with its terms, subject to bankruptcy, insolvency, fraudulent transfer, reorganization, moratorium, and similar laws affecting creditors’ rights and equitable principles.\n\n8.3 No Conflict. The execution, delivery, and performance of this SAFE do not violate the Company’s governing documents and, to the Company’s knowledge, do not violate any material agreement binding on the Company or any applicable law.\n\n8.4 Compliance with Securities Laws. The Company will issue Safe Securities, if and when issued, in compliance with applicable federal and state securities laws, including applicable exemptions from registration.\n\n8.5 No Broker. The Company has not engaged any broker or finder entitled to any brokerage or finder’s fee payable by the Investor in connection with the transactions contemplated by this SAFE.",
+      "type": "standard",
+      "order": 8
+    },
+    {
+      "id": "investor_representations",
+      "title": "9. INVESTOR REPRESENTATIONS AND WARRANTIES",
+      "content": "The Investor represents and warrants to the Company as of the Effective Date that:\n\n9.1 Authority. The Investor has full power and authority to enter into this SAFE. This SAFE constitutes a legal, valid, and binding obligation of the Investor enforceable against the Investor in accordance with its terms, subject to bankruptcy, insolvency, and similar laws affecting creditors’ rights and equitable principles.\n\n9.2 Investment Purpose. The Investor is acquiring this SAFE for the Investor’s own account for investment purposes and not with a view to, or for sale in connection with, any distribution thereof in violation of applicable securities laws.\n\n9.3 Sophistication; Risk. The Investor has such knowledge and experience in financial and business matters as to be capable of evaluating the merits and risks of an investment in the Company, has had the opportunity to ask questions of and receive answers from the Company, and understands that the investment is speculative and involves a high degree of risk, including the risk of total loss.\n\n9.4 Accredited Investor or Exemption. The Investor is an “accredited investor” as defined in Rule 501(a) under the Securities Act of 1933, as amended, or otherwise qualifies to purchase this SAFE under an available exemption from registration.\n\n9.5 No Governmental Approvals. No consent, approval, order, or authorization of, or registration, qualification, designation, declaration, or filing with, any governmental authority is required on the part of the Investor in connection with the consummation of the transactions contemplated hereby, except as may be required under applicable securities laws.\n\n9.6 Residence. The Investor’s address set forth above is the Investor’s principal residence or principal place of business, as applicable.",
+      "type": "standard",
+      "order": 9
+    },
+    {
+      "id": "transfer_and_assignment",
+      "title": "10. TRANSFER; ASSIGNMENT",
+      "content": "10.1 Company Assignment. The Company may not assign this SAFE or any of its rights or obligations hereunder without the prior written consent of the Investor, except that the Company may assign this SAFE without consent in connection with a merger, consolidation, reorganization, or sale of all or substantially all of the Company’s assets, provided that the successor assumes the Company’s obligations hereunder.\n\n10.2 Investor Transfer. The Investor may not transfer or assign this SAFE, in whole or in part, without the Company’s prior written consent; provided, however, that the Investor may transfer this SAFE without the Company’s consent to (a) an affiliate of the Investor, (b) a trust for the benefit of the Investor or the Investor’s immediate family, or (c) in the case of an entity, a successor in connection with a reorganization or similar event, in each case subject to the transferee agreeing in writing to be bound by this SAFE and compliance with applicable securities laws.\n\n10.3 Securities Law Compliance. Any transfer must be made in compliance with applicable federal and state securities laws and may be subject to restrictions on transfer set forth in the Company’s governing documents and/or in any financing documents.",
+      "type": "negotiable",
+      "order": 10
+    },
+    {
+      "id": "miscellaneous",
+      "title": "11. MISCELLANEOUS",
+      "content": "11.1 Notices. All notices and other communications will be in writing and will be deemed given (a) when delivered personally, (b) when sent by confirmed email, or (c) one (1) business day after being sent by a nationally recognized overnight courier, in each case to the addresses/emails set forth below (or to such other address as a party may designate by notice):\n\nIf to the Company:\n{{party_a_company}}\n{{party_a_address}}\nEmail: {{party_a_email}}\nAttn: {{party_a_name}}, {{party_a_title}}\n\nIf to the Investor:\n{{party_b_name}}\n{{party_b_address}}\nEmail: {{party_b_email}}\nAttn: {{party_b_name}}\n\n11.2 Governing Law. This SAFE and all claims arising out of or relating to this SAFE will be governed by and construed in accordance with the laws of {{governing_jurisdiction}}, without giving effect to any choice-of-law or conflict-of-law rules that would result in the application of the laws of another jurisdiction.\n\n11.3 Amendments and Waivers. Any term of this SAFE may be amended, and any provision may be waived, only with the written consent of the Company and the Investor. Any waiver is effective only if in writing and only for the specific instance for which it is given.\n\n11.4 Severability. If any provision of this SAFE is held to be invalid, illegal, or unenforceable, the remaining provisions will remain in full force and effect, and the invalid, illegal, or unenforceable provision will be enforced to the maximum extent permitted by law consistent with the parties’ intent.\n\n11.5 No Partnership; No Fiduciary Duty. This SAFE does not create any partnership, joint venture, agency, or employment relationship between the parties. The Investor is not owed any fiduciary duty by the Company solely by reason of this SAFE.\n\n11.6 No Stockholder Rights Until Conversion. This SAFE does not confer on the Investor any rights of a stockholder of the Company (including voting rights or rights to dividends) unless and until the SAFE converts into Capital Stock or other equity securities as provided herein.\n\n11.7 Confidentiality; Trade Secrets. The parties acknowledge that any non-public, proprietary information disclosed in connection with this SAFE may be protected under contract and/or California Trade Secrets Law (CUTSA). Any confidentiality obligations must be set forth in a separate written agreement; nothing herein requires disclosure of trade secrets beyond what the Company elects to disclose.\n\n11.8 Privacy; CCPA. To the extent the Company collects personal information from the Investor in connection with this SAFE (including identifiers and contact information), the Company will use such information for purposes reasonably related to administering the investment relationship, compliance, financing activities, and corporate governance. The Company will not “sell” or “share” such personal information as those terms are defined under the California Consumer Privacy Act and its implementing regulations, except as permitted by law.\n\n11.9 Counterparts; Electronic Signatures. This SAFE may be executed in counterparts, each of which will be deemed an original and all of which together constitute one instrument. Signatures transmitted electronically (including via PDF or commercially reasonable e-signature service) will be deemed original signatures and will be binding.\n\n11.10 Entire Agreement. This SAFE constitutes the entire agreement between the parties with respect to the subject matter hereof and supersedes all prior and contemporaneous understandings, agreements, representations, and warranties, whether written or oral, with respect to such subject matter.\n\n11.11 Construction; Headings. Headings are for convenience only and do not affect interpretation. “Including” means “including without limitation.”\n\n11.12 Dispute Resolution; Venue. The parties agree that any action or proceeding arising out of or relating to this SAFE will be brought in the state or federal courts located in the State of California, and each party irrevocably submits to the personal jurisdiction of such courts, unless otherwise required by applicable law.",
+      "type": "standard",
+      "order": 11
+    }
+  ],
+  "signature_block": "PARTY A:\n{{party_a_company}}\n\nBy: _______________________________\nPrinted Name: {{party_a_name}}\nTitle: {{party_a_title}}\nEmail: {{party_a_email}}\nAddress: {{party_a_address}}\nDate: {{signature_date}}\n\n\nPARTY B:\n{{party_b_name}}\n\nSignature: __________________________\nPrinted Name: {{party_b_name}}\nTitle (if applicable): {{party_b_title}}\nEmail: {{party_b_email}}\nAddress: {{party_b_address}}\nDate: {{signature_date}}",
+  "placeholders": [
+    {
+      "id": "party_a_email",
+      "token": "{{party_a_email}}",
+      "label": "Your Email",
+      "description": "Email address of the first party",
+      "category": "party_a",
+      "type": "email",
+      "required": true,
+      "autofillKey": "email"
+    },
+    {
+      "id": "party_a_name",
+      "token": "{{party_a_name}}",
+      "label": "Your Name",
+      "description": "Full legal name of the first party",
+      "category": "party_a",
+      "type": "text",
+      "required": true,
+      "autofillKey": "name"
+    },
+    {
+      "id": "party_a_address",
+      "token": "{{party_a_address}}",
+      "label": "Your Address",
+      "description": "Business or mailing address",
+      "category": "party_a",
+      "type": "textarea",
+      "required": false,
+      "autofillKey": "address"
+    },
+    {
+      "id": "party_a_company",
+      "token": "{{party_a_company}}",
+      "label": "Your Company",
+      "description": "Company or organization name",
+      "category": "party_a",
+      "type": "text",
+      "required": false,
+      "autofillKey": "company_name"
+    },
+    {
+      "id": "party_a_title",
+      "token": "{{party_a_title}}",
+      "label": "Your Title",
+      "description": "Job title or role",
+      "category": "party_a",
+      "type": "text",
+      "required": false,
+      "autofillKey": "job_title"
+    },
+    {
+      "id": "party_b_email",
+      "token": "{{party_b_email}}",
+      "label": "Other Party Email",
+      "description": "Email address of the second party",
+      "category": "party_b",
+      "type": "email",
+      "required": true
+    },
+    {
+      "id": "party_b_name",
+      "token": "{{party_b_name}}",
+      "label": "Other Party Name",
+      "description": "Full legal name of the second party",
+      "category": "party_b",
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "party_b_address",
+      "token": "{{party_b_address}}",
+      "label": "Other Party Address",
+      "description": "Business or mailing address",
+      "category": "party_b",
+      "type": "textarea",
+      "required": false
+    },
+    {
+      "id": "party_b_title",
+      "token": "{{party_b_title}}",
+      "label": "Other Party Title",
+      "description": "Job title or role",
+      "category": "party_b",
+      "type": "text",
+      "required": false
+    },
+    {
+      "id": "effective_date",
+      "token": "{{effective_date}}",
+      "label": "Effective Date",
+      "description": "When the agreement becomes effective",
+      "category": "dates",
+      "type": "date",
+      "required": true
+    },
+    {
+      "id": "signature_date",
+      "token": "{{signature_date}}",
+      "label": "Signature Date",
+      "description": "Date of signing",
+      "category": "dates",
+      "type": "date",
+      "required": false
+    },
+    {
+      "id": "governing_jurisdiction",
+      "token": "{{governing_jurisdiction}}",
+      "label": "Governing Jurisdiction",
+      "description": "State/country whose laws govern the agreement",
+      "category": "terms",
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "notice_period",
+      "token": "{{notice_period}}",
+      "label": "Notice Period",
+      "description": "Days notice required for termination",
+      "category": "terms",
+      "type": "number",
+      "required": false
+    },
+    {
+      "id": "investment_amount",
+      "token": "{{investment_amount}}",
+      "label": "Investment Amount",
+      "description": "Amount being invested",
+      "category": "financial",
+      "type": "currency",
+      "required": true
+    },
+    {
+      "id": "discount_rate",
+      "token": "{{discount_rate}}",
+      "label": "Discount Rate",
+      "description": "Discount percentage for conversion",
+      "category": "financial",
+      "type": "number",
+      "required": false
+    },
+    {
+      "id": "valuation_cap",
+      "token": "{{valuation_cap}}",
+      "label": "Valuation Cap",
+      "description": "Maximum valuation for conversion",
+      "category": "financial",
+      "type": "currency",
+      "required": false
+    }
+  ],
+  "is_active": true,
+  "metadata": {
+    "generator_version": "2.0-two-stage",
+    "gpt_model": "gpt-5.2",
+    "opus_enhanced": true,
+    "generated_at": "2025-12-28T14:23:17.444Z",
+    "word_count": 3052,
+    "clause_count": 11,
+    "placeholder_count": 16
+  }
+}

@@ -7,6 +7,7 @@ import {
   FileText,
   Clock,
   Check,
+  CheckSquare,
 } from "lucide-react";
 import type { FieldType, SignatureField } from "./signature-field-editor";
 
@@ -65,6 +66,7 @@ const fieldTypeConfig: Record<FieldType, { icon: typeof PenTool; label: string }
   initials: { icon: Type, label: "Initials" },
   date: { icon: Calendar, label: "Date" },
   text: { icon: FileText, label: "Text" },
+  checkbox: { icon: CheckSquare, label: "Checkbox" },
 };
 
 export function SignatureBlockDisplay({
@@ -249,17 +251,6 @@ export function SignatureBlockDisplay({
         })}
       </div>
 
-      {/* Original signature block text (collapsed) */}
-      {signatureBlock && (
-        <details className="mt-4">
-          <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600">
-            View original signature block text
-          </summary>
-          <div className="mt-2 p-3 bg-slate-100 rounded text-xs text-slate-600 font-mono whitespace-pre-wrap">
-            {signatureBlock}
-          </div>
-        </details>
-      )}
     </div>
   );
 }

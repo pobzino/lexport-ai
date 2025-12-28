@@ -89,6 +89,9 @@ export async function GET(
         user_agent: string;
         signed_at: string;
         image_hash: string;
+        identity_confirmed: boolean;
+        identity_confirmed_at: string | null;
+        identity_confirmation_text: string | null;
       }[];
 
       const auditLogs = contract.audit_logs as {
@@ -104,6 +107,8 @@ export async function GET(
         contract_title: contract.title,
         contract_id: contract.id,
         completed_at: contract.completed_at || contract.signed_at,
+        document_hash: contract.content_hash || null,
+        document_hash_algorithm: contract.content_hash_algorithm || "SHA-256",
         signers: signatureRequests.map((sr) => {
           const sig = signatures.find((s) => s.signature_request_id === sr.id);
           return {
@@ -113,6 +118,8 @@ export async function GET(
             signed_at: sr.signed_at,
             ip_address: sig?.ip_address || "Unknown",
             signature_hash: sig?.image_hash?.substring(0, 16) || "N/A",
+            identity_confirmed: sig?.identity_confirmed || false,
+            identity_confirmed_at: sig?.identity_confirmed_at || null,
           };
         }),
         audit_events: auditLogs
@@ -158,13 +165,13 @@ export async function GET(
     const margin = 50;
     let y = height - margin;
 
-    // Header
+    // Header - Brand color #202e46 = rgb(32, 46, 70) / 255
     page.drawRectangle({
       x: 0,
       y: height - 100,
       width,
       height: 100,
-      color: rgb(0.4, 0.2, 0.6), // Purple header
+      color: rgb(0.125, 0.18, 0.275),
     });
 
     page.drawText("CERTIFICATE OF COMPLETION", {
@@ -229,7 +236,30 @@ export async function GET(
       font: helvetica,
       color: rgb(0.3, 0.3, 0.3),
     });
-    y -= 40;
+    y -= 25;
+
+    // Document Hash (Tamper Proof)
+    if (certificate.summary.document_hash) {
+      page.drawText("Document Fingerprint (SHA-256):", {
+        x: margin,
+        y,
+        size: 9,
+        font: helvetica,
+        color: rgb(0.4, 0.4, 0.4),
+      });
+      y -= 12;
+      const shortHash = certificate.summary.document_hash.substring(0, 32).toUpperCase();
+      page.drawText(shortHash, {
+        x: margin,
+        y,
+        size: 9,
+        font: helvetica,
+        color: rgb(0.3, 0.3, 0.3),
+      });
+      y -= 25;
+    } else {
+      y -= 15;
+    }
 
     // Signers Section
     page.drawText("SIGNERS", {
@@ -237,14 +267,14 @@ export async function GET(
       y,
       size: 12,
       font: helveticaBold,
-      color: rgb(0.4, 0.2, 0.6),
+      color: rgb(0.125, 0.18, 0.275),
     });
     y -= 5;
     page.drawLine({
       start: { x: margin, y },
       end: { x: width - margin, y },
       thickness: 1,
-      color: rgb(0.4, 0.2, 0.6),
+      color: rgb(0.125, 0.18, 0.275),
     });
     y -= 20;
 
@@ -284,12 +314,14 @@ export async function GET(
       });
       y -= 12;
 
-      page.drawText(`Signature Hash: ${signer.signature_hash}...`, {
+      // Identity confirmation status
+      const identityStatus = signer.identity_confirmed ? "Identity Verified ✓" : "Identity Not Verified";
+      page.drawText(`${identityStatus}  •  Signature Hash: ${signer.signature_hash}...`, {
         x: margin + 10,
         y,
         size: 8,
         font: helvetica,
-        color: rgb(0.5, 0.5, 0.5),
+        color: signer.identity_confirmed ? rgb(0.1, 0.5, 0.3) : rgb(0.5, 0.5, 0.5),
       });
       y -= 25;
     }
@@ -302,14 +334,14 @@ export async function GET(
         y,
         size: 12,
         font: helveticaBold,
-        color: rgb(0.4, 0.2, 0.6),
+        color: rgb(0.125, 0.18, 0.275),
       });
       y -= 5;
       page.drawLine({
         start: { x: margin, y },
         end: { x: width - margin, y },
         thickness: 1,
-        color: rgb(0.4, 0.2, 0.6),
+        color: rgb(0.125, 0.18, 0.275),
       });
       y -= 15;
 

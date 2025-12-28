@@ -1,15 +1,19 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
+  ArrowRight,
+  ArrowLeft,
   FileText,
   Loader2,
   Check,
   AlertCircle,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   PenTool,
   Eraser,
   Download,
@@ -25,6 +29,10 @@ import {
   Calendar,
   CreditCard,
   DollarSign,
+  Shield,
+  Eye,
+  Play,
+  CheckCircle2,
 } from "lucide-react";
 
 // Signature font styles for "Select Style" mode
@@ -66,11 +74,17 @@ interface Contract {
   title: string;
   type: string;
   content: ContractContent;
+  contentHash?: string;
+  contentHashAlgorithm?: string;
   requireSequentialSigning?: boolean;
   paymentRequired?: boolean;
   paymentAmount?: number;
   paymentCurrency?: string;
   paymentStatus?: string;
+  paymentStructure?: "full" | "deposit_balance";
+  depositPercentage?: number;
+  depositPaid?: boolean;
+  paymentSufficientForSigning?: boolean;
 }
 
 // Signature field types
@@ -110,7 +124,10 @@ interface FieldValue {
 
 export default function SignContractPage() {
   const params = useParams();
+  const router = useRouter();
   const token = params.token as string;
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -130,8 +147,14 @@ export default function SignContractPage() {
   const [expandedClauses, setExpandedClauses] = useState<Set<string>>(new Set());
   const [hasReadContract, setHasReadContract] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [identityConfirmed, setIdentityConfirmed] = useState(false);
+  const [identityConfirmationText, setIdentityConfirmationText] = useState<string>("");
   const [signing, setSigning] = useState(false);
   const [signed, setSigned] = useState(false);
+
+  // Guided navigation state
+  type SigningStage = "welcome" | "signing" | "review";
+  const [signingStage, setSigningStage] = useState<SigningStage>("welcome");
 
   // Payment state
   const [paymentRequired, setPaymentRequired] = useState(false);
@@ -172,6 +195,11 @@ export default function SignContractPage() {
         if (!response.ok) {
           const data = await response.json();
           if (data.alreadySigned) {
+            // If payment is pending, redirect to payment page
+            if (data.paymentPending && data.contractId) {
+              router.push(`/pay/${data.contractId}?token=${token}&signed=true`);
+              return;
+            }
             setAlreadySigned(true);
             throw new Error(data.error || "Already signed");
           }
@@ -196,7 +224,8 @@ export default function SignContractPage() {
         // Set payment state
         if (data.contract?.paymentRequired) {
           setPaymentRequired(true);
-          if (data.contract.paymentStatus === "succeeded") {
+          // Use paymentSufficientForSigning which accounts for deposit/balance payments
+          if (data.contract.paymentSufficientForSigning || data.contract.paymentStatus === "succeeded") {
             setPaymentCompleted(true);
           }
         }
@@ -204,6 +233,11 @@ export default function SignContractPage() {
         // Pre-fill full name for signature adoption
         if (data.signatureRequest?.signerName) {
           setFullName(data.signatureRequest.signerName);
+        }
+
+        // Set identity confirmation text from API
+        if (data.identityConfirmationText) {
+          setIdentityConfirmationText(data.identityConfirmationText);
         }
 
         // Store signature fields and filter by signer role
@@ -230,7 +264,7 @@ export default function SignContractPage() {
     }
 
     fetchData();
-  }, [token]);
+  }, [token, router]);
 
   // Canvas drawing functions
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -464,6 +498,35 @@ export default function SignContractPage() {
   // Get current field being worked on
   const currentField = myFields[currentFieldIndex] || null;
 
+  // Navigation helpers for guided flow
+  const goToNextField = () => {
+    if (currentFieldIndex < myFields.length - 1) {
+      setCurrentFieldIndex(currentFieldIndex + 1);
+      if (signatureMode === "draw") {
+        clearSignature();
+      }
+    }
+  };
+
+  const goToPreviousField = () => {
+    if (currentFieldIndex > 0) {
+      setCurrentFieldIndex(currentFieldIndex - 1);
+    }
+  };
+
+  const isLastField = currentFieldIndex === myFields.length - 1;
+  const isFirstField = currentFieldIndex === 0;
+
+  // Start signing flow
+  const handleStartSigning = () => {
+    setHasReadContract(true);
+    if (myFields.length > 0) {
+      setCurrentFieldIndex(0);
+      setShowAdoptModal(true);
+    }
+    setSigningStage("signing");
+  };
+
   // Complete current field and move to next
   const completeCurrentField = () => {
     if (!currentField) return;
@@ -546,6 +609,11 @@ export default function SignContractPage() {
       return;
     }
 
+    if (!identityConfirmed) {
+      setError("Please confirm your identity");
+      return;
+    }
+
     // Get signature data - either from field values or direct signature
     let signatureData: string;
     if (myFields.length > 0) {
@@ -574,8 +642,12 @@ export default function SignContractPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           signatureData,
-          signatureType: signatureMode,
+          // Map frontend "style" mode to API "type" value
+          signatureType: signatureMode === "style" ? "type" : signatureMode,
           agreedToTerms: true,
+          identityConfirmed: true,
+          identityConfirmationText,
+          documentHash: contract?.contentHash,
           fieldValues: fieldValuesArray,
         }),
       });
@@ -583,6 +655,15 @@ export default function SignContractPage() {
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || "Failed to sign");
+      }
+
+      const data = await response.json();
+
+      // Check if payment is required and not yet complete
+      if (paymentRequired && !paymentCompleted) {
+        // Redirect to payment page after successful signature
+        window.location.href = `/pay/${contract?.id}?token=${token}&signed=true`;
+        return;
       }
 
       setSigned(true);
@@ -597,7 +678,7 @@ export default function SignContractPage() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-violet-600 mx-auto mb-4" />
+          <Loader2 className="w-8 h-8 animate-spin text-[#202e46] mx-auto mb-4" />
           <p className="text-slate-600">Loading contract...</p>
         </div>
       </div>
@@ -676,35 +757,208 @@ export default function SignContractPage() {
           <p className="text-sm text-slate-500">
             A copy of the signed contract will be sent to {signatureRequest.signerEmail}
           </p>
+
+          {returnTo && (
+            <div className="mt-8 pt-6 border-t border-slate-100">
+              <Link
+                href={returnTo}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-[#202e46] text-white font-medium rounded-lg hover:bg-[#1a2539] transition-colors shadow-sm"
+              >
+                Return to Dashboard
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
+  // Calculate progress for the progress bar (2 steps: welcome, signing)
+  const totalSteps = 2;
+  const currentStep = signingStage === "welcome" ? 1 : 2;
+  const progressPercent = (currentStep / totalSteps) * 100;
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-4 py-4">
+        <div className="max-w-5xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-                Lx
+              <Image
+                src="/dark-logo.png"
+                alt="Lexport"
+                width={120}
+                height={32}
+                className="h-8 w-auto"
+              />
+            </div>
+            <div className="flex items-center gap-4">
+              {/* Stage indicator */}
+              <div className="hidden sm:flex items-center gap-2 text-sm">
+                <span className={`px-2.5 py-1 rounded-full ${signingStage === "welcome" ? "bg-[#202e46] text-white" : "bg-slate-100 text-slate-500"}`}>
+                  1. Review
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-300" />
+                <span className={`px-2.5 py-1 rounded-full ${signingStage === "signing" ? "bg-[#202e46] text-white" : "bg-slate-100 text-slate-500"}`}>
+                  2. Sign
+                </span>
               </div>
-              <span className="text-xl font-bold text-slate-900">Lexport</span>
+              <div className="text-sm text-slate-500">
+                {signatureRequest.signerName}
+              </div>
             </div>
-            <div className="text-sm text-slate-500">
-              Signing as {signatureRequest.signerName}
-            </div>
+          </div>
+          {/* Progress bar */}
+          <div className="mt-3 w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-[#202e46] transition-all duration-500"
+              style={{ width: `${progressPercent}%` }}
+            />
           </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8">
+        {/* ==================== WELCOME STAGE ==================== */}
+        {signingStage === "welcome" && (
+          <div className="max-w-2xl mx-auto">
+            {/* Welcome Card */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-br from-slate-50 to-white px-8 py-10 text-center border-b border-slate-100">
+                <div className="w-16 h-16 bg-[#202e46]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <FileText className="w-8 h-8 text-[#202e46]" />
+                </div>
+                <h1 className="text-2xl font-bold text-slate-900 mb-2">
+                  {contract.title}
+                </h1>
+                <p className="text-slate-500">
+                  You&apos;ve been asked to sign this document
+                </p>
+              </div>
+
+              {/* Document Details */}
+              <div className="px-8 py-6 space-y-4">
+                {/* Personal Message */}
+                {signatureRequest.message && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <p className="text-sm font-medium text-amber-800 mb-1">Message from sender:</p>
+                    <p className="text-amber-700">{signatureRequest.message}</p>
+                  </div>
+                )}
+
+                {/* Info Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Your Role</p>
+                    <p className="font-medium text-slate-900">{signatureRequest.signerRole || "Signer"}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Document Type</p>
+                    <p className="font-medium text-slate-900">{contract.type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Fields to Complete</p>
+                    <p className="font-medium text-slate-900">{myFields.length} field{myFields.length !== 1 ? "s" : ""}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Expires</p>
+                    <p className="font-medium text-slate-900">
+                      {new Date(signatureRequest.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sequential signing progress */}
+                {signingProgress && (
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Signing Order</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {signingProgress.signers.map((signer, index) => (
+                        <div key={index} className="flex items-center">
+                          <div
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${signer.status === "signed"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : signer.isCurrent
+                                ? "bg-[#202e46] text-white"
+                                : "bg-slate-200 text-slate-500"
+                              }`}
+                          >
+                            {signer.status === "signed" && <Check className="w-3 h-3" />}
+                            {signer.name.split(" ")[0]}
+                          </div>
+                          {index < signingProgress.signers.length - 1 && (
+                            <ChevronRight className="w-4 h-4 text-slate-300 mx-1" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment notice - informational only, payment collected after signing */}
+                {paymentRequired && (
+                  <div className={`rounded-xl p-4 flex items-start gap-3 ${paymentCompleted ? "bg-emerald-50 border border-emerald-200" : "bg-blue-50 border border-blue-200"}`}>
+                    <CreditCard className={`w-5 h-5 flex-shrink-0 mt-0.5 ${paymentCompleted ? "text-emerald-600" : "text-blue-600"}`} />
+                    <div>
+                      <p className={`font-medium ${paymentCompleted ? "text-emerald-900" : "text-blue-900"}`}>
+                        {paymentCompleted ? "Payment Complete" : "Payment Information"}
+                      </p>
+                      <p className={`text-sm ${paymentCompleted ? "text-emerald-700" : "text-blue-700"}`}>
+                        {paymentCompleted
+                          ? "Your payment has been received."
+                          : `A payment of ${new Intl.NumberFormat("en-US", {
+                              style: "currency",
+                              currency: contract?.paymentCurrency || "usd",
+                            }).format(contract?.paymentAmount || 0)} will be collected after you sign.`
+                        }
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Security note */}
+                <div className="flex items-start gap-3 text-sm text-slate-500">
+                  <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <p>Your signature is legally binding and protected with bank-level encryption.</p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="px-8 py-6 bg-slate-50 border-t border-slate-100">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={() => {
+                      // Just view document without starting signing
+                      setSigningStage("signing");
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-50 transition-colors"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Review Document
+                  </button>
+                  <button
+                    onClick={handleStartSigning}
+                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-[#202e46] text-white font-medium rounded-xl hover:bg-[#1a2539] transition-colors"
+                  >
+                    <Play className="w-4 h-4" />
+                    Start Signing
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== SIGNING STAGE ==================== */}
+        {signingStage === "signing" && (
+          <>
         {/* Personal Message */}
         {signatureRequest.message && (
-          <div className="bg-violet-50 border border-violet-200 rounded-xl p-6 mb-6">
-            <p className="text-violet-700">{signatureRequest.message}</p>
+          <div className="bg-[#202e46]/5 border border-[#202e46]/20 rounded-xl p-6 mb-6">
+            <p className="text-[#202e46]">{signatureRequest.message}</p>
           </div>
         )}
 
@@ -721,13 +975,12 @@ export default function SignContractPage() {
               {signingProgress.signers.map((signer, index) => (
                 <div key={index} className="flex items-center">
                   <div
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
-                      signer.status === "signed"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : signer.isCurrent
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${signer.status === "signed"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : signer.isCurrent
                         ? "bg-violet-100 text-violet-700 ring-2 ring-violet-300"
                         : "bg-slate-100 text-slate-500"
-                    }`}
+                      }`}
                   >
                     {signer.status === "signed" ? (
                       <Check className="w-3.5 h-3.5" />
@@ -865,11 +1118,10 @@ export default function SignContractPage() {
                                         }
                                       }}
                                       disabled={!isMyRole}
-                                      className={`w-full pb-1 border-b-2 ${
-                                        isMyRole
-                                          ? "border-amber-400 bg-amber-50 hover:bg-amber-100 cursor-pointer"
-                                          : "border-slate-300 bg-slate-50"
-                                      }`}
+                                      className={`w-full pb-1 border-b-2 ${isMyRole
+                                        ? "border-amber-400 bg-amber-50 hover:bg-amber-100 cursor-pointer"
+                                        : "border-slate-300 bg-slate-50"
+                                        }`}
                                     >
                                       <div className="h-10 flex items-center justify-center">
                                         {isMyRole ? (
@@ -976,13 +1228,12 @@ export default function SignContractPage() {
                                         }
                                       }}
                                       disabled={!isMyRole}
-                                      className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                                        isChecked
-                                          ? "bg-violet-600 border-violet-600 text-white"
-                                          : isMyRole
+                                      className={`w-5 h-5 rounded border-2 flex items-center justify-center ${isChecked
+                                        ? "bg-violet-600 border-violet-600 text-white"
+                                        : isMyRole
                                           ? "border-amber-400 bg-amber-50 hover:bg-amber-100"
                                           : "border-slate-300 bg-slate-50"
-                                      }`}
+                                        }`}
                                     >
                                       {isChecked && <Check className="w-3 h-3" />}
                                     </button>
@@ -1018,9 +1269,8 @@ export default function SignContractPage() {
                                               setFieldValues(newValue);
                                             }
                                           }}
-                                          className={`w-full h-10 px-3 border-b-2 bg-transparent appearance-none text-sm ${
-                                            isMyRole ? "border-amber-400 bg-amber-50" : "border-slate-300 bg-slate-50"
-                                          }`}
+                                          className={`w-full h-10 px-3 border-b-2 bg-transparent appearance-none text-sm ${isMyRole ? "border-amber-400 bg-amber-50" : "border-slate-300 bg-slate-50"
+                                            }`}
                                           defaultValue=""
                                         >
                                           <option value="" disabled>Select...</option>
@@ -1055,9 +1305,8 @@ export default function SignContractPage() {
                                       </div>
                                     ) : (
                                       <div className={isMyRole ? "" : "pointer-events-none opacity-60"}>
-                                        <label className={`flex items-center justify-center gap-2 h-10 border-b-2 cursor-pointer ${
-                                          isMyRole ? "border-amber-400 bg-amber-50 hover:bg-amber-100" : "border-slate-300 bg-slate-50"
-                                        }`}>
+                                        <label className={`flex items-center justify-center gap-2 h-10 border-b-2 cursor-pointer ${isMyRole ? "border-amber-400 bg-amber-50 hover:bg-amber-100" : "border-slate-300 bg-slate-50"
+                                          }`}>
                                           <Paperclip className="w-4 h-4 text-amber-600" />
                                           <span className="text-sm text-amber-600">Upload file</span>
                                           <input
@@ -1109,7 +1358,7 @@ export default function SignContractPage() {
 
           {/* Signing Panel */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl border border-slate-200 p-6 sticky top-24">
+            <div className="bg-white rounded-xl border border-slate-200 p-6 sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto">
               <h2 className="text-lg font-semibold text-slate-900 mb-4">
                 Sign Document
               </h2>
@@ -1147,23 +1396,11 @@ export default function SignContractPage() {
                     <p className="text-sm text-slate-600 mb-3">
                       {paymentCompleted
                         ? "Your payment has been processed successfully."
-                        : `This contract requires a payment of ${new Intl.NumberFormat("en-US", {
-                            style: "currency",
-                            currency: contract?.paymentCurrency || "usd",
-                          }).format(contract?.paymentAmount || 0)} before signing.`}
+                        : `A payment of ${new Intl.NumberFormat("en-US", {
+                          style: "currency",
+                          currency: contract?.paymentCurrency || "usd",
+                        }).format(contract?.paymentAmount || 0)} will be collected after you sign.`}
                     </p>
-                    {!paymentCompleted && (
-                      <button
-                        onClick={() => {
-                          // Redirect to payment page with return token
-                          window.location.href = `/pay/${contract?.id}?token=${token}`;
-                        }}
-                        className="w-full py-2.5 px-4 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <DollarSign className="w-4 h-4" />
-                        Pay Now
-                      </button>
-                    )}
                     {paymentError && (
                       <p className="text-sm text-red-600 mt-2">{paymentError}</p>
                     )}
@@ -1270,208 +1507,230 @@ export default function SignContractPage() {
 
               {/* Signature Mode Tabs (shown for signature/initials fields or when no fields) */}
               {(!currentField || currentField.type === "signature" || currentField.type === "initials" || myFields.length === 0) && (
-              <div className="mb-4">
-                <label className="text-sm font-medium text-slate-700 mb-2 block">
-                  {currentField ? `${currentField.label || currentField.type}` : "Your Signature"}
-                </label>
-                <div className="flex border border-slate-200 rounded-lg overflow-hidden mb-3">
-                  <button
-                    onClick={() => setSignatureMode("draw")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
-                      signatureMode === "draw"
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">
+                    {currentField ? `${currentField.label || currentField.type}` : "Your Signature"}
+                  </label>
+                  <div className="flex border border-slate-200 rounded-lg overflow-hidden mb-3">
+                    <button
+                      onClick={() => setSignatureMode("draw")}
+                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${signatureMode === "draw"
                         ? "bg-violet-600 text-white"
                         : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <PenTool className="w-4 h-4" />
-                    Draw
-                  </button>
-                  <button
-                    onClick={() => setSignatureMode("style")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors border-x border-slate-200 ${
-                      signatureMode === "style"
+                        }`}
+                    >
+                      <PenTool className="w-4 h-4" />
+                      Draw
+                    </button>
+                    <button
+                      onClick={() => setSignatureMode("style")}
+                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors border-x border-slate-200 ${signatureMode === "style"
                         ? "bg-violet-600 text-white"
                         : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Style
-                  </button>
-                  <button
-                    onClick={() => setSignatureMode("upload")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
-                      signatureMode === "upload"
+                        }`}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Style
+                    </button>
+                    <button
+                      onClick={() => setSignatureMode("upload")}
+                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${signatureMode === "upload"
                         ? "bg-violet-600 text-white"
                         : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <Upload className="w-4 h-4" />
-                    Upload
-                  </button>
-                </div>
-
-                {/* Draw Mode */}
-                {signatureMode === "draw" && (
-                  <div>
-                    <div className="flex items-center justify-end mb-2">
-                      <button
-                        onClick={clearSignature}
-                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
-                      >
-                        <Eraser className="w-3 h-3" />
-                        Clear
-                      </button>
-                    </div>
-                    <div className="border-2 border-dashed border-slate-200 rounded-lg overflow-hidden bg-white">
-                      <canvas
-                        ref={canvasRef}
-                        width={300}
-                        height={150}
-                        className="w-full cursor-crosshair"
-                        onMouseDown={startDrawing}
-                        onMouseMove={draw}
-                        onMouseUp={stopDrawing}
-                        onMouseLeave={stopDrawing}
-                      />
-                    </div>
-                    {!hasSignature && (
-                      <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                        <PenTool className="w-3 h-3" />
-                        Draw your signature above
-                      </p>
-                    )}
+                        }`}
+                    >
+                      <Upload className="w-4 h-4" />
+                      Upload
+                    </button>
                   </div>
-                )}
 
-                {/* Style Mode */}
-                {signatureMode === "style" && (
-                  <div>
-                    <input
-                      type="text"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="Type your full name"
-                      className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-lg mb-3"
-                    />
-                    {fullName.trim().length >= 2 && (
-                      <div className="grid grid-cols-1 gap-2">
-                        {SIGNATURE_FONTS.slice(0, 3).map((font, index) => (
-                          <button
-                            key={index}
-                            onClick={() => setSelectedFontIndex(index)}
-                            className={`p-3 border-2 rounded-lg text-left transition-all ${
-                              selectedFontIndex === index
-                                ? "border-violet-500 bg-violet-50"
-                                : "border-slate-200 hover:border-slate-300"
-                            }`}
-                          >
-                            <p
-                              className="text-xl text-slate-800"
-                              style={{ fontFamily: font.font, fontWeight: font.weight }}
-                            >
-                              {fullName}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <p className="text-xs text-slate-400 mt-2">
-                      Select a signature style above
-                    </p>
-                  </div>
-                )}
-
-                {/* Upload Mode */}
-                {signatureMode === "upload" && (
-                  <div>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      accept="image/*"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                    {!uploadedSignature ? (
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full p-6 border-2 border-dashed border-slate-200 rounded-lg bg-white hover:border-violet-300 hover:bg-violet-50 transition-colors"
-                      >
-                        <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                        <p className="text-sm text-slate-600">Click to upload signature image</p>
-                        <p className="text-xs text-slate-400 mt-1">PNG, JPG up to 2MB</p>
-                      </button>
-                    ) : (
-                      <div className="relative">
-                        <div className="border-2 border-dashed border-slate-200 rounded-lg overflow-hidden bg-white p-2">
-                          <img
-                            src={uploadedSignature}
-                            alt="Uploaded signature"
-                            className="max-h-32 mx-auto object-contain"
-                          />
-                        </div>
+                  {/* Draw Mode */}
+                  {signatureMode === "draw" && (
+                    <div>
+                      <div className="flex items-center justify-end mb-2">
                         <button
-                          onClick={() => {
-                            setUploadedSignature(null);
-                            if (fileInputRef.current) fileInputRef.current.value = "";
-                          }}
-                          className="absolute top-2 right-2 p-1 bg-white rounded-full shadow-sm border border-slate-200 hover:bg-slate-50"
+                          onClick={clearSignature}
+                          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
                         >
-                          <Eraser className="w-4 h-4 text-slate-500" />
+                          <Eraser className="w-3 h-3" />
+                          Clear
                         </button>
                       </div>
-                    )}
-                  </div>
-                )}
+                      <div className="border-2 border-dashed border-slate-200 rounded-lg overflow-hidden bg-white">
+                        <canvas
+                          ref={canvasRef}
+                          width={300}
+                          height={150}
+                          className="w-full cursor-crosshair"
+                          onMouseDown={startDrawing}
+                          onMouseMove={draw}
+                          onMouseUp={stopDrawing}
+                          onMouseLeave={stopDrawing}
+                        />
+                      </div>
+                      {!hasSignature && (
+                        <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                          <PenTool className="w-3 h-3" />
+                          Draw your signature above
+                        </p>
+                      )}
+                    </div>
+                  )}
 
-                {/* Apply to Field Button */}
-                {currentField && (currentField.type === "signature" || currentField.type === "initials") && !isFieldCompleted(currentField.id) && hasValidSignature() && (
-                  <button
-                    onClick={completeCurrentField}
-                    className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
-                  >
-                    <Check className="w-4 h-4" />
-                    Apply {currentField.type === "initials" ? "Initials" : "Signature"} to Field
-                  </button>
-                )}
-              </div>
+                  {/* Style Mode */}
+                  {signatureMode === "style" && (
+                    <div>
+                      <input
+                        type="text"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="Type your full name"
+                        className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-lg mb-3"
+                      />
+                      {fullName.trim().length >= 2 && (
+                        <div className="grid grid-cols-1 gap-2">
+                          {SIGNATURE_FONTS.slice(0, 3).map((font, index) => (
+                            <button
+                              key={index}
+                              onClick={() => setSelectedFontIndex(index)}
+                              className={`p-3 border-2 rounded-lg text-left transition-all ${selectedFontIndex === index
+                                ? "border-violet-500 bg-violet-50"
+                                : "border-slate-200 hover:border-slate-300"
+                                }`}
+                            >
+                              <p
+                                className="text-xl text-slate-800"
+                                style={{ fontFamily: font.font, fontWeight: font.weight }}
+                              >
+                                {fullName}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-xs text-slate-400 mt-2">
+                        Select a signature style above
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Upload Mode */}
+                  {signatureMode === "upload" && (
+                    <div>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                      {!uploadedSignature ? (
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="w-full p-6 border-2 border-dashed border-slate-200 rounded-lg bg-white hover:border-violet-300 hover:bg-violet-50 transition-colors"
+                        >
+                          <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                          <p className="text-sm text-slate-600">Click to upload signature image</p>
+                          <p className="text-xs text-slate-400 mt-1">PNG, JPG up to 2MB</p>
+                        </button>
+                      ) : (
+                        <div className="relative">
+                          <div className="border-2 border-dashed border-slate-200 rounded-lg overflow-hidden bg-white p-2">
+                            <img
+                              src={uploadedSignature}
+                              alt="Uploaded signature"
+                              className="max-h-32 mx-auto object-contain"
+                            />
+                          </div>
+                          <button
+                            onClick={() => {
+                              setUploadedSignature(null);
+                              if (fileInputRef.current) fileInputRef.current.value = "";
+                            }}
+                            className="absolute top-2 right-2 p-1 bg-white rounded-full shadow-sm border border-slate-200 hover:bg-slate-50"
+                          >
+                            <Eraser className="w-4 h-4 text-slate-500" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Apply to Field Button */}
+                  {currentField && (currentField.type === "signature" || currentField.type === "initials") && !isFieldCompleted(currentField.id) && hasValidSignature() && (
+                    <button
+                      onClick={completeCurrentField}
+                      className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+                    >
+                      <Check className="w-4 h-4" />
+                      Apply {currentField.type === "initials" ? "Initials" : "Signature"} to Field
+                    </button>
+                  )}
+                </div>
               )}
 
-              {/* Terms Agreement */}
-              <label className="flex items-start gap-3 mb-6 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={agreedToTerms}
-                  onChange={(e) => setAgreedToTerms(e.target.checked)}
-                  className="mt-1 w-4 h-4 text-violet-600 border-slate-300 rounded focus:ring-violet-500"
-                />
-                <span className="text-sm text-slate-700">
-                  I agree that my electronic signature is legally binding and has
-                  the same effect as a handwritten signature.
-                </span>
-              </label>
+              {/* Confirmation Checkboxes */}
+              <div className="space-y-3 mb-4">
+                {/* Identity Confirmation */}
+                <label className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={identityConfirmed}
+                    onChange={(e) => setIdentityConfirmed(e.target.checked)}
+                    className="mt-0.5 w-5 h-5 text-[#202e46] border-slate-300 rounded focus:ring-[#202e46]"
+                  />
+                  <span className="text-sm text-slate-700">
+                    {identityConfirmationText || `I confirm that I am ${signatureRequest.signerName} and I am authorized to sign this document.`}
+                  </span>
+                </label>
 
-              {/* Sign Button */}
+                {/* Legal Agreement */}
+                <label className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    className="mt-0.5 w-5 h-5 text-[#202e46] border-slate-300 rounded focus:ring-[#202e46]"
+                  />
+                  <span className="text-sm text-slate-700">
+                    I agree that my electronic signature is legally binding and has
+                    the same effect as a handwritten signature.
+                  </span>
+                </label>
+              </div>
+
+              {/* Security note */}
+              <div className="flex items-start gap-3 text-sm text-slate-500 mb-4">
+                <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <p>By clicking &quot;Sign Document&quot;, you are entering into a legally binding agreement.</p>
+              </div>
+
+              {/* Sign Document Button */}
               <button
                 onClick={handleSign}
                 disabled={
+                  signing ||
                   !hasReadContract ||
                   !agreedToTerms ||
-                  signing ||
+                  !identityConfirmed ||
                   (myFields.length > 0 ? !allRequiredFieldsCompleted() : !hasValidSignature())
                 }
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {signing ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Signing...
                   </>
+                ) : myFields.length > 0 && !allRequiredFieldsCompleted() ? (
+                  <>
+                    <PenTool className="w-4 h-4" />
+                    Complete All Fields ({fieldValues.size}/{myFields.filter(f => f.required).length})
+                  </>
                 ) : (
                   <>
                     <Check className="w-4 h-4" />
-                    {myFields.length > 0 && !allRequiredFieldsCompleted()
-                      ? `Complete All Fields (${fieldValues.size}/${myFields.filter(f => f.required).length})`
-                      : "Sign Document"}
+                    Sign Document
                   </>
                 )}
               </button>
@@ -1484,6 +1743,9 @@ export default function SignContractPage() {
             </div>
           </div>
         </div>
+        </>
+        )}
+
       </main>
 
       {/* Footer */}
@@ -1536,33 +1798,30 @@ export default function SignContractPage() {
               <div className="flex border border-slate-200 rounded-lg overflow-hidden mb-6">
                 <button
                   onClick={() => setSignatureMode("style")}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
-                    signatureMode === "style"
-                      ? "bg-amber-500 text-white"
-                      : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${signatureMode === "style"
+                    ? "bg-amber-500 text-white"
+                    : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
                 >
                   <Sparkles className="w-4 h-4" />
                   Select Style
                 </button>
                 <button
                   onClick={() => setSignatureMode("draw")}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-x border-slate-200 ${
-                    signatureMode === "draw"
-                      ? "bg-amber-500 text-white"
-                      : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-x border-slate-200 ${signatureMode === "draw"
+                    ? "bg-amber-500 text-white"
+                    : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
                 >
                   <PenTool className="w-4 h-4" />
                   Draw
                 </button>
                 <button
                   onClick={() => setSignatureMode("upload")}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
-                    signatureMode === "upload"
-                      ? "bg-amber-500 text-white"
-                      : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${signatureMode === "upload"
+                    ? "bg-amber-500 text-white"
+                    : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
                 >
                   <Upload className="w-4 h-4" />
                   Upload
@@ -1578,11 +1837,10 @@ export default function SignContractPage() {
                       <button
                         key={index}
                         onClick={() => setSelectedFontIndex(index)}
-                        className={`p-4 border-2 rounded-xl text-left transition-all ${
-                          selectedFontIndex === index
-                            ? "border-amber-500 bg-amber-50"
-                            : "border-slate-200 hover:border-slate-300"
-                        }`}
+                        className={`p-4 border-2 rounded-xl text-left transition-all ${selectedFontIndex === index
+                          ? "border-amber-500 bg-amber-50"
+                          : "border-slate-200 hover:border-slate-300"
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <div>

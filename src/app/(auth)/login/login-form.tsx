@@ -5,13 +5,18 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Mail, ArrowLeft } from "lucide-react";
+
+type LoginMode = "default" | "magic-link" | "forgot-password";
 
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<LoginMode>("default");
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,6 +56,141 @@ export function LoginForm() {
     }
   };
 
+  const handleMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+
+    setSuccess("Check your email for a magic link to sign in.");
+    setLoading(false);
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?next=/settings`,
+    });
+
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+
+    setSuccess("Check your email for a password reset link.");
+    setLoading(false);
+  };
+
+  const resetForm = () => {
+    setMode("default");
+    setError(null);
+    setSuccess(null);
+  };
+
+  // Magic Link Mode
+  if (mode === "magic-link") {
+    return (
+      <div className="space-y-6">
+        <button
+          onClick={resetForm}
+          className="flex items-center text-sm text-gray-500 hover:text-gray-700"
+        >
+          <ArrowLeft className="w-4 h-4 mr-1" />
+          Back to login
+        </button>
+
+        <div className="text-center">
+          <div className="w-12 h-12 bg-brand-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Mail className="w-6 h-6 text-brand-600" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900">Sign in with Magic Link</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            We&apos;ll send you an email with a link to sign in instantly.
+          </p>
+        </div>
+
+        <form onSubmit={handleMagicLink} className="space-y-4">
+          <Input
+            type="email"
+            placeholder="Email address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            disabled={loading}
+          />
+
+          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+          {success && <p className="text-sm text-green-600 text-center">{success}</p>}
+
+          <Button type="submit" className="w-full" disabled={loading || !!success}>
+            {loading ? "Sending..." : "Send Magic Link"}
+          </Button>
+        </form>
+      </div>
+    );
+  }
+
+  // Forgot Password Mode
+  if (mode === "forgot-password") {
+    return (
+      <div className="space-y-6">
+        <button
+          onClick={resetForm}
+          className="flex items-center text-sm text-gray-500 hover:text-gray-700"
+        >
+          <ArrowLeft className="w-4 h-4 mr-1" />
+          Back to login
+        </button>
+
+        <div className="text-center">
+          <h2 className="text-lg font-semibold text-gray-900">Reset your password</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Enter your email and we&apos;ll send you a reset link.
+          </p>
+        </div>
+
+        <form onSubmit={handleForgotPassword} className="space-y-4">
+          <Input
+            type="email"
+            placeholder="Email address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            disabled={loading}
+          />
+
+          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+          {success && <p className="text-sm text-green-600 text-center">{success}</p>}
+
+          <Button type="submit" className="w-full" disabled={loading || !!success}>
+            {loading ? "Sending..." : "Send Reset Link"}
+          </Button>
+        </form>
+      </div>
+    );
+  }
+
+  // Default Login Mode
   return (
     <div className="space-y-6">
       {/* Google OAuth */}
@@ -79,6 +219,17 @@ export function LoginForm() {
           />
         </svg>
         Continue with Google
+      </Button>
+
+      {/* Magic Link Option */}
+      <Button
+        onClick={() => setMode("magic-link")}
+        variant="outline"
+        className="w-full h-12 text-base"
+        disabled={loading}
+      >
+        <Mail className="w-5 h-5 mr-3" />
+        Sign in with Magic Link
       </Button>
 
       <div className="relative">
@@ -111,6 +262,16 @@ export function LoginForm() {
             required
             disabled={loading}
           />
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setMode("forgot-password")}
+            className="text-sm text-brand-600 hover:text-brand-700"
+          >
+            Forgot password?
+          </button>
         </div>
 
         {error && (

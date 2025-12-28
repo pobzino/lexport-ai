@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { generateChangeSummary, hasChanges } from "@/lib/version-diff";
+import { auditLogger, getRequestContextFromRequest } from "@/lib/audit";
+import type { ContractContent, VersionChangeType } from "@/db/types";
 
 // GET - Fetch a single contract with signature data
 export async function GET(
@@ -59,6 +62,16 @@ export async function GET(
         (signatureFields || []).map((f) => f.id)
       );
 
+    // Log contract view
+    const context = getRequestContextFromRequest(request);
+    await auditLogger.contractViewed(
+      id,
+      user.id,
+      user.email || null,
+      user.user_metadata?.name || user.user_metadata?.full_name || null,
+      context
+    );
+
     return NextResponse.json({
       contract,
       signatureFields: signatureFields || [],
@@ -98,12 +111,39 @@ export async function PATCH(
     const body = await request.json();
     console.log("PATCH - Request body:", JSON.stringify(body, null, 2));
 
+    // Get the current contract state before update (for version history)
+    const { data: currentContract, error: fetchError } = await supabase
+      .from("contracts")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (fetchError || !currentContract) {
+      return NextResponse.json({ error: "Contract not found" }, { status: 404 });
+    }
+
+    // Determine if content has changed (for version history)
+    const oldContent = currentContract.content as ContractContent;
+    const newContent = body.content as ContractContent | undefined;
+    const contentChanged = newContent && hasChanges(oldContent, newContent);
+
+    // Determine change type based on request headers or body
+    const changeType: VersionChangeType =
+      body.changeType ||
+      (body.aiModified ? "ai_modification" : "edit");
+
     // Ensure version is a number, default to 1 if not provided
     const updateData = {
       ...body,
       version: body.version || 1,
       updated_at: new Date().toISOString(),
     };
+
+    // Remove non-database fields
+    delete updateData.changeType;
+    delete updateData.aiModified;
+
     console.log("PATCH - Update data:", JSON.stringify(updateData, null, 2));
 
     // Update contract (Supabase RLS handles ownership)
@@ -120,6 +160,49 @@ export async function PATCH(
     if (error || !updated) {
       return NextResponse.json({ error: "Contract not found", details: error?.message }, { status: 404 });
     }
+
+    // Create version history entry if content changed
+    if (contentChanged && newContent) {
+      try {
+        const changeSummary = generateChangeSummary(oldContent, newContent);
+
+        // Insert version snapshot of the OLD state before the change
+        const { error: versionError } = await supabase
+          .from("contract_versions")
+          .insert({
+            contract_id: id,
+            version_number: currentContract.version,
+            content: oldContent,
+            metadata: currentContract.metadata,
+            change_summary: changeSummary,
+            change_type: changeType,
+            created_by: user.id,
+          });
+
+        if (versionError) {
+          // Log but don't fail the update - version history is secondary
+          console.error("Error creating version snapshot:", versionError);
+        } else {
+          console.log("Created version snapshot for version", currentContract.version);
+        }
+      } catch (versionErr) {
+        console.error("Error in version history creation:", versionErr);
+      }
+    }
+
+    // Log audit event for contract update
+    const context = getRequestContextFromRequest(request);
+    const affectedFields = Object.keys(body).filter((key) => key !== "version");
+    await auditLogger.contractUpdated(
+      id,
+      user.id,
+      user.email || "",
+      user.user_metadata?.name || user.user_metadata?.full_name || null,
+      affectedFields,
+      contentChanged ? { content: oldContent } : undefined,
+      contentChanged && newContent ? { content: newContent } : undefined,
+      context
+    );
 
     return NextResponse.json({ contract: updated });
   } catch (error) {

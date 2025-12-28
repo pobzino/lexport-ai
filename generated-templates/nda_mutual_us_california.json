@@ -1,0 +1,251 @@
+{
+  "contract_type": "nda_mutual",
+  "jurisdiction": "us_california",
+  "version": 1,
+  "title": "Mutual Non-Disclosure Agreement (California)",
+  "preamble": "This Mutual Non-Disclosure Agreement (the \"Agreement\") is entered into as of {{effective_date}} (the \"Effective Date\") by and between (i) {{party_a_company}}, with a mailing address of {{party_a_address}} (\"{{party_a_name}}\" or \"Party A\"), and (ii) {{party_b_company}}, with a mailing address of {{party_b_address}} (\"{{party_b_name}}\" or \"Party B\"). Party A and Party B may be referred to individually as a \"Party\" and collectively as the \"Parties.\"",
+  "recitals": "WHEREAS, the Parties desire to disclose and receive certain information in connection with {{purpose}} (the \"Purpose\");\n\nWHEREAS, the Parties wish to protect the confidentiality of such information and to comply with applicable California law, including the California Uniform Trade Secrets Act (California Civil Code § 3426 et seq.);\n\nNOW, THEREFORE, in consideration of the mutual promises and covenants contained herein, the Parties agree as follows:",
+  "clauses": [
+    {
+      "id": "definitions",
+      "title": "1. DEFINITIONS",
+      "content": "1.1 \"Confidential Information\" means any non-public information disclosed by or on behalf of a Party (the \"Disclosing Party\") to the other Party (the \"Receiving Party\"), whether disclosed before or after the Effective Date, and whether disclosed in writing, orally, visually, electronically, or in any other form, that (a) is designated as confidential or proprietary, or (b) reasonably should be understood to be confidential given the nature of the information or the circumstances of disclosure.\n\n1.2 Confidential Information includes, without limitation: business, financial, and product plans; customer and supplier information; pricing; forecasts; marketing information; technical data; inventions; algorithms; designs; specifications; software (including source code and object code); research and development; know-how; processes; analyses; compilations; notes; summaries; and any information derived from Confidential Information.\n\n1.3 \"Trade Secret\" has the meaning set forth in the California Uniform Trade Secrets Act (California Civil Code § 3426.1). Trade Secrets are included within Confidential Information.\n\n1.4 \"Representatives\" means a Receiving Party’s and its affiliates’ directors, officers, employees, agents, professional advisors (including attorneys and accountants), contractors, and permitted consultants, in each case who have a need to know the Confidential Information for the Purpose and who are bound by confidentiality obligations at least as protective as those in this Agreement.\n\n1.5 \"Personal Information\" shall have the meaning set forth under the California Consumer Privacy Act, as amended by the California Privacy Rights Act (collectively, \"CCPA\"), to the extent applicable to the Parties and the information at issue.",
+      "type": "standard",
+      "order": 1
+    },
+    {
+      "id": "confidentiality_obligations",
+      "title": "2. CONFIDENTIALITY OBLIGATIONS",
+      "content": "2.1 Use Restriction. The Receiving Party shall use the Disclosing Party’s Confidential Information solely for the Purpose and for no other purpose without the Disclosing Party’s prior written consent.\n\n2.2 Non-Disclosure. The Receiving Party shall not disclose the Disclosing Party’s Confidential Information to any person or entity except to its Representatives who have a need to know for the Purpose and are bound by confidentiality obligations at least as protective as this Agreement.\n\n2.3 Standard of Care. The Receiving Party shall protect the Disclosing Party’s Confidential Information using at least the same degree of care the Receiving Party uses to protect its own confidential information of like importance, but in no event less than reasonable care.\n\n2.4 Security Measures. The Receiving Party shall implement and maintain reasonable administrative, technical, and physical safeguards designed to protect the confidentiality and security of the Confidential Information and to prevent unauthorized access, use, or disclosure.\n\n2.5 Compelled Disclosure. If the Receiving Party is required by law, regulation, or valid legal process to disclose any Confidential Information, the Receiving Party shall (to the extent legally permitted) provide the Disclosing Party with prompt written notice and reasonably cooperate (at the Disclosing Party’s expense) in seeking a protective order or other appropriate remedy. If disclosure is ultimately required, the Receiving Party shall disclose only that portion of Confidential Information that is legally required to be disclosed.\n\n2.6 No Circumvention of Trade Secret Protections. The Parties intend that this Agreement protect Confidential Information, including Trade Secrets, under California law, including California Civil Code § 3426 et seq. Nothing in this Agreement limits any rights or remedies available under applicable trade secret law.\n\n2.7 CCPA / Personal Information (If Applicable). To the extent Confidential Information includes Personal Information, each Party shall (a) comply with applicable CCPA requirements; (b) use such Personal Information solely for the Purpose and as otherwise permitted by applicable law; (c) not sell or share such Personal Information (as those terms are defined under the CCPA) based on the disclosure under this Agreement; and (d) maintain reasonable security procedures and practices appropriate to the nature of the Personal Information.",
+      "type": "standard",
+      "order": 2
+    },
+    {
+      "id": "exclusions",
+      "title": "3. EXCLUSIONS FROM CONFIDENTIAL INFORMATION",
+      "content": "3.1 Exclusions. Confidential Information does not include information that the Receiving Party can demonstrate by competent written records:\n\n(a) is or becomes publicly available through no breach of this Agreement by the Receiving Party or its Representatives;\n\n(b) was lawfully known to the Receiving Party without restriction on use or disclosure prior to disclosure by the Disclosing Party;\n\n(c) is lawfully received by the Receiving Party from a third party without breach of any obligation of confidentiality owed to the Disclosing Party;\n\n(d) is independently developed by the Receiving Party without use of or reference to the Disclosing Party’s Confidential Information; or\n\n(e) is approved for release by the Disclosing Party in a written authorization signed by the Disclosing Party.\n\n3.2 Residual Knowledge. No \"residual\" rights are granted under this Agreement. The Receiving Party shall not use Confidential Information based on memory or unaided recollection if such use would violate this Agreement.",
+      "type": "standard",
+      "order": 3
+    },
+    {
+      "id": "term_and_duration",
+      "title": "4. TERM AND DURATION",
+      "content": "4.1 Term. This Agreement begins on the Effective Date and continues until the earlier of (a) {{expiration_date}}, or (b) termination by either Party upon written notice to the other Party provided at least {{notice_period}} days in advance.\n\n4.2 Survival of Confidentiality. The Receiving Party’s obligations under this Agreement with respect to Confidential Information disclosed during the Term shall survive termination or expiration of this Agreement for {{confidentiality_period}} years from the date of disclosure of the applicable Confidential Information.\n\n4.3 Trade Secrets. Notwithstanding Section 4.2, with respect to any Trade Secret, the Receiving Party’s obligations shall continue for so long as such information remains a Trade Secret under applicable law.\n\n4.4 No Requirement to Disclose. Nothing in this Agreement requires either Party to disclose any Confidential Information or to proceed with any transaction or relationship in connection with the Purpose.",
+      "type": "standard",
+      "order": 4
+    },
+    {
+      "id": "return_of_information",
+      "title": "5. RETURN OR DESTRUCTION OF INFORMATION",
+      "content": "5.1 Return/Destruction Upon Request. Upon the Disclosing Party’s written request, the Receiving Party shall promptly (and in any event within a reasonable time) return or destroy all Confidential Information of the Disclosing Party in the Receiving Party’s possession or control, including all copies, extracts, and derivatives, and shall certify such return or destruction in writing if requested.\n\n5.2 Archival Copies. Notwithstanding Section 5.1, the Receiving Party may retain copies of Confidential Information to the extent required to comply with applicable law, regulation, bona fide document retention policies, or for archival/backup purposes maintained in the ordinary course, provided that (a) such retained information remains subject to this Agreement, (b) access is limited to personnel with a compliance or legal need to know, and (c) the Receiving Party does not use retained Confidential Information for any purpose other than compliance.\n\n5.3 No Obligation to Remove from Systems Immediately. The Parties acknowledge that Confidential Information stored in routine computer system backups may not be immediately accessible for deletion. The Receiving Party shall ensure such backups remain protected and are not restored or used to access Confidential Information except as required for disaster recovery or compliance.",
+      "type": "standard",
+      "order": 5
+    },
+    {
+      "id": "remedies",
+      "title": "6. REMEDIES",
+      "content": "6.1 Injunctive Relief. Each Party acknowledges that unauthorized use or disclosure of Confidential Information may cause irreparable harm for which monetary damages may be inadequate. Accordingly, in the event of an actual or threatened breach of this Agreement, the Disclosing Party shall be entitled to seek equitable relief, including injunctive relief and specific performance, in addition to any other remedies available at law or in equity.\n\n6.2 No Limitation of Statutory Rights. This Agreement does not limit any rights or remedies available under California Civil Code § 3426 et seq. or other applicable law.\n\n6.3 Attorneys’ Fees (If Awarded by Court or Required by Statute). Except as otherwise required by applicable law or ordered by a court of competent jurisdiction, each Party shall bear its own attorneys’ fees and costs in any dispute arising out of this Agreement.",
+      "type": "negotiable",
+      "order": 6
+    },
+    {
+      "id": "governing_law",
+      "title": "7. GOVERNING LAW; VENUE",
+      "content": "7.1 Governing Law. This Agreement and any dispute arising out of or relating to this Agreement, the Purpose, or the Parties’ disclosures shall be governed by and construed in accordance with the laws of {{governing_jurisdiction}}, without regard to conflict of laws principles.\n\n7.2 Venue; Jurisdiction. Subject to Section 7.3, the Parties consent to the exclusive jurisdiction of the state and federal courts located in California for any action arising out of or relating to this Agreement, and waive any objection to such courts as an inconvenient forum.\n\n7.3 Injunctive Relief Forum. Notwithstanding Section 7.2, a Party may seek temporary, preliminary, or permanent injunctive relief or other equitable relief in any court of competent jurisdiction to prevent or enjoin a breach of this Agreement.",
+      "type": "standard",
+      "order": 7
+    },
+    {
+      "id": "general_provisions",
+      "title": "8. GENERAL PROVISIONS",
+      "content": "8.1 Notices. All notices under this Agreement must be in writing and will be deemed given when delivered (a) personally, (b) by nationally recognized overnight courier, (c) by certified mail (return receipt requested), or (d) by email with confirmation of transmission, to the addresses below (or to such other address as a Party may designate by notice):\n\nIf to Party A:\n{{party_a_company}}\nAttn: {{party_a_name}}, {{party_a_title}}\n{{party_a_address}}\nEmail: {{party_a_email}}\n\nIf to Party B:\n{{party_b_company}}\nAttn: {{party_b_name}}, {{party_b_title}}\n{{party_b_address}}\nEmail: {{party_b_email}}\n\n8.2 No License. All Confidential Information remains the property of the Disclosing Party. No license or other rights are granted to the Receiving Party under any patents, copyrights, trade secrets, trademarks, or other intellectual property rights by disclosure of Confidential Information, except the limited right to use Confidential Information for the Purpose.\n\n8.3 No Partnership/Agency; No Employment. Nothing in this Agreement creates any partnership, joint venture, fiduciary relationship, agency, employment, or contractor relationship between the Parties. Neither Party has authority to bind the other.\n\n8.4 California Worker Mobility; Protected Rights. Nothing in this Agreement is intended to, nor shall it be interpreted to, prohibit or restrict either Party or any individual from engaging in protected activity under applicable law, including reporting suspected violations of law, cooperating with governmental agencies, or making disclosures protected under California Labor Code § 1102.5 or other whistleblower protections.\n\n8.5 Severability. If any provision of this Agreement is found invalid or unenforceable, the remaining provisions shall remain in full force and effect, and the invalid or unenforceable provision shall be enforced to the maximum extent permitted by law consistent with the Parties’ intent.\n\n8.6 Waiver. No waiver of any breach of this Agreement will be a waiver of any other breach. A waiver must be in writing and signed by the waiving Party.\n\n8.7 Assignment. Neither Party may assign or transfer this Agreement, in whole or in part, without the prior written consent of the other Party, except to a successor in connection with a merger, acquisition, or sale of substantially all assets, provided that the assignee agrees in writing to be bound by this Agreement.\n\n8.8 Entire Agreement; Amendment. This Agreement constitutes the entire agreement between the Parties with respect to its subject matter and supersedes all prior or contemporaneous understandings and communications. Any amendment or modification must be in a written document signed by both Parties.\n\n8.9 Counterparts; Electronic Signatures. This Agreement may be executed in counterparts, each of which will be deemed an original. Signatures transmitted electronically (including PDF and e-signature platforms) shall be deemed original signatures and shall be enforceable.\n\n8.10 Interpretation. Headings are for convenience only and do not affect interpretation. Any ambiguity shall not be construed against either Party on the basis that such Party drafted the language.\n\n8.11 Export/Compliance. Each Party will comply with applicable laws relating to the receipt, use, and disclosure of Confidential Information, including applicable export control and sanctions laws, to the extent applicable.",
+      "type": "standard",
+      "order": 8
+    },
+    {
+      "id": "non_solicitation",
+      "title": "9. OPTIONAL: NON-SOLICITATION",
+      "content": "9.1 Non-Solicitation (Limited; California Compliance). To the maximum extent permitted by California law, and only to the extent this provision is enforceable under California Business and Professions Code § 16600 and related case law, during the Term and for {{confidentiality_period}} years thereafter, neither Party shall knowingly solicit for employment (as an employee) any person who is then a full-time employee of the other Party and with whom the soliciting Party had material direct contact in connection with the Purpose.\n\n9.2 Permitted Conduct. General solicitations not specifically targeted at the other Party’s employees (including general advertising and use of third-party recruiters not specifically instructed to target the other Party’s employees) shall not violate this Section.\n\n9.3 Acknowledgment. The Parties acknowledge that restrictions on employee solicitation may be subject to limitations under California law and agree that this Section shall be interpreted, reformed, or severed to the extent necessary to comply with applicable law.",
+      "type": "optional",
+      "order": 9
+    },
+    {
+      "id": "non_compete",
+      "title": "10. OPTIONAL: NON-COMPETE (CALIFORNIA NOTICE)",
+      "content": "10.1 No Non-Compete Intended. The Parties acknowledge and agree that, except as expressly permitted by applicable California statutory exceptions, any agreement that restrains a person from engaging in a lawful profession, trade, or business is generally void under California Business and Professions Code § 16600.\n\n10.2 Purpose of This Agreement. The Parties intend this Agreement to protect Confidential Information and Trade Secrets, not to restrict lawful competition. Accordingly, no provision of this Agreement shall be construed as a non-competition obligation, and neither Party is restricted from competing with the other Party so long as it does not breach this Agreement.\n\n10.3 Statutory Exceptions. If and only to the extent a permitted statutory exception applies (including, without limitation, exceptions related to the sale of a business or dissolution of a partnership/LLC as provided under California law), the Parties may set forth such permitted restriction in a separate written agreement executed by both Parties.",
+      "type": "optional",
+      "order": 10
+    }
+  ],
+  "signature_block": "IN WITNESS WHEREOF, the Parties have executed this Agreement as of {{signature_date}}.\n\nPARTY A:\n{{party_a_company}}\n\nBy (Signature): ________________________________\nPrinted Name: {{party_a_name}}\nTitle: {{party_a_title}}\nEmail: {{party_a_email}}\nAddress: {{party_a_address}}\nDate: {{signature_date}}\n\nPARTY B:\n{{party_b_company}}\n\nBy (Signature): ________________________________\nPrinted Name: {{party_b_name}}\nTitle: {{party_b_title}}\nEmail: {{party_b_email}}\nAddress: {{party_b_address}}\nDate: {{signature_date}}",
+  "placeholders": [
+    {
+      "id": "party_a_email",
+      "token": "{{party_a_email}}",
+      "label": "Your Email",
+      "description": "Email address of the first party",
+      "category": "party_a",
+      "type": "email",
+      "required": true,
+      "autofillKey": "email"
+    },
+    {
+      "id": "party_a_name",
+      "token": "{{party_a_name}}",
+      "label": "Your Name",
+      "description": "Full legal name of the first party",
+      "category": "party_a",
+      "type": "text",
+      "required": true,
+      "autofillKey": "name"
+    },
+    {
+      "id": "party_a_address",
+      "token": "{{party_a_address}}",
+      "label": "Your Address",
+      "description": "Business or mailing address",
+      "category": "party_a",
+      "type": "textarea",
+      "required": false,
+      "autofillKey": "address"
+    },
+    {
+      "id": "party_a_company",
+      "token": "{{party_a_company}}",
+      "label": "Your Company",
+      "description": "Company or organization name",
+      "category": "party_a",
+      "type": "text",
+      "required": false,
+      "autofillKey": "company_name"
+    },
+    {
+      "id": "party_a_title",
+      "token": "{{party_a_title}}",
+      "label": "Your Title",
+      "description": "Job title or role",
+      "category": "party_a",
+      "type": "text",
+      "required": false,
+      "autofillKey": "job_title"
+    },
+    {
+      "id": "party_b_email",
+      "token": "{{party_b_email}}",
+      "label": "Other Party Email",
+      "description": "Email address of the second party",
+      "category": "party_b",
+      "type": "email",
+      "required": true
+    },
+    {
+      "id": "party_b_name",
+      "token": "{{party_b_name}}",
+      "label": "Other Party Name",
+      "description": "Full legal name of the second party",
+      "category": "party_b",
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "party_b_address",
+      "token": "{{party_b_address}}",
+      "label": "Other Party Address",
+      "description": "Business or mailing address",
+      "category": "party_b",
+      "type": "textarea",
+      "required": false
+    },
+    {
+      "id": "party_b_company",
+      "token": "{{party_b_company}}",
+      "label": "Other Party Company",
+      "description": "Company or organization name",
+      "category": "party_b",
+      "type": "text",
+      "required": false
+    },
+    {
+      "id": "party_b_title",
+      "token": "{{party_b_title}}",
+      "label": "Other Party Title",
+      "description": "Job title or role",
+      "category": "party_b",
+      "type": "text",
+      "required": false
+    },
+    {
+      "id": "effective_date",
+      "token": "{{effective_date}}",
+      "label": "Effective Date",
+      "description": "When the agreement becomes effective",
+      "category": "dates",
+      "type": "date",
+      "required": true
+    },
+    {
+      "id": "expiration_date",
+      "token": "{{expiration_date}}",
+      "label": "Expiration Date",
+      "description": "When the agreement ends (if applicable)",
+      "category": "dates",
+      "type": "date",
+      "required": false
+    },
+    {
+      "id": "signature_date",
+      "token": "{{signature_date}}",
+      "label": "Signature Date",
+      "description": "Date of signing",
+      "category": "dates",
+      "type": "date",
+      "required": false
+    },
+    {
+      "id": "governing_jurisdiction",
+      "token": "{{governing_jurisdiction}}",
+      "label": "Governing Jurisdiction",
+      "description": "State/country whose laws govern the agreement",
+      "category": "terms",
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "confidentiality_period",
+      "token": "{{confidentiality_period}}",
+      "label": "Confidentiality Period",
+      "description": "Duration of confidentiality obligations (in years)",
+      "category": "terms",
+      "type": "number",
+      "required": false
+    },
+    {
+      "id": "notice_period",
+      "token": "{{notice_period}}",
+      "label": "Notice Period",
+      "description": "Days notice required for termination",
+      "category": "terms",
+      "type": "number",
+      "required": false
+    },
+    {
+      "id": "purpose",
+      "token": "{{purpose}}",
+      "label": "Purpose",
+      "description": "Purpose of the agreement or disclosure",
+      "category": "terms",
+      "type": "textarea",
+      "required": false
+    }
+  ],
+  "is_active": true,
+  "metadata": {
+    "generator_version": "2.0-two-stage",
+    "gpt_model": "gpt-5.2",
+    "opus_enhanced": true,
+    "generated_at": "2025-12-28T14:19:00.999Z",
+    "word_count": 2300,
+    "clause_count": 10,
+    "placeholder_count": 17
+  }
+}

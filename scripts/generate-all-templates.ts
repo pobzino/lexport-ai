@@ -70,7 +70,7 @@ async function generateAndSaveTemplate(
       contractType,
       jurisdiction,
       includeOptionalClauses: true,
-      enhanceWithOpus: true, // Re-enabled for debugging
+      enhanceWithOpus: false, // Disabled - will enhance with Opus later
       onProgress: (stage, status) => {
         if (status === "started") {
           console.log(`  → Stage ${stage === "gpt5" ? "1 (GPT-5.2)" : "2 (Opus 4.5)"}: Started...`);

@@ -1,7 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import {
+  ConnectComponentsProvider,
+  ConnectAccountOnboarding,
+  ConnectAccountManagement,
+  ConnectPayments,
+  ConnectPayouts,
+  ConnectNotificationBanner,
+} from "@stripe/react-connect-js";
+import { loadConnectAndInitialize } from "@stripe/connect-js";
+import type { StripeConnectInstance } from "@stripe/connect-js";
 import {
   CreditCard,
   Building2,
@@ -12,6 +22,9 @@ import {
   RefreshCw,
   Wallet,
   XCircle,
+  Settings,
+  DollarSign,
+  ArrowUpRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -38,6 +51,17 @@ interface ConnectStatus {
   };
 }
 
+type ViewMode = "overview" | "account" | "payments" | "payouts";
+
+const SUPPORTED_COUNTRIES = [
+  { code: "US", name: "United States", flag: "🇺🇸" },
+  { code: "GB", name: "United Kingdom", flag: "🇬🇧" },
+  { code: "CA", name: "Canada", flag: "🇨🇦" },
+  { code: "AU", name: "Australia", flag: "🇦🇺" },
+  { code: "DE", name: "Germany", flag: "🇩🇪" },
+  { code: "FR", name: "France", flag: "🇫🇷" },
+];
+
 export default function PaymentSettingsPage() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<ConnectStatus | null>(null);
@@ -46,23 +70,25 @@ export default function PaymentSettingsPage() {
   const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [stripeConnectInstance, setStripeConnectInstance] = useState<StripeConnectInstance | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("overview");
+  const [selectedCountry, setSelectedCountry] = useState<string>("US");
+  const [showCountrySelect, setShowCountrySelect] = useState(false);
 
   // Check for URL params from Stripe redirect
   useEffect(() => {
     if (searchParams.get("success") === "true") {
       setSuccessMessage("Your payment account has been connected successfully!");
-      // Clear the URL params
       window.history.replaceState({}, "", "/settings/payments");
     }
     if (searchParams.get("refresh") === "true") {
-      // User needs to continue onboarding
       setError("Please complete your account setup to receive payments.");
       window.history.replaceState({}, "", "/settings/payments");
     }
   }, [searchParams]);
 
   // Fetch Connect status
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -72,48 +98,113 @@ export default function PaymentSettingsPage() {
       }
       const data = await response.json();
       setStatus(data);
+      return data;
     } catch (err) {
       setError("Failed to load payment settings. Please try again.");
       console.error(err);
+      return null;
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Initialize Stripe Connect instance for embedded components
+  const initializeStripeConnect = useCallback(async () => {
+    const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+    if (!publishableKey) {
+      setError("Stripe is not configured. Please contact support.");
+      return;
+    }
+
+    // Don't initialize if we already have an instance
+    if (stripeConnectInstance) {
+      return;
+    }
+
+    try {
+      const instance = await loadConnectAndInitialize({
+        publishableKey,
+        fetchClientSecret: async () => {
+          const response = await fetch("/api/stripe/connect/session", {
+            method: "POST",
+          });
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error("Account session error:", errorData);
+            throw new Error(errorData.error || "Failed to create account session");
+          }
+          const { clientSecret } = await response.json();
+          return clientSecret;
+        },
+        appearance: {
+          overlays: "dialog",
+          variables: {
+            colorPrimary: "#7c3aed",
+            colorBackground: "#ffffff",
+            colorText: "#0f172a",
+            colorDanger: "#dc2626",
+            colorBorder: "#e2e8f0",
+            borderRadius: "12px",
+            fontFamily: "Inter, system-ui, sans-serif",
+            fontSizeBase: "14px",
+            spacingUnit: "4px",
+            buttonPrimaryColorBackground: "#7c3aed",
+            buttonPrimaryColorText: "#ffffff",
+            badgeSuccessColorBackground: "#dcfce7",
+            badgeSuccessColorText: "#166534",
+            badgeWarningColorBackground: "#fef3c7",
+            badgeWarningColorText: "#92400e",
+            badgeNeutralColorBackground: "#f1f5f9",
+            badgeNeutralColorText: "#475569",
+          },
+        },
+      });
+      setStripeConnectInstance(instance);
+    } catch (err) {
+      console.error("Failed to initialize Stripe Connect:", err);
+      // Don't show error for expected "no account" case - just don't initialize
+    }
+  }, [stripeConnectInstance]);
 
   useEffect(() => {
     fetchStatus();
-  }, []);
+  }, [fetchStatus]);
 
-  // Start Connect onboarding
-  const handleConnect = async () => {
+  // Initialize Stripe Connect when account exists
+  useEffect(() => {
+    if (status?.connected && status.accountId && !stripeConnectInstance) {
+      initializeStripeConnect();
+    }
+  }, [status, stripeConnectInstance, initializeStripeConnect]);
+
+  // Start Connect onboarding - create account first
+  const handleConnect = async (country: string) => {
     try {
       setConnecting(true);
       setError(null);
+      setShowCountrySelect(false);
+      // Clear any existing instance since we're creating a new account
+      setStripeConnectInstance(null);
+
       const response = await fetch("/api/stripe/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ country: "US" }),
+        body: JSON.stringify({ country }),
       });
 
       if (!response.ok) {
         throw new Error("Failed to create Connect account");
       }
 
-      const data = await response.json();
-      if (data.onboardingUrl) {
-        window.location.href = data.onboardingUrl;
-      }
+      // Refresh status to get the new account
+      // The useEffect will handle initializing the Connect instance
+      await fetchStatus();
     } catch (err) {
       setError("Failed to start account setup. Please try again.");
       console.error(err);
     } finally {
       setConnecting(false);
     }
-  };
-
-  // Continue onboarding
-  const handleContinueOnboarding = async () => {
-    await handleConnect();
   };
 
   // Disconnect account
@@ -134,6 +225,8 @@ export default function PaymentSettingsPage() {
       }
 
       setSuccessMessage("Payment account disconnected.");
+      setStripeConnectInstance(null);
+      setViewMode("overview");
       await fetchStatus();
     } catch (err) {
       setError("Failed to disconnect account. Please try again.");
@@ -165,17 +258,35 @@ export default function PaymentSettingsPage() {
         );
       case "pending":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
-            <AlertCircle className="w-4 h-4" />
-            Pending Setup
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
+              <AlertCircle className="w-4 h-4" />
+              Pending Setup
+            </span>
+            <button
+              onClick={fetchStatus}
+              className="p-1 text-slate-400 hover:text-slate-600 rounded"
+              title="Refresh status"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         );
       case "restricted":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-            <XCircle className="w-4 h-4" />
-            Restricted
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+              <XCircle className="w-4 h-4" />
+              Restricted
+            </span>
+            <button
+              onClick={fetchStatus}
+              className="p-1 text-slate-400 hover:text-slate-600 rounded"
+              title="Refresh status"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         );
       default:
         return (
@@ -255,276 +366,411 @@ export default function PaymentSettingsPage() {
         </div>
       )}
 
+      {/* Notification Banner for Connected Accounts */}
+      {stripeConnectInstance && status?.connected && (
+        <ConnectComponentsProvider connectInstance={stripeConnectInstance}>
+          <ConnectNotificationBanner />
+        </ConnectComponentsProvider>
+      )}
+
       {/* Connect Account Card */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="p-6 border-b border-slate-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-brand-100 rounded-lg flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-brand-600" />
+        {/* Only show header when not in onboarding flow */}
+        {!(status?.status === "pending" && stripeConnectInstance) && (
+          <div className="p-6 border-b border-slate-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand-100 rounded-lg flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-brand-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    Payment Account
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Connect your bank account to receive payments
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Payment Account
-                </h2>
-                <p className="text-sm text-slate-500">
-                  Connect your bank account to receive payments
-                </p>
-              </div>
+              {getStatusBadge()}
             </div>
-            {getStatusBadge()}
           </div>
-        </div>
+        )}
 
         <div className="p-6">
           {!status?.connected ? (
             /* Not Connected State */
             <div className="text-center py-8">
-              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CreditCard className="w-8 h-8 text-slate-400" />
-              </div>
-              <h3 className="text-lg font-medium text-slate-900 mb-2">
-                Start Accepting Payments
-              </h3>
-              <p className="text-slate-500 max-w-md mx-auto mb-6">
-                Connect your bank account to receive payments from signed contracts.
-                We use Stripe for secure payment processing.
-              </p>
-              <Button onClick={handleConnect} disabled={connecting}>
-                {connecting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Connecting...
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="w-4 h-4 mr-2" />
-                    Connect Bank Account
-                  </>
-                )}
-              </Button>
-              <p className="text-xs text-slate-400 mt-4">
-                Powered by Stripe. Your banking details are never stored on our servers.
-              </p>
-            </div>
-          ) : status.status === "pending" ? (
-            /* Pending Setup State */
-            <div className="space-y-6">
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium text-amber-800">
-                      Complete Your Account Setup
-                    </h4>
-                    <p className="text-sm text-amber-700 mt-1">
-                      Please complete your account verification to start receiving payments.
-                    </p>
+              {!showCountrySelect ? (
+                <>
+                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CreditCard className="w-8 h-8 text-slate-400" />
                   </div>
-                </div>
-              </div>
-
-              {status.requirements && status.requirements.currentlyDue.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-slate-700 mb-2">
-                    Required Information:
-                  </h4>
-                  <ul className="list-disc list-inside text-sm text-slate-600 space-y-1">
-                    {status.requirements.currentlyDue.map((req) => (
-                      <li key={req}>{req.replace(/_/g, " ")}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                <Button onClick={handleContinueOnboarding} disabled={connecting}>
-                  {connecting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    <>
-                      Continue Setup
-                      <ExternalLink className="w-4 h-4 ml-2" />
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleDisconnect}
-                  disabled={disconnecting}
-                >
-                  {disconnecting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    "Disconnect"
-                  )}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            /* Connected State */
-            <div className="space-y-6">
-              {/* Account Status */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
-                    <CheckCircle2 className="w-4 h-4" />
-                    Payments
-                  </div>
-                  <p className="text-lg font-semibold text-slate-900">
-                    {status.chargesEnabled ? "Enabled" : "Disabled"}
-                  </p>
-                </div>
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
-                    <Wallet className="w-4 h-4" />
-                    Payouts
-                  </div>
-                  <p className="text-lg font-semibold text-slate-900">
-                    {status.payoutsEnabled ? "Enabled" : "Disabled"}
-                  </p>
-                </div>
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
-                    <Building2 className="w-4 h-4" />
-                    Payout Schedule
-                  </div>
-                  <p className="text-lg font-semibold text-slate-900 capitalize">
-                    {status.payoutSchedule?.interval || "Daily"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Balance */}
-              {status.balance && (
-                <div className="border-t border-slate-200 pt-6">
-                  <h3 className="text-sm font-medium text-slate-700 mb-4">
-                    Account Balance
+                  <h3 className="text-lg font-medium text-slate-900 mb-2">
+                    Start Accepting Payments
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-green-50 rounded-lg p-4">
-                      <p className="text-sm text-green-700 mb-1">Available</p>
-                      <p className="text-2xl font-bold text-green-900">
-                        {status.balance.available.length > 0
-                          ? formatCurrency(
-                              status.balance.available[0].amount,
-                              status.balance.available[0].currency
-                            )
-                          : "$0.00"}
-                      </p>
-                    </div>
-                    <div className="bg-blue-50 rounded-lg p-4">
-                      <p className="text-sm text-blue-700 mb-1">Pending</p>
-                      <p className="text-2xl font-bold text-blue-900">
-                        {status.balance.pending.length > 0
-                          ? formatCurrency(
-                              status.balance.pending[0].amount,
-                              status.balance.pending[0].currency
-                            )
-                          : "$0.00"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Restricted Account Warning */}
-              {status.status === "restricted" && status.requirements && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-medium text-red-800">
-                        Action Required
-                      </h4>
-                      <p className="text-sm text-red-700 mt-1">
-                        Your account has restrictions. Please update your information
-                        to continue receiving payments.
-                      </p>
-                      {status.requirements.pastDue.length > 0 && (
-                        <div className="mt-2">
-                          <p className="text-sm font-medium text-red-800">Past due:</p>
-                          <ul className="list-disc list-inside text-sm text-red-700">
-                            {status.requirements.pastDue.map((req) => (
-                              <li key={req}>{req.replace(/_/g, " ")}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-3 border-t border-slate-200 pt-6">
-                {status.dashboardUrl && (
-                  <Button asChild>
-                    <a href={status.dashboardUrl} target="_blank" rel="noopener noreferrer">
-                      Open Stripe Dashboard
-                      <ExternalLink className="w-4 h-4 ml-2" />
-                    </a>
+                  <p className="text-slate-500 max-w-md mx-auto mb-6">
+                    Connect your bank account to receive payments from signed contracts.
+                    We use Stripe for secure payment processing.
+                  </p>
+                  <Button onClick={() => setShowCountrySelect(true)} disabled={connecting}>
+                    {connecting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Setting up...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Connect Bank Account
+                      </>
+                    )}
                   </Button>
-                )}
-                <Button
-                  variant="outline"
-                  onClick={handleDisconnect}
-                  disabled={disconnecting}
-                >
-                  {disconnecting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    "Disconnect Account"
-                  )}
-                </Button>
+                  <p className="text-xs text-slate-400 mt-4">
+                    Powered by Stripe. Your banking details are never stored on our servers.
+                  </p>
+                </>
+              ) : (
+                /* Country Selection */
+                <div className="max-w-sm mx-auto">
+                  <h3 className="text-lg font-medium text-slate-900 mb-2">
+                    Select Your Country
+                  </h3>
+                  <p className="text-sm text-slate-500 mb-6">
+                    Choose where your business is registered to see the correct requirements.
+                  </p>
+                  <div className="space-y-2 mb-6">
+                    {SUPPORTED_COUNTRIES.map((country) => (
+                      <button
+                        key={country.code}
+                        onClick={() => setSelectedCountry(country.code)}
+                        className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+                          selectedCountry === country.code
+                            ? "border-brand-600 bg-brand-50"
+                            : "border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        <span className="text-2xl">{country.flag}</span>
+                        <span className="font-medium text-slate-900">{country.name}</span>
+                        {selectedCountry === country.code && (
+                          <CheckCircle2 className="w-5 h-5 text-brand-600 ml-auto" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowCountrySelect(false)}
+                      className="flex-1"
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      onClick={() => handleConnect(selectedCountry)}
+                      disabled={connecting}
+                      className="flex-1"
+                    >
+                      {connecting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Setting up...
+                        </>
+                      ) : (
+                        "Continue"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : status.status === "pending" && stripeConnectInstance ? (
+            /* Embedded Onboarding State */
+            <ConnectComponentsProvider connectInstance={stripeConnectInstance}>
+              <div className="space-y-4">
+                <ConnectAccountOnboarding
+                  onExit={() => {
+                    fetchStatus();
+                  }}
+                />
+                <div className="pt-4 border-t border-slate-200">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDisconnect}
+                    disabled={disconnecting}
+                    className="text-slate-500 hover:text-red-600"
+                  >
+                    {disconnecting ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <XCircle className="w-4 h-4 mr-2" />
+                    )}
+                    Cancel & Start Over
+                  </Button>
+                </div>
               </div>
+            </ConnectComponentsProvider>
+          ) : status.status === "pending" ? (
+            /* Fallback for pending without instance */
+            <div className="text-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-brand-600 mx-auto mb-4" />
+              <p className="text-slate-600">Loading account setup...</p>
+            </div>
+          ) : stripeConnectInstance ? (
+            /* Connected State with Embedded Management */
+            <ConnectComponentsProvider connectInstance={stripeConnectInstance}>
+              <div className="space-y-6">
+                {/* Navigation Tabs */}
+                <div className="flex gap-2 border-b border-slate-200 -mx-6 px-6">
+                  <button
+                    onClick={() => setViewMode("overview")}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                      viewMode === "overview"
+                        ? "border-brand-600 text-brand-600"
+                        : "border-transparent text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Overview
+                  </button>
+                  <button
+                    onClick={() => setViewMode("account")}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                      viewMode === "account"
+                        ? "border-brand-600 text-brand-600"
+                        : "border-transparent text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <Settings className="w-4 h-4 inline mr-1.5" />
+                    Account Settings
+                  </button>
+                  <button
+                    onClick={() => setViewMode("payments")}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                      viewMode === "payments"
+                        ? "border-brand-600 text-brand-600"
+                        : "border-transparent text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <DollarSign className="w-4 h-4 inline mr-1.5" />
+                    Payments
+                  </button>
+                  <button
+                    onClick={() => setViewMode("payouts")}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                      viewMode === "payouts"
+                        ? "border-brand-600 text-brand-600"
+                        : "border-transparent text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <ArrowUpRight className="w-4 h-4 inline mr-1.5" />
+                    Payouts
+                  </button>
+                </div>
+
+                {/* Tab Content */}
+                {viewMode === "overview" && (
+                  <div className="space-y-6">
+                    {/* Account Status */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-slate-50 rounded-lg p-4">
+                        <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
+                          <CheckCircle2 className="w-4 h-4" />
+                          Payments
+                        </div>
+                        <p className="text-lg font-semibold text-slate-900">
+                          {status.chargesEnabled ? "Enabled" : "Disabled"}
+                        </p>
+                      </div>
+                      <div className="bg-slate-50 rounded-lg p-4">
+                        <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
+                          <Wallet className="w-4 h-4" />
+                          Payouts
+                        </div>
+                        <p className="text-lg font-semibold text-slate-900">
+                          {status.payoutsEnabled ? "Enabled" : "Disabled"}
+                        </p>
+                      </div>
+                      <div className="bg-slate-50 rounded-lg p-4">
+                        <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
+                          <Building2 className="w-4 h-4" />
+                          Payout Schedule
+                        </div>
+                        <p className="text-lg font-semibold text-slate-900 capitalize">
+                          {status.payoutSchedule?.interval || "Daily"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Balance */}
+                    {status.balance && (
+                      <div className="border-t border-slate-200 pt-6">
+                        <h3 className="text-sm font-medium text-slate-700 mb-4">
+                          Account Balance
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="bg-green-50 rounded-lg p-4">
+                            <p className="text-sm text-green-700 mb-1">Available</p>
+                            <p className="text-2xl font-bold text-green-900">
+                              {status.balance.available.length > 0
+                                ? formatCurrency(
+                                    status.balance.available[0].amount,
+                                    status.balance.available[0].currency
+                                  )
+                                : "$0.00"}
+                            </p>
+                          </div>
+                          <div className="bg-blue-50 rounded-lg p-4">
+                            <p className="text-sm text-blue-700 mb-1">Pending</p>
+                            <p className="text-2xl font-bold text-blue-900">
+                              {status.balance.pending.length > 0
+                                ? formatCurrency(
+                                    status.balance.pending[0].amount,
+                                    status.balance.pending[0].currency
+                                  )
+                                : "$0.00"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Restricted Account Warning */}
+                    {status.status === "restricted" && status.requirements && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div className="flex items-start gap-3">
+                          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <h4 className="font-medium text-red-800">
+                              Action Required
+                            </h4>
+                            <p className="text-sm text-red-700 mt-1">
+                              Your account has restrictions. Please go to Account Settings
+                              to update your information.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Quick Actions */}
+                    <div className="flex gap-3 border-t border-slate-200 pt-6">
+                      <Button onClick={() => setViewMode("account")}>
+                        <Settings className="w-4 h-4 mr-2" />
+                        Manage Account
+                      </Button>
+                      {status.dashboardUrl && (
+                        <Button variant="outline" asChild>
+                          <a href={status.dashboardUrl} target="_blank" rel="noopener noreferrer">
+                            Open Stripe Dashboard
+                            <ExternalLink className="w-4 h-4 ml-2" />
+                          </a>
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        onClick={handleDisconnect}
+                        disabled={disconnecting}
+                        className="ml-auto text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        {disconnecting ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          "Disconnect"
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {viewMode === "account" && (
+                  <div className="bg-slate-50 rounded-xl p-6 -mx-6 -mb-6">
+                    <ConnectAccountManagement />
+                  </div>
+                )}
+
+                {viewMode === "payments" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium text-slate-900">Payment History</h3>
+                        <p className="text-sm text-slate-500">View all payments received through your contracts</p>
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-4 -mx-6 -mb-6 min-h-[300px]">
+                      <ConnectPayments />
+                    </div>
+                  </div>
+                )}
+
+                {viewMode === "payouts" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium text-slate-900">Payout History</h3>
+                        <p className="text-sm text-slate-500">Track payouts to your connected bank account</p>
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-4 -mx-6 -mb-6 min-h-[300px]">
+                      <ConnectPayouts />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ConnectComponentsProvider>
+          ) : (
+            /* Fallback loading state */
+            <div className="text-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-brand-600 mx-auto mb-4" />
+              <p className="text-slate-600">Loading payment components...</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Payment Methods Info */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">
-          Accepted Payment Methods
-        </h2>
-        <p className="text-sm text-slate-600 mb-4">
-          When you collect payments on contracts, your clients can pay using:
-        </p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="flex items-center gap-2 text-sm text-slate-700">
-            <CreditCard className="w-4 h-4 text-slate-400" />
-            Credit/Debit Cards
-          </div>
-          <div className="flex items-center gap-2 text-sm text-slate-700">
-            <Building2 className="w-4 h-4 text-slate-400" />
-            Bank Transfers (ACH)
-          </div>
-          <div className="flex items-center gap-2 text-sm text-slate-700">
-            <Wallet className="w-4 h-4 text-slate-400" />
-            Apple Pay / Google Pay
-          </div>
-          <div className="flex items-center gap-2 text-sm text-slate-700">
-            <CreditCard className="w-4 h-4 text-slate-400" />
-            Klarna / Afterpay
+      {/* Payment Methods Info - hide during onboarding */}
+      {!(status?.status === "pending" && stripeConnectInstance) && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">
+            Accepted Payment Methods
+          </h2>
+          <p className="text-sm text-slate-600 mb-4">
+            When you collect payments on contracts, your clients can pay using:
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="flex items-center gap-2 text-sm text-slate-700">
+              <CreditCard className="w-4 h-4 text-slate-400" />
+              Credit/Debit Cards
+            </div>
+            <div className="flex items-center gap-2 text-sm text-slate-700">
+              <Building2 className="w-4 h-4 text-slate-400" />
+              Bank Transfers (ACH)
+            </div>
+            <div className="flex items-center gap-2 text-sm text-slate-700">
+              <Wallet className="w-4 h-4 text-slate-400" />
+              Apple Pay / Google Pay
+            </div>
+            <div className="flex items-center gap-2 text-sm text-slate-700">
+              <CreditCard className="w-4 h-4 text-slate-400" />
+              Klarna / Afterpay
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Platform Fee Info */}
-      <div className="bg-slate-50 rounded-xl border border-slate-200 p-6">
-        <h2 className="text-lg font-semibold text-slate-900 mb-2">
-          Platform Fee
-        </h2>
-        <p className="text-sm text-slate-600">
-          Lexport charges a <strong>1% platform fee</strong> on all payments collected
-          through contracts. This is in addition to Stripe&apos;s standard processing
-          fees (typically 2.9% + $0.30 for cards).
-        </p>
-      </div>
+      {/* Platform Fee Info - hide during onboarding */}
+      {!(status?.status === "pending" && stripeConnectInstance) && (
+        <div className="bg-slate-50 rounded-xl border border-slate-200 p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">
+            Platform Fee
+          </h2>
+          <p className="text-sm text-slate-600">
+            Lexport charges a <strong>1% platform fee</strong> on all payments collected
+            through contracts. This is in addition to Stripe&apos;s standard processing
+            fees (typically 2.9% + $0.30 for cards).
+          </p>
+        </div>
+      )}
     </div>
   );
 }

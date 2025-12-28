@@ -1,6 +1,7 @@
-import { Settings, CreditCard, ChevronRight } from "lucide-react";
+import { Settings, CreditCard, ChevronRight, Shield, Download, Trash2, ExternalLink, Receipt, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { PrivacyActions } from "./privacy-actions";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -23,25 +24,27 @@ export default async function SettingsPage() {
       </div>
 
       {/* Profile Section */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">Profile</h2>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Email
-            </label>
-            <p className="text-slate-900">{user.email}</p>
+      <Link
+        href="/settings/profile"
+        className="block bg-white rounded-xl border border-slate-200 p-6 hover:border-slate-300 hover:shadow-sm transition-all group"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center group-hover:bg-slate-200 transition-colors">
+              <User className="w-6 h-6 text-slate-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 group-hover:text-slate-700 transition-colors">
+                Profile Settings
+              </h2>
+              <p className="text-sm text-slate-500">
+                {user.user_metadata?.full_name || user.email}
+              </p>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Name
-            </label>
-            <p className="text-slate-900">
-              {user.user_metadata?.full_name || "Not set"}
-            </p>
-          </div>
+          <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-slate-600 transition-colors" />
         </div>
-      </div>
+      </Link>
 
       {/* Payment Settings Section */}
       <Link
@@ -66,6 +69,69 @@ export default async function SettingsPage() {
         </div>
       </Link>
 
+      {/* Invoice Settings Section */}
+      <Link
+        href="/settings/invoices"
+        className="block bg-white rounded-xl border border-slate-200 p-6 hover:border-violet-200 hover:shadow-sm transition-all group"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-violet-100 rounded-lg flex items-center justify-center group-hover:bg-violet-200 transition-colors">
+              <Receipt className="w-6 h-6 text-violet-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 group-hover:text-violet-600 transition-colors">
+                Invoice Settings
+              </h2>
+              <p className="text-sm text-slate-500">
+                Configure invoice numbering, branding, and default terms
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-violet-600 transition-colors" />
+        </div>
+      </Link>
+
+      {/* Privacy & Data Section */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Shield className="w-5 h-5 text-violet-600" />
+          <h2 className="text-lg font-semibold text-slate-900">Privacy & Data</h2>
+        </div>
+
+        <div className="space-y-4">
+          {/* Privacy Policy Link */}
+          <Link
+            href="/privacy"
+            className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors group"
+          >
+            <div>
+              <p className="font-medium text-slate-900">Privacy Policy</p>
+              <p className="text-sm text-slate-500">Learn how we handle your data</p>
+            </div>
+            <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-slate-600" />
+          </Link>
+
+          {/* Data Export */}
+          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+            <div>
+              <p className="font-medium text-slate-900">Download Your Data</p>
+              <p className="text-sm text-slate-500">Export all your data as JSON (GDPR compliant)</p>
+            </div>
+            <PrivacyActions action="export" userEmail={user.email || ""} />
+          </div>
+
+          {/* Delete Account */}
+          <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-100">
+            <div>
+              <p className="font-medium text-red-900">Delete Account</p>
+              <p className="text-sm text-red-600">Permanently delete your account and all data</p>
+            </div>
+            <PrivacyActions action="delete" userEmail={user.email || ""} />
+          </div>
+        </div>
+      </div>
+
       {/* Preferences Section */}
       <div className="bg-white rounded-xl border border-slate-200 p-6">
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Preferences</h2>
@@ -81,3 +147,4 @@ export default async function SettingsPage() {
     </div>
   );
 }
+

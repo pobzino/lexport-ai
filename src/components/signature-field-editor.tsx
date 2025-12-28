@@ -11,7 +11,7 @@ import {
   Building2,
 } from "lucide-react";
 
-export type FieldType = "signature" | "initials" | "date" | "text";
+export type FieldType = "signature" | "initials" | "date" | "text" | "checkbox";
 
 export interface SignatureField {
   id: string;

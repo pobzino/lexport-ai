@@ -270,12 +270,12 @@ export default function PaymentsPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-500">Pending</p>
+              <p className="text-sm text-slate-500">Awaiting Payment</p>
               <p className="text-3xl font-bold text-slate-900">
-                {stats.pendingPayments}
+                {formatCurrency(stats.pendingAmount)}
               </p>
               <p className="text-sm text-slate-500 mt-1">
-                {formatCurrency(stats.pendingAmount)}
+                {stats.pendingPayments} {stats.pendingPayments === 1 ? "contract" : "contracts"}
               </p>
             </div>
             <div className="w-12 h-12 bg-amber-50 rounded-lg flex items-center justify-center">

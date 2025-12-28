@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { PDFDocument, rgb, StandardFonts, degrees } from "pdf-lib";
+import { auditLogger, getRequestContextFromRequest } from "@/lib/audit";
 
 interface Clause {
   id: string;
@@ -163,6 +164,16 @@ export async function GET(
       (fieldValues || []) as FieldValue[],
       (allSignatures || []) as SignatureRecord[],
       (allSignatureRequests || []) as SignatureRequestData[]
+    );
+
+    // Log audit event for PDF download
+    const context = getRequestContextFromRequest(request);
+    await auditLogger.pdfDownloaded(
+      id,
+      user.id,
+      user.email || null,
+      user.user_metadata?.name || user.user_metadata?.full_name || null,
+      context
     );
 
     return new NextResponse(Buffer.from(pdfBytes), {
@@ -503,49 +514,14 @@ async function generateContractPDF(
             });
           }
         } else {
-          // Field is empty - DocuSign yellow highlight style
-          currentPage.drawRectangle({
-            x: fieldX,
-            y: fieldY - fieldHeight,
-            width: fieldWidth,
-            height: fieldHeight,
-            color: yellowBg,
-            borderColor: yellowBorder,
-            borderWidth: 1.5,
+          // Field is empty - show single clean signature line (no yellow boxes in PDF)
+          currentPage.drawLine({
+            start: { x: fieldX, y: fieldY - fieldHeight - 2 },
+            end: { x: fieldX + fieldWidth, y: fieldY - fieldHeight - 2 },
+            thickness: 0.75,
+            color: rgb(0.3, 0.3, 0.3),
           });
-
-          // Field type label
-          const typeLabel = field.type === "signature" ? "SIGN" :
-                           field.type === "initials" ? "INITIAL" :
-                           field.type === "date" ? "DATE" : "TEXT";
-
-          currentPage.drawText(typeLabel, {
-            x: fieldX + fieldWidth / 2 - 15,
-            y: fieldY - fieldHeight / 2 - 4,
-            size: 10,
-            font: timesRomanBoldFont,
-            color: yellowBorder,
-          });
-
-          // Signer name if available
-          if (signer?.signer_name) {
-            currentPage.drawText(signer.signer_name, {
-              x: fieldX + 5,
-              y: fieldY - fieldHeight + 8,
-              size: 7,
-              font: timesRomanFont,
-              color: rgb(0.5, 0.5, 0.5),
-            });
-          }
         }
-
-        // Underline for signature area
-        currentPage.drawLine({
-          start: { x: fieldX, y: fieldY - fieldHeight - 2 },
-          end: { x: fieldX + fieldWidth, y: fieldY - fieldHeight - 2 },
-          thickness: 0.5,
-          color: rgb(0.7, 0.7, 0.7),
-        });
 
         // Field label below
         const labelText = field.label || (field.type.charAt(0).toUpperCase() + field.type.slice(1));

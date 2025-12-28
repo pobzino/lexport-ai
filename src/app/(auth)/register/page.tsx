@@ -1,17 +1,22 @@
 import Link from "next/link";
-import { FileText } from "lucide-react";
+import Image from "next/image";
 import { RegisterForm } from "./register-form";
 
 export default function RegisterPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-brand-50 to-white px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-white px-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-10 h-10 bg-brand-600 rounded-lg flex items-center justify-center">
-            <FileText className="w-6 h-6 text-white" />
-          </div>
-          <span className="text-2xl font-bold text-brand-950">Lexport</span>
+        <div className="flex items-center justify-center mb-8">
+          <Link href="/">
+            <Image
+              src="/dark-logo.png"
+              alt="Lexport"
+              width={160}
+              height={48}
+              className="h-11 w-auto"
+            />
+          </Link>
         </div>
 
         {/* Card */}

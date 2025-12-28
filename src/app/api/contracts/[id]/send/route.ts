@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
+import { sendSigningInvitation } from "@/lib/email";
+import { generateContentHash } from "@/lib/document-integrity";
 
 // Request schema
 const SendRequestSchema = z.object({
@@ -102,7 +104,10 @@ export async function POST(
       ? new Date(Date.now() + reminderIntervalDays * 24 * 60 * 60 * 1000).toISOString()
       : null;
 
-    // Update contract status and settings
+    // Generate content hash for tamper-proof verification
+    const contentHash = generateContentHash(contract.content);
+
+    // Update contract status, settings, and content hash
     await supabase
       .from("contracts")
       .update({
@@ -111,24 +116,62 @@ export async function POST(
         reminder_enabled: reminderEnabled,
         reminder_interval_days: reminderIntervalDays,
         next_reminder_at: nextReminderAt,
+        content_hash: contentHash,
+        content_hash_algorithm: "SHA-256",
+        content_hash_generated_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
 
-    // TODO: Send email notifications to signers
-    // For now, we'll return the signing URLs
+    // Build signing URLs and send emails
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3500";
+    const signingUrls: { email: string; name: string; url: string; expiresAt: string; emailSent: boolean }[] = [];
+    const emailErrors: string[] = [];
 
-    const signingUrls = (createdRequests || []).map((req) => ({
-      email: req.signer_email,
-      name: req.signer_name,
-      url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3500"}/sign/${req.token}`,
-      expiresAt: req.expires_at,
-    }));
+    // Get sender name from user profile
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .single();
+    const senderName = profile?.full_name || undefined;
+
+    for (const req of createdRequests || []) {
+      const signingUrl = `${baseUrl}/sign/${req.token}`;
+      let emailSent = false;
+
+      try {
+        await sendSigningInvitation({
+          to: req.signer_email,
+          signerName: req.signer_name,
+          contractTitle: contract.title,
+          signingUrl,
+          message,
+          expiresAt: req.expires_at,
+          senderName,
+        });
+        emailSent = true;
+      } catch (error) {
+        console.error(`Failed to send email to ${req.signer_email}:`, error);
+        emailErrors.push(req.signer_email);
+      }
+
+      signingUrls.push({
+        email: req.signer_email,
+        name: req.signer_name,
+        url: signingUrl,
+        expiresAt: req.expires_at,
+        emailSent,
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      message: `Signature requests sent to ${signers.length} signer(s)`,
+      message: emailErrors.length > 0
+        ? `Signature requests created for ${signers.length} signer(s). ${emailErrors.length} email(s) failed to send.`
+        : `Signature requests sent to ${signers.length} signer(s)`,
       signingUrls,
+      emailErrors: emailErrors.length > 0 ? emailErrors : undefined,
     });
   } catch (error) {
     console.error("Error sending contract for signature:", error);

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   FileText,
   Sparkles,
@@ -19,33 +20,36 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <nav className="bg-slate-900 sticky top-0 z-50">
+      <nav className="sticky top-0 z-50 bg-[#f8f9fb]/80 backdrop-blur-xl shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-8">
-              <Link href="/" className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-                  Lx
-                </div>
-                <span className="text-xl font-bold text-white">Lexport</span>
+              <Link href="/" className="flex items-center">
+                <Image
+                  src="/dark-logo.png"
+                  alt="Lexport"
+                  width={160}
+                  height={48}
+                  className="h-11 w-auto"
+                />
               </Link>
 
               <div className="hidden md:flex items-center gap-6">
                 <a
                   href="#features"
-                  className="text-sm text-slate-300 hover:text-white transition-colors"
+                  className="text-sm text-slate-600 hover:text-[#202e46] transition-colors"
                 >
                   Features
                 </a>
                 <a
                   href="#how-it-works"
-                  className="text-sm text-slate-300 hover:text-white transition-colors"
+                  className="text-sm text-slate-600 hover:text-[#202e46] transition-colors"
                 >
                   How it Works
                 </a>
                 <a
                   href="#pricing"
-                  className="text-sm text-slate-300 hover:text-white transition-colors"
+                  className="text-sm text-slate-600 hover:text-[#202e46] transition-colors"
                 >
                   Pricing
                 </a>
@@ -55,13 +59,13 @@ export default function HomePage() {
             <div className="flex items-center gap-4">
               <Link
                 href="/login"
-                className="text-sm font-medium text-white hover:text-slate-300 transition-colors"
+                className="text-sm font-medium text-slate-600 hover:text-[#202e46] transition-colors"
               >
                 Sign In
               </Link>
               <Link
                 href="/register"
-                className="text-sm font-medium bg-white text-slate-900 px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors"
+                className="text-sm font-medium bg-[#202e46] text-white px-4 py-2 rounded-lg hover:bg-[#1a2539] transition-colors"
               >
                 Get Started
               </Link>
@@ -74,13 +78,13 @@ export default function HomePage() {
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-50 to-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center max-w-4xl mx-auto mb-12">
-            <div className="inline-flex items-center gap-2 bg-violet-100 text-violet-700 px-4 py-1.5 rounded-full text-sm font-medium mb-6">
+            <div className="inline-flex items-center gap-2 bg-[#202e46]/10 text-[#202e46] px-4 py-1.5 rounded-full text-sm font-medium mb-6">
               <Sparkles className="w-4 h-4" />
               AI-Powered Legal Platform
             </div>
             <h1 className="text-5xl sm:text-6xl font-bold tracking-tight mb-6">
               <span className="text-slate-900">Your </span>
-              <span className="bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">
+              <span className="text-[#202e46]">
                 AI legal assistant
               </span>
               <br />
@@ -94,7 +98,7 @@ export default function HomePage() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 href="/register"
-                className="inline-flex items-center justify-center bg-gradient-to-r from-violet-600 to-purple-600 text-white px-8 py-3 rounded-lg text-lg font-medium hover:from-violet-700 hover:to-purple-700 transition-all shadow-lg shadow-violet-500/25"
+                className="inline-flex items-center justify-center bg-[#202e46] text-white px-8 py-3 rounded-lg text-lg font-medium hover:bg-[#1a2539] transition-all shadow-lg shadow-slate-500/25"
               >
                 Start your free trial
                 <ArrowRight className="w-5 h-5 ml-2" />
@@ -149,13 +153,13 @@ export default function HomePage() {
                         <ChevronDown className="w-4 h-4 text-slate-400" />
                       </div>
                     </div>
-                    <div className="bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg px-4 py-3 text-center font-medium">
+                    <div className="bg-[#202e46] text-white rounded-lg px-4 py-3 text-center font-medium">
                       Generate with AI
                     </div>
                   </div>
                   <div className="bg-white rounded-lg p-4 border border-slate-200">
                     <div className="flex items-center gap-2 mb-3">
-                      <FileText className="w-4 h-4 text-violet-600" />
+                      <FileText className="w-4 h-4 text-[#202e46]" />
                       <span className="text-sm font-medium text-slate-700">
                         Preview
                       </span>
@@ -200,7 +204,7 @@ export default function HomePage() {
                 title: "Generate",
                 description:
                   "Describe your needs and let AI create a custom contract tailored to your jurisdiction",
-                color: "violet",
+                color: "slate",
               },
               {
                 step: "2",
@@ -229,29 +233,27 @@ export default function HomePage() {
             ].map((item) => (
               <div key={item.step} className="text-center">
                 <div
-                  className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center ${
-                    item.color === "violet"
-                      ? "bg-violet-100"
+                  className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center ${item.color === "slate"
+                      ? "bg-[#202e46]/10"
                       : item.color === "blue"
                         ? "bg-blue-100"
                         : item.color === "emerald"
                           ? "bg-emerald-100"
                           : "bg-amber-100"
-                  }`}
+                    }`}
                 >
                   <item.icon
-                    className={`w-8 h-8 ${
-                      item.color === "violet"
-                        ? "text-violet-600"
+                    className={`w-8 h-8 ${item.color === "slate"
+                        ? "text-[#202e46]"
                         : item.color === "blue"
                           ? "text-blue-600"
                           : item.color === "emerald"
                             ? "text-emerald-600"
                             : "text-amber-600"
-                    }`}
+                      }`}
                   />
                 </div>
-                <div className="text-sm font-medium text-violet-600 mb-2">
+                <div className="text-sm font-medium text-[#202e46] mb-2">
                   Step {item.step}
                 </div>
                 <h3 className="text-xl font-semibold text-slate-900 mb-2">
@@ -268,7 +270,7 @@ export default function HomePage() {
       <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 bg-violet-100 text-violet-700 px-4 py-1.5 rounded-full text-sm font-medium mb-4">
+            <div className="inline-flex items-center gap-2 bg-[#202e46]/10 text-[#202e46] px-4 py-1.5 rounded-full text-sm font-medium mb-4">
               Powerful features
             </div>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
@@ -287,7 +289,7 @@ export default function HomePage() {
                 title: "AI Contract Generation",
                 description:
                   "Generate jurisdiction-specific contracts in seconds. Supports CA, TX, NY, and UK law.",
-                color: "violet",
+                color: "slate",
               },
               {
                 icon: MessageSquare,
@@ -327,12 +329,11 @@ export default function HomePage() {
             ].map((feature, index) => (
               <div
                 key={index}
-                className="bg-white rounded-2xl p-6 border border-slate-200 hover:shadow-lg hover:border-violet-200 transition-all"
+                className="bg-white rounded-2xl p-6 border border-slate-200 hover:shadow-lg hover:border-slate-300 transition-all"
               >
                 <div
-                  className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${
-                    feature.color === "violet"
-                      ? "bg-violet-100"
+                  className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${feature.color === "slate"
+                      ? "bg-[#202e46]/10"
                       : feature.color === "blue"
                         ? "bg-blue-100"
                         : feature.color === "emerald"
@@ -342,12 +343,11 @@ export default function HomePage() {
                             : feature.color === "rose"
                               ? "bg-rose-100"
                               : "bg-cyan-100"
-                  }`}
+                    }`}
                 >
                   <feature.icon
-                    className={`w-6 h-6 ${
-                      feature.color === "violet"
-                        ? "text-violet-600"
+                    className={`w-6 h-6 ${feature.color === "slate"
+                        ? "text-[#202e46]"
                         : feature.color === "blue"
                           ? "text-blue-600"
                           : feature.color === "emerald"
@@ -357,7 +357,7 @@ export default function HomePage() {
                               : feature.color === "rose"
                                 ? "text-rose-600"
                                 : "text-cyan-600"
-                    }`}
+                      }`}
                   />
                 </div>
                 <h3 className="text-lg font-semibold text-slate-900 mb-2">
@@ -402,7 +402,7 @@ export default function HomePage() {
                 role: "General Counsel",
                 company: "TechCorp",
                 initials: "SM",
-                color: "violet",
+                color: "slate",
               },
               {
                 quote:
@@ -429,7 +429,7 @@ export default function HomePage() {
                 key={index}
                 className="bg-white rounded-2xl p-6 border border-slate-200"
               >
-                <div className="text-violet-600 mb-4">
+                <div className="text-[#202e46] mb-4">
                   <svg
                     className="w-8 h-8"
                     fill="currentColor"
@@ -448,25 +448,23 @@ export default function HomePage() {
                 </div>
                 <p className="text-slate-700 mb-4">&ldquo;{testimonial.quote}&rdquo;</p>
                 <div
-                  className={`inline-block px-3 py-1 rounded-full text-sm font-medium mb-4 ${
-                    testimonial.color === "violet"
-                      ? "bg-violet-100 text-violet-700"
+                  className={`inline-block px-3 py-1 rounded-full text-sm font-medium mb-4 ${testimonial.color === "slate"
+                      ? "bg-[#202e46]/10 text-[#202e46]"
                       : testimonial.color === "blue"
                         ? "bg-blue-100 text-blue-700"
                         : "bg-emerald-100 text-emerald-700"
-                  }`}
+                    }`}
                 >
                   {testimonial.metric}
                 </div>
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${
-                      testimonial.color === "violet"
-                        ? "bg-violet-600"
+                    className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${testimonial.color === "slate"
+                        ? "bg-[#202e46]"
                         : testimonial.color === "blue"
                           ? "bg-blue-600"
                           : "bg-emerald-600"
-                    }`}
+                      }`}
                   >
                     {testimonial.initials}
                   </div>
@@ -489,7 +487,7 @@ export default function HomePage() {
       <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-50">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 bg-violet-100 text-violet-700 px-4 py-1.5 rounded-full text-sm font-medium mb-4">
+            <div className="inline-flex items-center gap-2 bg-[#202e46]/10 text-[#202e46] px-4 py-1.5 rounded-full text-sm font-medium mb-4">
               <Sparkles className="w-4 h-4" />
               Simple, transparent pricing
             </div>
@@ -504,8 +502,8 @@ export default function HomePage() {
 
           <div className="grid md:grid-cols-2 gap-8">
             {/* Professional Plan */}
-            <div className="bg-white rounded-2xl border-2 border-violet-500 overflow-hidden shadow-xl">
-              <div className="bg-gradient-to-r from-violet-600 to-purple-600 text-white text-center py-2 text-sm font-medium">
+            <div className="bg-white rounded-2xl border-2 border-[#202e46] overflow-hidden shadow-xl">
+              <div className="bg-[#202e46] text-white text-center py-2 text-sm font-medium">
                 <span className="mr-2">✨</span> Most Popular
               </div>
               <div className="p-8">
@@ -522,7 +520,7 @@ export default function HomePage() {
                 </div>
                 <Link
                   href="/register"
-                  className="mt-6 w-full inline-flex items-center justify-center bg-gradient-to-r from-violet-600 to-purple-600 text-white px-6 py-3 rounded-lg font-medium hover:from-violet-700 hover:to-purple-700 transition-all"
+                  className="mt-6 w-full inline-flex items-center justify-center bg-[#202e46] text-white px-6 py-3 rounded-lg font-medium hover:bg-[#1a2539] transition-all"
                 >
                   Start free trial
                   <ArrowRight className="w-4 h-4 ml-2" />
@@ -663,7 +661,7 @@ export default function HomePage() {
 
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4 relative z-10">
               Ready to experience{" "}
-              <span className="text-violet-400">Lexport</span>?
+              <span className="text-slate-300">Lexport</span>?
             </h2>
             <p className="text-slate-400 mb-8 max-w-2xl mx-auto relative z-10">
               Join thousands of legal professionals who trust Lexport for their
@@ -695,13 +693,14 @@ export default function HomePage() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             {/* Brand */}
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-                  Lx
-                </div>
-                <span className="text-xl font-bold text-slate-900">
-                  Lexport
-                </span>
+              <div className="flex items-center mb-4">
+                <Image
+                  src="/dark-logo.png"
+                  alt="Lexport"
+                  width={160}
+                  height={48}
+                  className="h-11 w-auto"
+                />
               </div>
               <p className="text-slate-600 text-sm mb-4">
                 Revolutionizing legal workflows with AI-powered contract
@@ -721,7 +720,7 @@ export default function HomePage() {
                     <li key={item}>
                       <a
                         href="#"
-                        className="text-slate-600 hover:text-violet-600 text-sm transition-colors"
+                        className="text-slate-600 hover:text-[#202e46] text-sm transition-colors"
                       >
                         {item}
                       </a>
@@ -744,7 +743,7 @@ export default function HomePage() {
                   <li key={item}>
                     <a
                       href="#"
-                      className="text-slate-600 hover:text-violet-600 text-sm transition-colors"
+                      className="text-slate-600 hover:text-[#202e46] text-sm transition-colors"
                     >
                       {item}
                     </a>
@@ -757,16 +756,26 @@ export default function HomePage() {
             <div>
               <h4 className="font-semibold text-slate-900 mb-4">Company</h4>
               <ul className="space-y-2">
-                {["About", "Careers", "Privacy", "Terms"].map((item) => (
-                  <li key={item}>
-                    <a
-                      href="#"
-                      className="text-slate-600 hover:text-violet-600 text-sm transition-colors"
-                    >
-                      {item}
-                    </a>
-                  </li>
-                ))}
+                <li>
+                  <a href="#" className="text-slate-600 hover:text-[#202e46] text-sm transition-colors">
+                    About
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-slate-600 hover:text-[#202e46] text-sm transition-colors">
+                    Careers
+                  </a>
+                </li>
+                <li>
+                  <Link href="/privacy" className="text-slate-600 hover:text-[#202e46] text-sm transition-colors">
+                    Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <a href="#" className="text-slate-600 hover:text-[#202e46] text-sm transition-colors">
+                    Terms of Service
+                  </a>
+                </li>
               </ul>
             </div>
           </div>

@@ -112,3 +112,20 @@ export function getAccountStatus(account: Stripe.Account): "not_connected" | "pe
   }
   return "pending";
 }
+
+// Create account session for embedded Connect components
+export async function createAccountSession(accountId: string) {
+  const stripe = getStripe();
+  const accountSession = await stripe.accountSessions.create({
+    account: accountId,
+    components: {
+      account_onboarding: { enabled: true },
+      account_management: { enabled: true },
+      balances: { enabled: true },
+      payments: { enabled: true },
+      payouts: { enabled: true },
+      notification_banner: { enabled: true },
+    },
+  });
+  return accountSession;
+}

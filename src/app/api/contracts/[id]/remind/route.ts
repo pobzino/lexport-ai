@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { sendSigningReminder } from "@/lib/email";
 
 // Request schema
 const RemindRequestSchema = z.object({
@@ -76,17 +77,29 @@ export async function POST(
     }
 
     const now = new Date();
-    const remindedSigners: { email: string; name: string }[] = [];
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3500";
+    const remindedSigners: { email: string; name: string; emailSent: boolean }[] = [];
+    const emailErrors: string[] = [];
 
     for (const sigRequest of signatureRequests) {
-      const signingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3500"}/sign/${sigRequest.token}`;
+      const signingUrl = `${baseUrl}/sign/${sigRequest.token}`;
+      let emailSent = false;
 
-      // TODO: Integrate with email service
-      console.log(`[Manual Reminder] Sending to ${sigRequest.signer_email}:`);
-      console.log(`  Contract: ${contract.title}`);
-      console.log(`  Signing URL: ${signingUrl}`);
+      try {
+        await sendSigningReminder({
+          to: sigRequest.signer_email,
+          signerName: sigRequest.signer_name,
+          contractTitle: contract.title,
+          signingUrl,
+          expiresAt: sigRequest.expires_at,
+        });
+        emailSent = true;
+      } catch (error) {
+        console.error(`Failed to send reminder to ${sigRequest.signer_email}:`, error);
+        emailErrors.push(sigRequest.signer_email);
+      }
 
-      // Update last_reminder_sent_at
+      // Update last_reminder_sent_at regardless of email success
       await supabase
         .from("signature_requests")
         .update({
@@ -98,13 +111,17 @@ export async function POST(
       remindedSigners.push({
         email: sigRequest.signer_email,
         name: sigRequest.signer_name,
+        emailSent,
       });
     }
 
     return NextResponse.json({
       success: true,
-      message: `Reminder sent to ${remindedSigners.length} signer(s)`,
+      message: emailErrors.length > 0
+        ? `Reminder processed for ${remindedSigners.length} signer(s). ${emailErrors.length} email(s) failed to send.`
+        : `Reminder sent to ${remindedSigners.length} signer(s)`,
       remindedSigners,
+      emailErrors: emailErrors.length > 0 ? emailErrors : undefined,
     });
   } catch (error) {
     console.error("Error sending reminder:", error);
