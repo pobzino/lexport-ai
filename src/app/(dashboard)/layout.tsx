@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardNav } from "./dashboard-nav";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts-provider";
+import { DashboardOnboarding } from "@/components/onboarding";
 
 export default async function DashboardLayout({
   children,
@@ -31,6 +32,7 @@ export default async function DashboardLayout({
           <KeyboardShortcutsProvider>{children}</KeyboardShortcutsProvider>
         </div>
       </main>
+      <DashboardOnboarding />
     </div>
   );
 }

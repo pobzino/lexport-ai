@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FileText, PenTool, Clock, Plus, ArrowRight, Shield, Briefcase, Users, TrendingUp, Edit, DollarSign, Receipt, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { CONTRACT_TYPES } from "@/lib/contracts/schemas";
+import { DashboardChecklistWrapper } from "@/components/onboarding";
 
 // Icon mapping for contract types
 const CONTRACT_ICONS: Record<string, typeof Shield> = {
@@ -124,6 +125,9 @@ export default async function DashboardPage() {
         </p>
       </div>
 
+      {/* Onboarding Checklist */}
+      <DashboardChecklistWrapper />
+
       {/* Contract Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-6">
@@ -134,8 +138,8 @@ export default async function DashboardPage() {
                 {stats.totalContracts}
               </p>
             </div>
-            <div className="w-12 h-12 bg-violet-50 rounded-lg flex items-center justify-center">
-              <FileText className="w-6 h-6 text-violet-600" />
+            <div className="w-12 h-12 bg-[#529ec6]/10 rounded-lg flex items-center justify-center">
+              <FileText className="w-6 h-6 text-[#529ec6]" />
             </div>
           </div>
         </div>
@@ -235,10 +239,10 @@ export default async function DashboardPage() {
                 <Link
                   key={type.id}
                   href={`/contracts/new?type=${type.id}`}
-                  className="flex flex-col items-center p-4 rounded-xl border border-slate-200 hover:border-violet-300 hover:bg-violet-50 transition-all group"
+                  className="flex flex-col items-center p-4 rounded-xl border border-slate-200 hover:border-[#529ec6]/30 hover:bg-[#529ec6]/5 transition-all group"
                 >
-                  <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center mb-3 group-hover:bg-violet-200 transition-colors">
-                    <Icon className="w-5 h-5 text-violet-600" />
+                  <div className="w-10 h-10 bg-[#529ec6]/10 rounded-lg flex items-center justify-center mb-3 group-hover:bg-[#529ec6]/20 transition-colors">
+                    <Icon className="w-5 h-5 text-[#529ec6]" />
                   </div>
                   <p className="text-sm font-medium text-slate-900 text-center">
                     {type.name}
@@ -275,7 +279,7 @@ export default async function DashboardPage() {
           {contracts.length > 0 && (
             <Link
               href="/contracts"
-              className="text-sm text-violet-600 hover:underline flex items-center gap-1"
+              className="text-sm text-[#529ec6] hover:underline flex items-center gap-1"
             >
               View all
               <ArrowRight className="w-4 h-4" />
@@ -296,7 +300,7 @@ export default async function DashboardPage() {
               </p>
               <Link
                 href="/contracts/new"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-[#202e46] text-white rounded-lg hover:bg-[#1a2539] transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Create Your First Contract
@@ -311,8 +315,8 @@ export default async function DashboardPage() {
                   className="flex items-center justify-between py-4 hover:bg-slate-50 -mx-2 px-2 rounded-lg transition-colors"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
-                      <FileText className="w-5 h-5 text-violet-600" />
+                    <div className="w-10 h-10 bg-[#529ec6]/10 rounded-lg flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-[#529ec6]" />
                     </div>
                     <div>
                       <p className="font-medium text-slate-900">{contract.title}</p>
@@ -323,15 +327,14 @@ export default async function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-4">
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        contract.status === "draft"
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${contract.status === "draft"
                           ? "bg-slate-100 text-slate-600"
                           : contract.status === "pending_signature"
                             ? "bg-amber-100 text-amber-700"
                             : contract.status === "signed"
                               ? "bg-emerald-100 text-emerald-700"
                               : "bg-slate-100 text-slate-600"
-                      }`}
+                        }`}
                     >
                       {contract.status === "pending_signature"
                         ? "Pending"
@@ -368,20 +371,18 @@ export default async function DashboardPage() {
                   className="flex items-center justify-between py-4"
                 >
                   <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      invoice.status === "paid"
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${invoice.status === "paid"
                         ? "bg-emerald-100"
                         : invoice.status === "sent"
                           ? "bg-amber-100"
                           : "bg-slate-100"
-                    }`}>
-                      <Receipt className={`w-5 h-5 ${
-                        invoice.status === "paid"
+                      }`}>
+                      <Receipt className={`w-5 h-5 ${invoice.status === "paid"
                           ? "text-emerald-600"
                           : invoice.status === "sent"
                             ? "text-amber-600"
                             : "text-slate-600"
-                      }`} />
+                        }`} />
                     </div>
                     <div>
                       <p className="font-medium text-slate-900">{invoice.invoice_number}</p>
@@ -400,15 +401,14 @@ export default async function DashboardPage() {
                       </p>
                     </div>
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        invoice.status === "paid"
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${invoice.status === "paid"
                           ? "bg-emerald-100 text-emerald-700"
                           : invoice.status === "sent"
                             ? "bg-amber-100 text-amber-700"
                             : invoice.status === "void"
                               ? "bg-red-100 text-red-700"
                               : "bg-slate-100 text-slate-600"
-                      }`}
+                        }`}
                     >
                       {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
                     </span>
