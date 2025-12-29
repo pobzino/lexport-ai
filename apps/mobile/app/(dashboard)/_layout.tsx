@@ -1,25 +1,34 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
 
 export default function DashboardLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#7c3aed",
-        tabBarInactiveTintColor: "#64748b",
+        tabBarActiveTintColor: "#529ec6", // Accent blue
+        tabBarInactiveTintColor: "#829ab1",
         tabBarStyle: {
           backgroundColor: "#ffffff",
           borderTopColor: "#e2e8f0",
           borderTopWidth: 1,
-          paddingTop: 8,
-          paddingBottom: Platform.OS === "ios" ? 24 : 8,
-          height: Platform.OS === "ios" ? 88 : 64,
+          paddingTop: 10,
+          paddingBottom: Platform.OS === "ios" ? 28 : 12,
+          height: Platform.OS === "ios" ? 92 : 68,
+          shadowColor: "#202e46",
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.04,
+          shadowRadius: 12,
+          elevation: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: "500",
+          fontSize: 11,
+          fontWeight: "600",
+          marginTop: 2,
+        },
+        tabBarIconStyle: {
+          marginTop: 2,
         },
       }}
     >
@@ -27,8 +36,14 @@ export default function DashboardLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View className={focused ? "scale-110" : ""}>
+              <Ionicons
+                name={focused ? "home" : "home-outline"}
+                size={24}
+                color={color}
+              />
+            </View>
           ),
         }}
       />
@@ -36,8 +51,14 @@ export default function DashboardLayout() {
         name="contracts"
         options={{
           title: "Contracts",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="document-text" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View className={focused ? "scale-110" : ""}>
+              <Ionicons
+                name={focused ? "document-text" : "document-text-outline"}
+                size={24}
+                color={color}
+              />
+            </View>
           ),
         }}
       />
@@ -45,8 +66,14 @@ export default function DashboardLayout() {
         name="signatures"
         options={{
           title: "Signatures",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="create" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View className={focused ? "scale-110" : ""}>
+              <Ionicons
+                name={focused ? "create" : "create-outline"}
+                size={24}
+                color={color}
+              />
+            </View>
           ),
         }}
       />
@@ -54,8 +81,14 @@ export default function DashboardLayout() {
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View className={focused ? "scale-110" : ""}>
+              <Ionicons
+                name={focused ? "settings" : "settings-outline"}
+                size={24}
+                color={color}
+              />
+            </View>
           ),
         }}
       />

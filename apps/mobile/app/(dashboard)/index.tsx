@@ -6,6 +6,7 @@ import { Card, CardContent, Button } from "@/components/ui";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import { useEffect, useState, useCallback } from "react";
+import { LinearGradient } from "expo-linear-gradient";
 
 interface Contract {
   id: string;
@@ -22,43 +23,43 @@ const CONTRACT_TYPES = [
     id: "nda_mutual",
     title: "Mutual NDA",
     description: "Both parties keep info confidential",
-    icon: "lock-closed",
-    color: "#7c3aed",
+    icon: "shield-checkmark",
+    color: "#202e46",
   },
   {
     id: "nda_one_way",
     title: "One-Way NDA",
     description: "One party discloses to the other",
     icon: "key",
-    color: "#2563eb",
+    color: "#529ec6",
   },
   {
     id: "contractor_agreement",
     title: "Contractor Agreement",
     description: "Hire independent contractors",
     icon: "construct",
-    color: "#059669",
+    color: "#10b981",
   },
   {
     id: "consulting_agreement",
     title: "Consulting",
     description: "Engage professional consultants",
     icon: "briefcase",
-    color: "#d97706",
+    color: "#f59e0b",
   },
   {
     id: "safe_note",
     title: "SAFE Note",
     description: "Simple investment agreement",
     icon: "trending-up",
-    color: "#0891b2",
+    color: "#8b5cf6",
   },
   {
     id: "service_agreement",
     title: "Service Agreement",
     description: "Freelance service contracts",
     icon: "document-text",
-    color: "#6366f1",
+    color: "#ec4899",
   },
 ];
 
@@ -75,9 +76,9 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  draft: { bg: "bg-slate-100", text: "text-slate-600", label: "Draft" },
+  draft: { bg: "bg-primary-100", text: "text-primary-700", label: "Draft" },
   pending_signature: { bg: "bg-amber-100", text: "text-amber-700", label: "Pending" },
-  signed: { bg: "bg-emerald-100", text: "text-emerald-700", label: "Signed" },
+  signed: { bg: "bg-success-100", text: "text-success-700", label: "Signed" },
 };
 
 function formatTimeAgo(dateString: string) {
@@ -99,8 +100,8 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const firstName = user?.user_metadata?.name?.split(" ")[0] ||
-                    user?.email?.split("@")[0] ||
-                    "there";
+    user?.email?.split("@")[0] ||
+    "there";
 
   const fetchContracts = useCallback(async () => {
     try {
@@ -142,58 +143,86 @@ export default function DashboardScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 items-center justify-center" edges={["top"]}>
+      <SafeAreaView className="flex-1 bg-white items-center justify-center" edges={["top"]}>
         <ActivityIndicator size="large" color="#529ec6" />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
+    <SafeAreaView className="flex-1 bg-primary-50" edges={["top"]}>
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#529ec6" />
         }
       >
-        {/* Header */}
-        <View className="flex-row items-center justify-between px-6 py-4">
-          <View>
-            <Text className="text-2xl font-bold text-slate-900">
-              Hi, {firstName}!
-            </Text>
-            <Text className="text-slate-500">
-              What would you like to create today?
-            </Text>
+        {/* Premium Header */}
+        <LinearGradient
+          colors={['#202e46', '#2a3a54']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          className="px-6 pb-8 pt-4"
+        >
+          <View className="flex-row items-center justify-between mb-6">
+            <View className="flex-row items-center">
+              <Text className="text-xl font-bold text-white">Lex</Text>
+              <Text className="text-xl font-bold text-accent-400">port</Text>
+            </View>
+            <Pressable
+              onPress={signOut}
+              className="h-10 w-10 items-center justify-center rounded-full bg-white/10"
+            >
+              <Ionicons name="log-out-outline" size={20} color="#fff" />
+            </Pressable>
           </View>
-          <Pressable
-            onPress={signOut}
-            className="h-10 w-10 items-center justify-center rounded-full bg-slate-100"
-          >
-            <Ionicons name="log-out-outline" size={20} color="#64748b" />
-          </Pressable>
-        </View>
 
-        {/* Stats */}
-        <View className="flex-row gap-3 px-6 py-2">
-          <View className="flex-1 rounded-xl bg-white p-4 shadow-sm">
-            <Text className="text-2xl font-bold text-slate-600">{stats.draft}</Text>
-            <Text className="text-sm text-slate-500">Draft</Text>
+          <Text className="text-2xl font-bold text-white mb-1">
+            Hi, {firstName}! 👋
+          </Text>
+          <Text className="text-primary-300">
+            What would you like to create today?
+          </Text>
+        </LinearGradient>
+
+        {/* Stats Cards - Elevated */}
+        <View className="flex-row gap-3 px-6 -mt-4">
+          <View className="flex-1 rounded-2xl bg-white p-4 shadow-card" style={{
+            shadowColor: '#202e46',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.06,
+            shadowRadius: 8,
+            elevation: 3,
+          }}>
+            <Text className="text-2xl font-bold text-primary-600">{stats.draft}</Text>
+            <Text className="text-sm font-medium text-primary-400">Draft</Text>
           </View>
-          <View className="flex-1 rounded-xl bg-white p-4 shadow-sm">
-            <Text className="text-2xl font-bold text-amber-600">{stats.pending}</Text>
-            <Text className="text-sm text-slate-500">Pending</Text>
+          <View className="flex-1 rounded-2xl bg-white p-4 shadow-card" style={{
+            shadowColor: '#202e46',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.06,
+            shadowRadius: 8,
+            elevation: 3,
+          }}>
+            <Text className="text-2xl font-bold text-amber-500">{stats.pending}</Text>
+            <Text className="text-sm font-medium text-primary-400">Pending</Text>
           </View>
-          <View className="flex-1 rounded-xl bg-white p-4 shadow-sm">
-            <Text className="text-2xl font-bold text-emerald-600">{stats.signed}</Text>
-            <Text className="text-sm text-slate-500">Signed</Text>
+          <View className="flex-1 rounded-2xl bg-white p-4 shadow-card" style={{
+            shadowColor: '#202e46',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.06,
+            shadowRadius: 8,
+            elevation: 3,
+          }}>
+            <Text className="text-2xl font-bold text-success-500">{stats.signed}</Text>
+            <Text className="text-sm font-medium text-primary-400">Signed</Text>
           </View>
         </View>
 
         {/* Quick Actions */}
-        <View className="px-6 py-4">
-          <Text className="mb-4 text-lg font-semibold text-slate-900">
+        <View className="px-6 py-6">
+          <Text className="mb-4 text-lg font-bold text-primary-900">
             Create New Contract
           </Text>
           <View className="gap-3">
@@ -205,7 +234,7 @@ export default function DashboardScreen() {
                 <CardContent>
                   <View className="flex-row items-center gap-4">
                     <View
-                      className="h-12 w-12 items-center justify-center rounded-xl"
+                      className="h-12 w-12 items-center justify-center rounded-2xl"
                       style={{ backgroundColor: `${type.color}15` }}
                     >
                       <Ionicons
@@ -215,17 +244,17 @@ export default function DashboardScreen() {
                       />
                     </View>
                     <View className="flex-1">
-                      <Text className="font-semibold text-slate-900">
+                      <Text className="font-bold text-primary-900">
                         {type.title}
                       </Text>
-                      <Text className="text-sm text-slate-500">
+                      <Text className="text-sm text-primary-500">
                         {type.description}
                       </Text>
                     </View>
                     <Ionicons
                       name="chevron-forward"
                       size={20}
-                      color="#94a3b8"
+                      color="#829ab1"
                     />
                   </View>
                 </CardContent>
@@ -235,14 +264,14 @@ export default function DashboardScreen() {
         </View>
 
         {/* Recent Contracts */}
-        <View className="px-6 py-4">
+        <View className="px-6 pb-6">
           <View className="mb-4 flex-row items-center justify-between">
-            <Text className="text-lg font-semibold text-slate-900">
+            <Text className="text-lg font-bold text-primary-900">
               Recent Contracts
             </Text>
             {contracts.length > 0 && (
               <Pressable onPress={() => router.push("/contracts")}>
-                <Text className="font-medium text-primary-600">View all</Text>
+                <Text className="font-semibold text-accent-400">View all</Text>
               </Pressable>
             )}
           </View>
@@ -251,13 +280,13 @@ export default function DashboardScreen() {
             <Card>
               <CardContent>
                 <View className="items-center py-8">
-                  <View className="mb-4 h-16 w-16 items-center justify-center rounded-full bg-slate-100">
-                    <Ionicons name="document-text-outline" size={32} color="#94a3b8" />
+                  <View className="mb-4 h-16 w-16 items-center justify-center rounded-full bg-primary-100">
+                    <Ionicons name="document-text-outline" size={32} color="#829ab1" />
                   </View>
-                  <Text className="mb-2 font-semibold text-slate-900">
+                  <Text className="mb-2 font-bold text-primary-900">
                     No contracts yet
                   </Text>
-                  <Text className="mb-4 text-center text-sm text-slate-500">
+                  <Text className="mb-5 text-center text-sm text-primary-500">
                     Create your first contract to get started
                   </Text>
                   <Button
@@ -282,21 +311,21 @@ export default function DashboardScreen() {
                       <View className="flex-row items-center justify-between">
                         <View className="flex-1">
                           <View className="flex-row items-center gap-2">
-                            <View className={`rounded-full px-2 py-0.5 ${status.bg}`}>
-                              <Text className={`text-xs font-medium ${status.text}`}>
+                            <View className={`rounded-full px-2.5 py-1 ${status.bg}`}>
+                              <Text className={`text-xs font-semibold ${status.text}`}>
                                 {status.label}
                               </Text>
                             </View>
-                            <Text className="text-xs text-slate-400">{typeLabel}</Text>
+                            <Text className="text-xs font-medium text-primary-400">{typeLabel}</Text>
                           </View>
-                          <Text className="mt-1 font-medium text-slate-900" numberOfLines={1}>
+                          <Text className="mt-2 font-semibold text-primary-900" numberOfLines={1}>
                             {contract.title}
                           </Text>
-                          <Text className="text-sm text-slate-500">
+                          <Text className="text-sm text-primary-500">
                             {formatTimeAgo(contract.updated_at)}
                           </Text>
                         </View>
-                        <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+                        <Ionicons name="chevron-forward" size={20} color="#829ab1" />
                       </View>
                     </CardContent>
                   </Card>

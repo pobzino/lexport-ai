@@ -1,6 +1,6 @@
 import { TextInput, View, Text } from "react-native";
 import { cn } from "@/lib/utils";
-import { forwardRef } from "react";
+import { forwardRef, useState } from "react";
 
 interface InputProps {
   label?: string;
@@ -37,17 +37,19 @@ export const Input = forwardRef<TextInput, InputProps>(
     },
     ref
   ) => {
+    const [isFocused, setIsFocused] = useState(false);
+
     return (
       <View className={cn("w-full", className)}>
         {label && (
-          <Text className="mb-2 text-sm font-medium text-slate-700">
+          <Text className="mb-2 text-sm font-semibold text-primary-700">
             {label}
           </Text>
         )}
         <TextInput
           ref={ref}
           placeholder={placeholder}
-          placeholderTextColor="#94a3b8"
+          placeholderTextColor="#829ab1"
           value={value}
           onChangeText={onChangeText}
           secureTextEntry={secureTextEntry}
@@ -57,15 +59,21 @@ export const Input = forwardRef<TextInput, InputProps>(
           editable={!disabled}
           multiline={multiline}
           numberOfLines={numberOfLines}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           className={cn(
-            "h-12 w-full rounded-xl border bg-white px-4 text-base text-slate-900",
-            error ? "border-red-500" : "border-slate-300",
-            disabled && "bg-slate-100 opacity-50",
-            multiline && "h-auto min-h-[100px] py-3"
+            "h-14 w-full rounded-2xl border-2 bg-white px-5 text-base text-primary-900",
+            error
+              ? "border-red-400"
+              : isFocused
+                ? "border-accent-400"
+                : "border-primary-100",
+            disabled && "bg-primary-50 opacity-50",
+            multiline && "h-auto min-h-[120px] py-4"
           )}
         />
         {error && (
-          <Text className="mt-1 text-sm text-red-500">{error}</Text>
+          <Text className="mt-2 text-sm font-medium text-red-500">{error}</Text>
         )}
       </View>
     );

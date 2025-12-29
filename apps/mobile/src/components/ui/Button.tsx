@@ -14,25 +14,25 @@ interface ButtonProps {
 }
 
 const variantStyles = {
-  default: "bg-primary-600 active:bg-primary-700",
-  secondary: "bg-slate-100 active:bg-slate-200",
-  outline: "border border-slate-300 bg-transparent active:bg-slate-100",
-  ghost: "bg-transparent active:bg-slate-100",
-  destructive: "bg-red-600 active:bg-red-700",
+  default: "bg-success-500 active:bg-success-600 shadow-button",
+  secondary: "bg-primary-100 active:bg-primary-200",
+  outline: "border-2 border-primary-200 bg-transparent active:bg-primary-50",
+  ghost: "bg-transparent active:bg-primary-50",
+  destructive: "bg-red-500 active:bg-red-600",
 };
 
 const variantTextStyles = {
   default: "text-white",
-  secondary: "text-slate-900",
-  outline: "text-slate-900",
-  ghost: "text-slate-900",
+  secondary: "text-primary-900",
+  outline: "text-primary-900",
+  ghost: "text-primary-900",
   destructive: "text-white",
 };
 
 const sizeStyles = {
-  default: "h-12 px-6",
-  sm: "h-10 px-4",
-  lg: "h-14 px-8",
+  default: "h-14 px-8",
+  sm: "h-11 px-5",
+  lg: "h-16 px-10",
 };
 
 const sizeTextStyles = {
@@ -61,7 +61,7 @@ export function Button({
       accessibilityRole="button"
       tabIndex={isDisabled ? -1 : 0}
       className={cn(
-        "flex-row items-center justify-center rounded-xl cursor-pointer select-none",
+        "flex-row items-center justify-center rounded-2xl cursor-pointer select-none",
         variantStyles[variant],
         sizeStyles[size],
         isDisabled && "opacity-50",
@@ -70,7 +70,7 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === "default" || variant === "destructive" ? "#fff" : "#1e293b"}
+          color={variant === "default" || variant === "destructive" ? "#fff" : "#202e46"}
           size="small"
         />
       ) : (
@@ -78,7 +78,7 @@ export function Button({
           {icon}
           <Text
             className={cn(
-              "font-semibold",
+              "font-bold tracking-tight",
               variantTextStyles[variant],
               sizeTextStyles[size]
             )}
