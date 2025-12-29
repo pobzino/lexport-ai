@@ -119,7 +119,7 @@ export async function GET(
   }
 }
 
-// PATCH - Update invoice status
+// PATCH - Update invoice status (supports external payment recording)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -138,11 +138,37 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { status } = body;
+    const {
+      status,
+      payment_method,  // For external payments: 'bank_transfer', 'cash', 'check', 'other'
+      payment_reference, // Reference number for external payment
+      payment_date, // Date payment was received (defaults to now)
+      notes // Optional notes about the status change
+    } = body;
 
-    if (!["draft", "sent", "paid", "void"].includes(status)) {
+    if (!["draft", "sent", "paid", "overdue", "cancelled", "void"].includes(status)) {
       return NextResponse.json(
         { error: "Invalid status" },
+        { status: 400 }
+      );
+    }
+
+    // Fetch current invoice to check current status
+    const { data: currentInvoice, error: fetchError } = await supabase
+      .from("invoices")
+      .select("status, notes")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (fetchError || !currentInvoice) {
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+    }
+
+    // Prevent invalid status transitions
+    if (currentInvoice.status === "void" && status !== "void") {
+      return NextResponse.json(
+        { error: "Cannot change status of a voided invoice" },
         { status: 400 }
       );
     }
@@ -154,9 +180,31 @@ export async function PATCH(
     };
 
     if (status === "paid") {
-      updateData.paid_at = new Date().toISOString();
+      updateData.paid_at = payment_date ? new Date(payment_date).toISOString() : new Date().toISOString();
+
+      // Store external payment info in metadata
+      if (payment_method) {
+        updateData.payment_method = payment_method;
+      }
+      if (payment_reference) {
+        updateData.payment_reference = payment_reference;
+      }
     } else if (status === "sent") {
       updateData.sent_at = new Date().toISOString();
+    }
+
+    // Append status change note if provided
+    if (notes) {
+      const existingNotes = currentInvoice.notes || "";
+      const timestamp = new Date().toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      const statusNote = `\n\n[${timestamp}] Status changed to ${status}: ${notes}`;
+      updateData.notes = existingNotes + statusNote;
     }
 
     const { data: invoice, error: updateError } = await supabase
@@ -168,7 +216,8 @@ export async function PATCH(
       .single();
 
     if (updateError || !invoice) {
-      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+      console.error("Failed to update invoice:", updateError);
+      return NextResponse.json({ error: "Failed to update invoice" }, { status: 500 });
     }
 
     return NextResponse.json({ invoice });
@@ -257,16 +306,38 @@ async function generateInvoicePDF(
     }
   }
 
-  // Draw placeholder box if no logo
+  // Draw company initials if no logo
   if (!logoDrawn) {
-    page.drawRectangle({
-      x: leftMargin,
-      y: y - 35,
-      width: 45,
-      height: 45,
-      color: lightGray,
-      borderColor: borderGray,
-      borderWidth: 1,
+    // Generate initials from company name (max 2 letters)
+    const companyName = settings?.company_name || invoice.sender_name || "Company";
+    const words = companyName.trim().split(/\s+/);
+    const initials = words.length >= 2
+      ? (words[0][0] + words[1][0]).toUpperCase()
+      : companyName.substring(0, 2).toUpperCase();
+
+    // Draw circle background
+    const circleX = leftMargin + 22.5;
+    const circleY = y - 12.5;
+    const circleRadius = 22.5;
+
+    // Lexport brand color (dark navy)
+    const brandColor = rgb(0.125, 0.180, 0.275); // #202e46
+
+    page.drawCircle({
+      x: circleX,
+      y: circleY,
+      size: circleRadius,
+      color: brandColor,
+    });
+
+    // Draw initials centered in circle
+    const initialsWidth = boldFont.widthOfTextAtSize(initials, 16);
+    page.drawText(initials, {
+      x: circleX - initialsWidth / 2,
+      y: circleY - 6,
+      size: 16,
+      font: boldFont,
+      color: rgb(1, 1, 1), // White text
     });
   }
 
@@ -507,8 +578,6 @@ async function generateInvoicePDF(
 
   // ========== FOOTER ==========
   const footerY = 35;
-  const footerText = "A payment link will be included when you send this invoice";
-  const footerWidth = font.widthOfTextAtSize(footerText, 8);
 
   page.drawLine({
     start: { x: leftMargin, y: footerY + 15 },
@@ -517,13 +586,41 @@ async function generateInvoicePDF(
     color: borderGray,
   });
 
-  page.drawText(footerText, {
-    x: (width - footerWidth) / 2,
+  // Lexport branding with link
+  const brandText = "Powered by Lexport";
+  const brandWidth = font.widthOfTextAtSize(brandText, 8);
+  const brandX = (width - brandWidth) / 2;
+
+  // Draw the text with link color
+  const linkColor = rgb(0.125, 0.180, 0.275); // Brand color for link
+  page.drawText(brandText, {
+    x: brandX,
     y: footerY,
     size: 8,
     font: font,
-    color: lightMuted,
+    color: linkColor,
   });
+
+  // Add clickable link annotation
+  const linkAnnotation = pdfDoc.context.obj({
+    Type: 'Annot',
+    Subtype: 'Link',
+    Rect: [brandX - 2, footerY - 2, brandX + brandWidth + 2, footerY + 10],
+    Border: [0, 0, 0],
+    A: {
+      Type: 'Action',
+      S: 'URI',
+      URI: 'https://lexportai.com',
+    },
+  });
+
+  const linkRef = pdfDoc.context.register(linkAnnotation);
+  const annots = page.node.get(pdfDoc.context.obj('Annots'));
+  if (annots) {
+    (annots as unknown as { push: (ref: unknown) => void }).push(linkRef);
+  } else {
+    page.node.set(pdfDoc.context.obj('Annots'), pdfDoc.context.obj([linkRef]));
+  }
 
   return pdfDoc.save();
 }

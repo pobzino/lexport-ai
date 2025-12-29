@@ -412,6 +412,9 @@ export interface Invoice {
   sender_email: string | null;
   sender_address: Record<string, unknown> | null;
   notes: string | null;
+  // External payment tracking
+  payment_method: string | null; // bank_transfer, cash, check, other
+  payment_reference: string | null; // Reference number for external payments
   created_at: string;
   updated_at: string;
 }
