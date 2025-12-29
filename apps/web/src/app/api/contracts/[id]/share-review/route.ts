@@ -4,7 +4,14 @@ import { z } from "zod";
 import { randomBytes } from "crypto";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy initialization to avoid build-time errors when env vars are unavailable
+let resendClient: Resend | null = null;
+function getResend() {
+  if (!resendClient) {
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+}
 
 // Request schema
 const ShareReviewSchema = z.object({
@@ -109,8 +116,8 @@ export async function POST(
     // Send email invitation
     let emailSent = false;
     try {
-      await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL || "Lexport <noreply@lexport.ai>",
+      await getResend().emails.send({
+        from: process.env.RESEND_FROM_EMAIL || "Lexport <noreply@lexportai.com>",
         to: reviewerEmail,
         subject: `${senderName} has shared "${contract.title}" for your review`,
         html: `

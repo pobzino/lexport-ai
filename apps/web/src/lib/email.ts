@@ -1,6 +1,13 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy initialization to avoid build-time errors when env vars are unavailable
+let resendClient: Resend | null = null;
+function getResend() {
+  if (!resendClient) {
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+}
 
 // Default from address - update this with your verified domain
 const FROM_EMAIL = process.env.EMAIL_FROM || "Lexport <noreply@lexportai.com>";
@@ -168,7 +175,7 @@ Powered by Lexport - AI-powered contracts & e-signatures
 `;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: [to],
       subject: `✍️ Please sign: ${contractTitle}`,
@@ -255,7 +262,7 @@ Powered by Lexport
 `;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: [to],
       subject: `⏰ Reminder: Please sign ${contractTitle}`,
@@ -330,7 +337,7 @@ Powered by Lexport
 `;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: [to],
       subject: "🔐 Sign in to Lexport",
@@ -412,7 +419,7 @@ Powered by Lexport
 `;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: [to],
       subject: `🔐 Verification Code: ${code}`,
@@ -569,7 +576,7 @@ Powered by Lexport
 `;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: [to],
       subject: `✅ Payment Receipt: ${formattedAmount} for ${contractTitle}`,
@@ -750,7 +757,7 @@ Powered by Lexport
 `;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: [to],
       subject: `${reminderType === "final" ? "🚨 Final Reminder: " : reminderType === "second" ? "⏰ Reminder: " : ""}Balance Due: ${formattedBalance} for ${contractTitle}`,
@@ -884,7 +891,7 @@ Powered by Lexport
 `;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: [to],
       subject: `🎉 Contract Signed: ${contractTitle} - Certificate Attached`,
@@ -965,7 +972,7 @@ Powered by Lexport
 `;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: [to],
       subject: `🎉 Contract Signed: ${contractTitle}`,

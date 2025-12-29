@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy initialization to avoid build-time errors when env vars are unavailable
+let resendClient: Resend | null = null;
+function getResend() {
+  if (!resendClient) {
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+}
 const FROM_EMAIL = process.env.EMAIL_FROM || "Lexport <noreply@lexportai.com>";
 
 // Format currency
@@ -202,7 +209,7 @@ Powered by Lexport - Simple, legally binding contracts for startups and freelanc
         ? `Reminder: Invoice ${invoice.invoice_number} from ${senderName} - ${formattedAmount}`
         : `Invoice ${invoice.invoice_number} from ${senderName} - ${formattedAmount}`;
 
-      const { error } = await resend.emails.send({
+      const { error } = await getResend().emails.send({
         from: FROM_EMAIL,
         to: [invoice.recipient_email],
         subject,
