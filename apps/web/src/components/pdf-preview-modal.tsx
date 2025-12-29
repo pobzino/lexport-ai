@@ -46,6 +46,9 @@ export function PDFPreviewModal({
   const [isClient, setIsClient] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [pageWidth, setPageWidth] = useState(600);
+  const pdfUrlRef = useRef<string | null>(null);
+  const contractIdRef = useRef<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Set up PDF.js worker on client side
   useEffect(() => {
@@ -73,43 +76,109 @@ export function PDFPreviewModal({
   // Fetch PDF when modal opens
   useEffect(() => {
     if (!isOpen) {
+      // Abort any in-flight request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      // Cleanup old blob URL when modal closes
+      if (pdfUrlRef.current) {
+        URL.revokeObjectURL(pdfUrlRef.current);
+        pdfUrlRef.current = null;
+        contractIdRef.current = null;
+      }
       setPdfUrl(null);
       setCurrentPage(1);
       setError(null);
+      setLoading(true);
       return;
     }
+
+    // If we already have a valid URL for this exact contract, don't refetch
+    if (pdfUrlRef.current && contractIdRef.current === contractId) {
+      setLoading(false);
+      return;
+    }
+
+    // Abort any previous in-flight request before starting a new one
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     const fetchPDF = async () => {
       setLoading(true);
       setError(null);
 
       try {
-        const response = await fetch(`/api/contracts/${contractId}/pdf`);
+        const response = await fetch(`/api/contracts/${contractId}/pdf`, {
+          signal: abortController.signal,
+        });
+
         if (!response.ok) {
           throw new Error("Failed to generate PDF preview");
         }
 
         const blob = await response.blob();
+
+        // Check if this request was aborted
+        if (abortController.signal.aborted) return;
+
+        // Revoke old URL before creating new one
+        if (pdfUrlRef.current) {
+          URL.revokeObjectURL(pdfUrlRef.current);
+        }
         const url = URL.createObjectURL(blob);
+        pdfUrlRef.current = url;
+        contractIdRef.current = contractId;
         setPdfUrl(url);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load PDF");
+        // Ignore abort errors
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
+        if (!abortController.signal.aborted) {
+          setError(err instanceof Error ? err.message : "Failed to load PDF");
+        }
       } finally {
-        setLoading(false);
+        if (!abortController.signal.aborted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchPDF();
 
     return () => {
-      if (pdfUrl) {
-        URL.revokeObjectURL(pdfUrl);
-      }
+      // Abort the request on cleanup
+      abortController.abort();
     };
   }, [isOpen, contractId]);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
+  };
+
+  const onDocumentLoadError = (err: Error) => {
+    // Handle blob URL errors gracefully (can happen during cleanup/remounting in Strict Mode)
+    // These errors occur when:
+    // 1. The blob URL was revoked before react-pdf finished loading
+    // 2. The fetch was aborted during Strict Mode re-render
+    // 3. The component unmounted while loading
+    const errorMessage = err.message || "";
+    if (
+      errorMessage.includes("response (0)") ||
+      errorMessage.includes("Unexpected server response") ||
+      errorMessage.includes("aborted") ||
+      errorMessage.includes("cancelled")
+    ) {
+      // Don't show error to user - this is expected during React Strict Mode
+      return;
+    }
+    console.error("PDF load error:", err);
+    setError("Failed to render PDF");
   };
 
   const goToPreviousPage = () => {
@@ -247,7 +316,14 @@ export function PDFPreviewModal({
                       return res.blob();
                     })
                     .then((blob) => {
-                      setPdfUrl(URL.createObjectURL(blob));
+                      // Revoke old URL if exists
+                      if (pdfUrlRef.current) {
+                        URL.revokeObjectURL(pdfUrlRef.current);
+                      }
+                      const url = URL.createObjectURL(blob);
+                      pdfUrlRef.current = url;
+                      contractIdRef.current = contractId;
+                      setPdfUrl(url);
                       setLoading(false);
                     })
                     .catch((err) => {
@@ -266,6 +342,7 @@ export function PDFPreviewModal({
                 <Document
                   file={pdfUrl}
                   onLoadSuccess={onDocumentLoadSuccess}
+                  onLoadError={onDocumentLoadError}
                   loading={
                     <div className="flex items-center justify-center p-24">
                       <Loader2 className="w-8 h-8 animate-spin text-[#529ec6]" />
