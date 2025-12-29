@@ -30,7 +30,7 @@ function getOpenAI(): OpenAI {
   return openaiClient;
 }
 
-const ANALYSIS_MODEL = "gpt-4.1"; // Best accuracy for risk detection (125/125 in tests)
+const ANALYSIS_MODEL = "gpt-4.1"; // Best accuracy for risk detection
 
 // ============================================================================
 // Contract Content Interface

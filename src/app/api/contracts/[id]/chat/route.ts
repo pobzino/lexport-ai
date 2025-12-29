@@ -35,7 +35,7 @@ const chatFunctions: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "modify_contract",
-      description: "Modify the contract content based on user instructions. Use this when the user wants to change, update, edit, replace, or modify any part of the contract.",
+      description: "Modify the contract content based on user instructions. Use this when the user wants to change, update, edit, replace, modify, shorten, simplify, rewrite, remove, add, expand, condense, or revise any part of the contract. ALWAYS use this function when the user wants content changes - never just describe what you would do.",
       parameters: {
         type: "object",
         properties: {
@@ -162,11 +162,12 @@ ${content.clauses.map((c) => `[${c.id}] ${c.title}:\n${c.content}`).join("\n\n")
 ${content.signatureBlock}
 
 INSTRUCTIONS:
-- When the user asks to CHANGE, UPDATE, MODIFY, REPLACE, or EDIT any part of the contract, use the modify_contract function.
-- When the user asks QUESTIONS or wants explanations, use the answer_question function.
-- For modifications, be precise about what text to change.
+- When the user asks to CHANGE, UPDATE, MODIFY, REPLACE, EDIT, SHORTEN, SIMPLIFY, REWRITE, REMOVE, ADD, EXPAND, CONDENSE, REVISE, or make the contract/clause SHORTER, LONGER, SIMPLER, or MORE CONCISE - use the modify_contract function.
+- When the user asks QUESTIONS or wants explanations WITHOUT wanting changes, use the answer_question function.
+- For modifications, be precise about what text to change. Use newContent to replace entire sections when shortening or rewriting.
 - Always maintain legal validity when making changes.
-- If the user's request is unclear, use answer_question to ask for clarification.`;
+- If the user's request is unclear, use answer_question to ask for clarification.
+- IMPORTANT: If the user wants to shorten, simplify, or rewrite content, ALWAYS use modify_contract - do NOT just explain what you would do.`;
 
     // Call OpenAI with function calling
     const response = await getOpenAI().chat.completions.create({
@@ -253,7 +254,7 @@ INSTRUCTIONS:
         }
 
         return NextResponse.json({
-          response: `✅ **Changes Applied!**\n\n${args.explanation}\n\nThe contract has been updated and saved.`,
+          response: `✅ **Changes Applied!**\n\n${args.explanation || "The requested changes have been made to the contract."}\n\nThe contract has been updated and saved.`,
           contractUpdated: true,
           contract: updated,
         });

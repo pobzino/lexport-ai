@@ -982,34 +982,25 @@ export default function ContractEditorPage() {
     setChatLoading(true);
 
     try {
-      // Check if this is a modification request
-      const modifyMatch = userMessage.match(
-        /(?:modify|change|update|edit)\s+(?:the\s+)?(.+?)\s+(?:clause|section)/i
-      );
+      // Send all messages to the chat API - it handles both questions and modifications
+      const response = await fetch(`/api/contracts/${contractId}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [...chatMessages, { role: "user", content: userMessage }],
+        }),
+      });
 
-      if (modifyMatch && activeClause) {
-        await modifyClauseWithAI(activeClause, userMessage);
-      } else {
-        // Regular chat
-        const response = await fetch(`/api/contracts/${contractId}/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: [...chatMessages, { role: "user", content: userMessage }],
-          }),
-        });
+      if (!response.ok) throw new Error("Chat failed");
+      const data = await response.json();
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: data.response },
+      ]);
 
-        if (!response.ok) throw new Error("Chat failed");
-        const data = await response.json();
-        setChatMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: data.response },
-        ]);
-
-        // If contract was updated by AI, refresh the local state
-        if (data.contractUpdated && data.contract) {
-          setContract(data.contract);
-        }
+      // If contract was updated by AI, refresh the local state
+      if (data.contractUpdated && data.contract) {
+        setContract(data.contract);
       }
     } catch (err) {
       setChatMessages((prev) => [
@@ -1165,7 +1156,7 @@ export default function ContractEditorPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#529ec6]" />
       </div>
     );
   }
@@ -1178,7 +1169,7 @@ export default function ContractEditorPage() {
           <h2 className="text-xl font-semibold text-slate-900 mb-2">
             {error || "Contract not found"}
           </h2>
-          <Link href="/dashboard" className="text-violet-600 hover:underline">
+          <Link href="/dashboard" className="text-[#529ec6] hover:underline">
             Return to Dashboard
           </Link>
         </div>
@@ -1256,7 +1247,7 @@ export default function ContractEditorPage() {
                     setShowReviewPanel(false);
                   }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all ${showInvoicePanel
-                    ? "bg-violet-600 text-white shadow-sm"
+                    ? "bg-[#202e46] text-white shadow-sm"
                     : "text-slate-600 hover:bg-slate-100"
                     }`}
                 >
@@ -1315,7 +1306,7 @@ export default function ContractEditorPage() {
               <button
                 onClick={() => setIsEditingFields(!isEditingFields)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all ${isEditingFields
-                  ? "bg-violet-600 text-white shadow-sm"
+                  ? "bg-[#202e46] text-white shadow-sm"
                   : "text-slate-600 hover:bg-slate-100"
                   }`}
               >
@@ -1325,7 +1316,7 @@ export default function ContractEditorPage() {
               {/* Visual Field Editor Button */}
               <button
                 onClick={() => setShowVisualEditor(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all text-violet-600 hover:bg-violet-50 border border-violet-200"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all text-[#529ec6] hover:bg-[#529ec6]/5 border border-[#529ec6]/20"
               >
                 <Eye className="w-4 h-4" />
                 Visual Editor
@@ -1355,7 +1346,7 @@ export default function ContractEditorPage() {
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                     >
-                      <Sparkles className="w-4 h-4 text-violet-500" />
+                      <Sparkles className="w-4 h-4 text-[#529ec6]" />
                       AI Chat Assistant
                     </button>
 
@@ -1383,7 +1374,7 @@ export default function ContractEditorPage() {
                         Comments
                       </span>
                       {Object.values(commentCounts).reduce((a, b) => a + b, 0) > 0 && (
-                        <span className="text-xs bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">
+                        <span className="text-xs bg-[#529ec6]/10 text-[#202e46] px-1.5 py-0.5 rounded-full">
                           {Object.values(commentCounts).reduce((a, b) => a + b, 0)}
                         </span>
                       )}
@@ -1433,7 +1424,7 @@ export default function ContractEditorPage() {
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                     >
-                      <FileStack className="w-4 h-4 text-violet-500" />
+                      <FileStack className="w-4 h-4 text-[#529ec6]" />
                       Save as Template
                     </button>
                   </div>
@@ -1445,7 +1436,7 @@ export default function ContractEditorPage() {
                 disabled={saving}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all ${saved
                   ? "bg-emerald-600 text-white"
-                  : "bg-violet-600 text-white hover:bg-violet-700 shadow-sm"
+                  : "bg-[#202e46] text-white hover:bg-[#1a2539] shadow-sm"
                   } disabled:opacity-50`}
               >
                 {saving ? (
@@ -1693,7 +1684,7 @@ export default function ContractEditorPage() {
                   <div
                     key={clause.id}
                     id={`clause-${clause.id}`}
-                    className={`transition-all ${activeClause === clause.id ? "bg-violet-50" : ""
+                    className={`transition-all ${activeClause === clause.id ? "bg-[#529ec6]/5" : ""
                       }`}
                   >
                     {/* Clause Header */}
@@ -1821,7 +1812,7 @@ export default function ContractEditorPage() {
                                 type="text"
                                 value={editedTitle}
                                 onChange={(e) => setEditedTitle(e.target.value)}
-                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent text-sm font-semibold"
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent text-sm font-semibold"
                                 placeholder="Enter clause title..."
                               />
                             </div>
@@ -1832,14 +1823,14 @@ export default function ContractEditorPage() {
                               <textarea
                                 value={editedContent}
                                 onChange={(e) => setEditedContent(e.target.value)}
-                                className="w-full h-64 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none font-mono text-sm"
+                                className="w-full h-64 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent resize-none font-mono text-sm"
                                 placeholder="Enter clause content..."
                               />
                             </div>
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={saveClauseEdit}
-                                className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
+                                className="flex items-center gap-2 px-4 py-2 bg-[#202e46] text-white rounded-lg hover:bg-[#1a2539]"
                               >
                                 <Check className="w-4 h-4" />
                                 Save Changes
@@ -1875,7 +1866,7 @@ export default function ContractEditorPage() {
                 {/* Add Clause Button */}
                 <button
                   onClick={addClause}
-                  className="w-full py-4 border-2 border-dashed border-slate-300 hover:border-violet-400 hover:bg-violet-50 rounded-lg transition-colors flex items-center justify-center gap-2 text-slate-500 hover:text-violet-600"
+                  className="w-full py-4 border-2 border-dashed border-slate-300 hover:border-[#529ec6] hover:bg-[#529ec6]/5 rounded-lg transition-colors flex items-center justify-center gap-2 text-slate-500 hover:text-[#529ec6]"
                 >
                   <Plus className="w-5 h-5" />
                   <span className="font-medium">Add Clause</span>
@@ -1929,7 +1920,7 @@ export default function ContractEditorPage() {
             <div className="px-4 py-3 border-b border-slate-200 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-violet-600" />
+                  <Sparkles className="w-5 h-5 text-[#529ec6]" />
                   <span className="font-semibold text-slate-900">
                     AI Assistant
                   </span>
@@ -1952,9 +1943,9 @@ export default function ContractEditorPage() {
 
             {/* Explanation Panel */}
             {(explaining || explanation) && (
-              <div className="p-4 border-b border-slate-200 bg-violet-50 flex-shrink-0">
+              <div className="p-4 border-b border-slate-200 bg-[#529ec6]/5 flex-shrink-0">
                 {explaining ? (
-                  <div className="flex items-center gap-2 text-violet-700">
+                  <div className="flex items-center gap-2 text-[#202e46]">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Analyzing clause...</span>
                   </div>
@@ -1974,7 +1965,7 @@ export default function ContractEditorPage() {
                         <ul className="text-sm text-slate-600 space-y-1">
                           {explanation.keyPoints.map((point, i) => (
                             <li key={i} className="flex items-start gap-2">
-                              <span className="text-violet-500">•</span>
+                              <span className="text-[#529ec6]">•</span>
                               {point}
                             </li>
                           ))}
@@ -1983,7 +1974,7 @@ export default function ContractEditorPage() {
                     )}
                     <button
                       onClick={() => setExplanation(null)}
-                      className="text-xs text-violet-600 hover:underline"
+                      className="text-xs text-[#529ec6] hover:underline"
                     >
                       Dismiss
                     </button>
@@ -2018,7 +2009,7 @@ export default function ContractEditorPage() {
                           onClick={() => {
                             setChatInput(suggestion);
                           }}
-                          className="px-3 py-1.5 text-xs bg-violet-50 text-violet-700 rounded-full hover:bg-violet-100 border border-violet-200"
+                          className="px-3 py-1.5 text-xs bg-[#529ec6]/5 text-[#202e46] rounded-full hover:bg-[#529ec6]/10 border border-[#529ec6]/20"
                         >
                           {suggestion}
                         </button>
@@ -2034,7 +2025,7 @@ export default function ContractEditorPage() {
                 >
                   <div
                     className={`max-w-[85%] px-4 py-2 rounded-xl ${msg.role === "user"
-                      ? "bg-violet-600 text-white"
+                      ? "bg-[#202e46] text-white"
                       : "bg-slate-100 text-slate-900"
                       }`}
                   >
@@ -2066,12 +2057,12 @@ export default function ContractEditorPage() {
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendChatMessage()}
                   placeholder="Ask about this contract..."
-                  className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent"
                 />
                 <button
                   onClick={sendChatMessage}
                   disabled={chatLoading || !chatInput.trim()}
-                  className="p-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50"
+                  className="p-2 bg-[#202e46] text-white rounded-lg hover:bg-[#1a2539] disabled:opacity-50"
                 >
                   <Send className="w-5 h-5" />
                 </button>
