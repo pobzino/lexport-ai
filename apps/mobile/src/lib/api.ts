@@ -124,3 +124,76 @@ export async function analyzeContractRisk(contractId: string): Promise<{
 export async function getContractPdfUrl(contractId: string): Promise<string> {
   return `${API_BASE}/api/contracts/${contractId}/pdf`;
 }
+
+// Delete contract
+export async function deleteContract(contractId: string): Promise<{ success: boolean }> {
+  return apiRequest(`/api/contracts/${contractId}`, {
+    method: "DELETE",
+  });
+}
+
+// Duplicate contract
+export async function duplicateContract(contractId: string): Promise<{ success: boolean; contractId: string }> {
+  return apiRequest(`/api/contracts/${contractId}/duplicate`, {
+    method: "POST",
+  });
+}
+
+// Get certificate of completion
+export async function getCertificateUrl(contractId: string): Promise<string> {
+  return `${API_BASE}/api/contracts/${contractId}/certificate`;
+}
+
+// Comments/Review
+export interface ContractComment {
+  id: string;
+  contract_id: string;
+  user_id: string;
+  clause_id?: string;
+  selection_text?: string;
+  content: string;
+  status: "open" | "resolved";
+  created_at: string;
+  updated_at: string;
+  user?: {
+    email: string;
+    name?: string;
+  };
+  replies?: ContractComment[];
+}
+
+export async function getContractComments(contractId: string): Promise<{ comments: ContractComment[] }> {
+  return apiRequest(`/api/contracts/${contractId}/reviews`);
+}
+
+export async function addContractComment(
+  contractId: string,
+  comment: {
+    clauseId?: string;
+    selectionText?: string;
+    content: string;
+  }
+): Promise<{ comment: ContractComment }> {
+  return apiRequest(`/api/contracts/${contractId}/reviews`, {
+    method: "POST",
+    body: comment,
+  });
+}
+
+export async function resolveComment(
+  contractId: string,
+  commentId: string
+): Promise<{ success: boolean }> {
+  return apiRequest(`/api/contracts/${contractId}/reviews/${commentId}/resolve`, {
+    method: "POST",
+  });
+}
+
+export async function deleteComment(
+  contractId: string,
+  commentId: string
+): Promise<{ success: boolean }> {
+  return apiRequest(`/api/contracts/${contractId}/reviews/${commentId}`, {
+    method: "DELETE",
+  });
+}

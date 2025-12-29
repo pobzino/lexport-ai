@@ -1,12 +1,13 @@
-import { View, Text, ScrollView, Pressable, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, ScrollView, Pressable, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Href } from "expo-router";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, Button } from "@/components/ui";
+import { Card, CardContent, Button, SkeletonList } from "@/components/ui";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import { useEffect, useState, useCallback } from "react";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
 
 interface Contract {
   id: string;
@@ -143,8 +144,18 @@ export default function DashboardScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-white items-center justify-center" edges={["top"]}>
-        <ActivityIndicator size="large" color="#529ec6" />
+      <SafeAreaView className="flex-1 bg-primary-50" edges={["top"]}>
+        <LinearGradient
+          colors={['#202e46', '#2a3a54']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          className="px-6 pb-8 pt-4"
+        >
+          <View className="h-20" />
+        </LinearGradient>
+        <View className="px-6 -mt-4">
+          <SkeletonList count={4} />
+        </View>
       </SafeAreaView>
     );
   }

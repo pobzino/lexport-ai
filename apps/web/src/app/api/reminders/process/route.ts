@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { sendBalanceReminderEmail } from "@/lib/email";
 
-// Use service role for cron job (bypasses RLS)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazy initialization for service role client (bypasses RLS)
+let supabaseAdmin: SupabaseClient | null = null;
+function getSupabaseAdmin() {
+  if (!supabaseAdmin) {
+    supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+  }
+  return supabaseAdmin;
+}
 
 interface ContractWithBalance {
   id: string;
@@ -55,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     // Find contracts with deposit paid but balance unpaid
     // These are contracts with deposit_balance structure where we have a deposit payment but no balance payment
-    const { data: contracts, error: contractsError } = await supabaseAdmin
+    const { data: contracts, error: contractsError } = await getSupabaseAdmin()
       .from("contracts")
       .select(`
         id, title, user_id,
@@ -87,7 +93,7 @@ export async function POST(request: NextRequest) {
 
       try {
         // Check if deposit is paid and balance is not
-        const { data: payments } = await supabaseAdmin
+        const { data: payments } = await getSupabaseAdmin()
           .from("payments")
           .select("id, payment_type, status, payer_email, payer_name")
           .eq("contract_id", contract.id)
@@ -128,7 +134,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Check if we already sent this type of reminder
-        const { data: existingReminders } = await supabaseAdmin
+        const { data: existingReminders } = await getSupabaseAdmin()
           .from("payment_reminders")
           .select("id, reminder_type")
           .eq("contract_id", contract.id)
@@ -143,7 +149,7 @@ export async function POST(request: NextRequest) {
           }
 
           // For final reminders, check 24-hour cooldown
-          const lastReminder = await supabaseAdmin
+          const lastReminder = await getSupabaseAdmin()
             .from("payment_reminders")
             .select("sent_at")
             .eq("contract_id", contract.id)
@@ -163,7 +169,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get contract owner info for sender details
-        const { data: ownerData } = await supabaseAdmin
+        const { data: ownerData } = await getSupabaseAdmin()
           .from("users")
           .select("name, email")
           .eq("id", contract.user_id)
@@ -194,7 +200,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Record the reminder
-        await supabaseAdmin.from("payment_reminders").insert({
+        await getSupabaseAdmin().from("payment_reminders").insert({
           contract_id: contract.id,
           payment_id: depositPayment.id,
           recipient_email: recipientEmail,
@@ -206,7 +212,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Update contract's last_reminder_sent
-        await supabaseAdmin
+        await getSupabaseAdmin()
           .from("contracts")
           .update({
             last_reminder_sent: now.toISOString(),
@@ -215,7 +221,7 @@ export async function POST(request: NextRequest) {
           .eq("id", contract.id);
 
         // Log audit event
-        await supabaseAdmin.from("audit_logs").insert({
+        await getSupabaseAdmin().from("audit_logs").insert({
           contract_id: contract.id,
           user_id: contract.user_id,
           event_type: "auto_balance_reminder_sent",

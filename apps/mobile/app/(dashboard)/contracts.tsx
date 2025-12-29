@@ -1,10 +1,11 @@
-import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, ScrollView, Pressable, TextInput, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, Href } from "expo-router";
-import { Card, CardContent, Button } from "@/components/ui";
+import { Card, CardContent, Button, SkeletonList, EmptyState } from "@/components/ui";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import { useEffect, useState, useCallback } from "react";
+import * as Haptics from "expo-haptics";
 
 interface Contract {
   id: string;
@@ -126,8 +127,13 @@ export default function ContractsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-white items-center justify-center" edges={["top"]}>
-        <ActivityIndicator size="large" color="#529ec6" />
+      <SafeAreaView className="flex-1 bg-primary-50" edges={["top"]}>
+        <View className="bg-white px-6 py-5">
+          <View className="h-8 w-32 bg-gray-200 rounded-lg" />
+        </View>
+        <View className="px-6 py-4">
+          <SkeletonList count={5} />
+        </View>
       </SafeAreaView>
     );
   }
