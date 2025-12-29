@@ -37,14 +37,33 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : "button";
+  ({ className, variant, size, asChild = false, children, ...props }, ref) => {
+    if (asChild) {
+      // Use type escape for React 19 compatibility with Radix UI
+      const SlotComponent = Slot as React.ComponentType<{
+        className?: string;
+        ref?: React.Ref<unknown>;
+        children?: React.ReactNode;
+        [key: string]: unknown;
+      }>;
+      return (
+        <SlotComponent
+          className={cn(buttonVariants({ variant, size, className }))}
+          ref={ref}
+          {...props}
+        >
+          {children}
+        </SlotComponent>
+      );
+    }
     return (
-      <Comp
+      <button
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         {...props}
-      />
+      >
+        {children}
+      </button>
     );
   }
 );

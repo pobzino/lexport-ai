@@ -104,17 +104,8 @@ export default function NewContractScreen() {
   }, []);
 
   const handleSelectType = (typeId: string) => {
-    setSelectedType(typeId);
-    setStep("details");
-
-    // Set default title based on type
-    const typeInfo = CONTRACT_TYPES.find(t => t.id === typeId);
-    if (typeInfo && !formData.title) {
-      setFormData(prev => ({
-        ...prev,
-        title: `${typeInfo.title} - ${new Date().toLocaleDateString()}`,
-      }));
-    }
+    // Navigate directly to AI generation
+    router.push(`/contracts/generate?type=${typeId}` as Href);
   };
 
   const handleCreate = async () => {
