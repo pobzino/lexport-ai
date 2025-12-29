@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@/lib/supabase/server";
 import OpenAI from "openai";
 
@@ -12,14 +11,15 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { userId } = await auth();
-        if (!userId) {
+        const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         const { id: contractId } = await params;
         const { clauses } = await request.json();
-        const supabase = await createClient();
 
         // Check if explanations already exist in cache (contract metadata)
         const { data: contract } = await supabase
