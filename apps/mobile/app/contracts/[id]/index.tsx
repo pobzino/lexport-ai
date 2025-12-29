@@ -192,6 +192,10 @@ export default function ContractDetailScreen() {
     router.push(`/contracts/${id}/edit`);
   };
 
+  const handleReview = () => {
+    router.push(`/contracts/${id}/review`);
+  };
+
   const handlePayment = () => {
     router.push(`/pay/${id}`);
   };
@@ -647,6 +651,17 @@ export default function ContractDetailScreen() {
               >
                 <Ionicons name="shield-checkmark-outline" size={24} color="#529ec6" />
                 <Text className="text-base text-slate-900">Analyze Risks</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  setShowActionsMenu(false);
+                  handleReview();
+                }}
+                className="flex-row items-center gap-4 py-4 px-2 border-b border-slate-100"
+              >
+                <Ionicons name="chatbubbles-outline" size={24} color="#529ec6" />
+                <Text className="text-base text-slate-900">Review & Comments</Text>
               </Pressable>
 
               <Pressable
