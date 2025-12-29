@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import crypto from "crypto";
 
 const PORTAL_COOKIE_NAME = "portal_session";
@@ -22,7 +23,8 @@ export function generateToken(): string {
  * Create a magic link for portal login
  */
 export async function createMagicLink(email: string): Promise<string> {
-    const supabase = await createClient();
+    // Use admin client to bypass RLS for portal sessions
+    const supabase = createAdminClient();
     const token = generateToken();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
@@ -45,7 +47,8 @@ export async function createMagicLink(email: string): Promise<string> {
  * Validate a magic link token and create a session
  */
 export async function validateMagicLink(token: string): Promise<{ email: string } | null> {
-    const supabase = await createClient();
+    // Use admin client to bypass RLS for portal sessions
+    const supabase = createAdminClient();
 
     // Find the session
     const { data: session, error } = await supabase
@@ -76,7 +79,8 @@ export async function setPortalSession(email: string): Promise<void> {
     const token = generateToken();
     const expiresAt = new Date(Date.now() + SESSION_DURATION_HOURS * 60 * 60 * 1000);
 
-    const supabase = await createClient();
+    // Use admin client to bypass RLS for portal sessions
+    const supabase = createAdminClient();
     await supabase.from("portal_sessions").insert({
         email: email.toLowerCase(),
         token,
@@ -105,7 +109,8 @@ export async function getPortalSession(): Promise<{ email: string } | null> {
         return null;
     }
 
-    const supabase = await createClient();
+    // Use admin client to bypass RLS for portal sessions
+    const supabase = createAdminClient();
     const { data: session } = await supabase
         .from("portal_sessions")
         .select("email")
@@ -129,7 +134,8 @@ export async function clearPortalSession(): Promise<void> {
     const token = cookieStore.get(PORTAL_COOKIE_NAME)?.value;
 
     if (token) {
-        const supabase = await createClient();
+        // Use admin client to bypass RLS for portal sessions
+        const supabase = createAdminClient();
         await supabase.from("portal_sessions").delete().eq("token", token);
     }
 
