@@ -145,7 +145,7 @@ async function createInvoiceForPayment(
     // Send receipt email to payer if we have their email
     if (payerEmail) {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexport.app";
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
         const invoiceUrl = `${baseUrl}/api/invoices/${invoice.id}?format=pdf`;
 
         await sendPaymentReceiptEmail({

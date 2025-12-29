@@ -555,7 +555,7 @@ async function generateAndSendCertificate(contractId: string) {
     signedAt: sr.signed_at || new Date().toISOString(),
   }));
 
-  const contractUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://lexport.app"}/contracts/${contractId}/edit`;
+  const contractUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com"}/contracts/${contractId}/edit`;
 
   // Send to contract owner
   if (owner?.email) {
@@ -578,7 +578,7 @@ async function generateAndSendCertificate(contractId: string) {
       to: signer.email,
       recipientName: signer.name,
       contractTitle: contract.title,
-      contractUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://lexport.app"}/portal`,
+      contractUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com"}/portal`,
       certificatePdf: pdfBuffer,
       certificateNumber: certificate.certificate_number,
       isOwner: false,

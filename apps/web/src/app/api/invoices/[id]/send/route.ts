@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM_EMAIL = process.env.EMAIL_FROM || "Lexport <noreply@lexport.app>";
+const FROM_EMAIL = process.env.EMAIL_FROM || "Lexport <noreply@lexportai.com>";
 
 // Format currency
 function formatCurrency(amount: number, currency: string): string {
@@ -157,7 +157,7 @@ export async function POST(
   </div>
 
   <div style="text-align: center; margin-top: 32px; font-size: 12px; color: #9ca3af;">
-    <p>Powered by <a href="https://lexport.app" style="color: #6b7280;">Lexport</a></p>
+    <p>Powered by <a href="https://lexportai.com" style="color: #6b7280;">Lexport</a></p>
     <p>Simple, legally binding contracts for startups and freelancers.</p>
   </div>
 </body>

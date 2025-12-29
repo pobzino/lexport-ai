@@ -4,7 +4,7 @@ import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const TEST_EMAIL = "akpobor2000@gmail.com";
-const FROM_EMAIL = process.env.EMAIL_FROM || "Lexport <noreply@lexport.app>";
+const FROM_EMAIL = process.env.EMAIL_FROM || "Lexport <noreply@lexportai.com>";
 
 const BRAND = {
   navy: "#202e46",
@@ -47,7 +47,7 @@ const html = `
       </p>
 
       <div style="text-align: center; margin: 32px 0;">
-        <a href="https://lexport.app/verify?token=example" style="display: inline-block; background: linear-gradient(135deg, ${BRAND.emerald} 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 10px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.4);">Confirm Email</a>
+        <a href="https://lexportai.com/verify?token=example" style="display: inline-block; background: linear-gradient(135deg, ${BRAND.emerald} 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 10px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.4);">Confirm Email</a>
       </div>
 
       <div style="background-color: #f1f5f9; border-radius: 10px; padding: 16px; margin: 24px 0; text-align: center;">
@@ -65,7 +65,7 @@ const html = `
 
     <!-- Footer -->
     <div style="text-align: center; margin-top: 32px; font-size: 13px; color: #64748b;">
-      <p style="margin: 0 0 8px;">Powered by <a href="https://lexport.app" style="color: ${BRAND.blue}; text-decoration: none; font-weight: 500;">Lexport</a></p>
+      <p style="margin: 0 0 8px;">Powered by <a href="https://lexportai.com" style="color: ${BRAND.blue}; text-decoration: none; font-weight: 500;">Lexport</a></p>
       <p style="margin: 0; font-size: 12px; color: #94a3b8;">AI-powered contracts & e-signatures for modern businesses</p>
     </div>
   </div>

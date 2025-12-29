@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
         const balanceAmount = totalAmount - depositAmount;
 
         // Build payment URL
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexport.app";
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
         const paymentUrl = `${baseUrl}/portal/contracts/${contract.id}?action=pay`;
 
         // Send the reminder

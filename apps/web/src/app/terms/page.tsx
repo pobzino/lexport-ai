@@ -255,10 +255,10 @@ export default function TermsPage() {
                 withdraw your consent to electronic signatures, please contact us
                 at:{" "}
                 <a
-                  href="mailto:legal@lexport.app"
+                  href="mailto:legal@lexportai.com"
                   className="text-blue-600 hover:underline"
                 >
-                  legal@lexport.app
+                  legal@lexportai.com
                 </a>
               </p>
             </section>

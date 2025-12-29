@@ -255,7 +255,7 @@ async function generateInvoicePDF(
   // QR code for unpaid invoices
   if (invoice.status !== "paid" && invoice.status !== "void") {
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexport.app";
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
       const paymentUrl = `${baseUrl}/portal/contracts/${invoice.contract_id}?action=pay`;
       const qrDataUrl = await QRCode.toDataURL(paymentUrl, { width: 100, margin: 1 });
       const qrBase64 = qrDataUrl.split(",")[1];

@@ -125,7 +125,7 @@ export async function POST(
       .eq("id", id);
 
     // Build signing URLs and send emails
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3500";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const signingUrls: { email: string; name: string; url: string; expiresAt: string; emailSent: boolean }[] = [];
     const emailErrors: string[] = [];
 

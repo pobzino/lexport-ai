@@ -3,7 +3,7 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Default from address - update this with your verified domain
-const FROM_EMAIL = process.env.EMAIL_FROM || "Lexport <noreply@lexport.app>";
+const FROM_EMAIL = process.env.EMAIL_FROM || "Lexport <noreply@lexportai.com>";
 
 // Brand colors
 const BRAND = {
@@ -38,7 +38,7 @@ const emailWrapper = (content: string) => `
 
     <!-- Footer -->
     <div style="text-align: center; margin-top: 32px; font-size: 13px; color: ${BRAND.slate};">
-      <p style="margin: 0 0 8px;">Powered by <a href="https://lexport.app" style="color: ${BRAND.blue}; text-decoration: none; font-weight: 500;">Lexport</a></p>
+      <p style="margin: 0 0 8px;">Powered by <a href="https://lexportai.com" style="color: ${BRAND.blue}; text-decoration: none; font-weight: 500;">Lexport</a></p>
       <p style="margin: 0; font-size: 12px; color: #94a3b8;">AI-powered contracts & e-signatures for modern businesses</p>
     </div>
   </div>

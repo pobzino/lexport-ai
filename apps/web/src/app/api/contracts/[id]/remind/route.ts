@@ -77,7 +77,7 @@ export async function POST(
     }
 
     const now = new Date();
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3500";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const remindedSigners: { email: string; name: string; emailSent: boolean }[] = [];
     const emailErrors: string[] = [];
 
