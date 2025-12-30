@@ -84,7 +84,8 @@ export function SignatureFieldEditorVisual({
           id: `field-${Date.now()}`,
           type: type as FieldType,
           signerId: selectedSignerId,
-          signerRole: selectedSigner?.role || "Signer",
+          // Use signer's name for display, fall back to role
+          signerRole: selectedSigner?.name || selectedSigner?.role || "Signer",
           page: currentPage,
           x: dropX,
           y: dropY,

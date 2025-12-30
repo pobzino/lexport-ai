@@ -273,10 +273,31 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   );
 }
 
+// Default context for SSR/pre-hydration
+const defaultContext: OnboardingContextType = {
+  showWelcome: false,
+  setShowWelcome: () => {},
+  userType: null,
+  setUserType: () => {},
+  steps: [],
+  completeStep: async () => {},
+  isStepCompleted: () => false,
+  completedCount: 0,
+  totalCount: 0,
+  isOnboardingComplete: false,
+  dismissChecklist: () => {},
+  showChecklist: false,
+  dismissedTips: [],
+  dismissTip: async () => {},
+  isTipDismissed: () => false,
+  isLoading: true,
+};
+
 export function useOnboarding() {
   const context = useContext(OnboardingContext);
+  // Return default context during SSR or before provider mounts
   if (context === undefined) {
-    throw new Error("useOnboarding must be used within an OnboardingProvider");
+    return defaultContext;
   }
   return context;
 }

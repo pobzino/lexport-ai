@@ -21,6 +21,25 @@ export async function updateSession(request: NextRequest) {
     return applySecurityHeaders(supabaseResponse);
   }
 
+  // Protected routes - check before creating Supabase client
+  const isAuthRoute =
+    request.nextUrl.pathname.startsWith("/login") ||
+    request.nextUrl.pathname.startsWith("/register");
+  const isProtectedRoute =
+    request.nextUrl.pathname.startsWith("/dashboard") ||
+    request.nextUrl.pathname.startsWith("/contracts") ||
+    request.nextUrl.pathname.startsWith("/signatures") ||
+    request.nextUrl.pathname.startsWith("/settings") ||
+    request.nextUrl.pathname.startsWith("/templates") ||
+    request.nextUrl.pathname.startsWith("/invoices") ||
+    request.nextUrl.pathname.startsWith("/activity") ||
+    request.nextUrl.pathname.startsWith("/payments");
+
+  // Skip Supabase client creation for non-protected, non-auth routes
+  if (!isProtectedRoute && !isAuthRoute) {
+    return applySecurityHeaders(supabaseResponse);
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -44,31 +63,36 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Refresh session if expired
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Use getSession() first - reads from cookie without network call
+  // This is faster for most navigation checks
+  const { data: { session } } = await supabase.auth.getSession();
 
-  // Protected routes - all routes in the (dashboard) group
-  const isAuthRoute =
-    request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/register");
-  const isProtectedRoute =
-    request.nextUrl.pathname.startsWith("/dashboard") ||
-    request.nextUrl.pathname.startsWith("/contracts") ||
-    request.nextUrl.pathname.startsWith("/signatures") ||
-    request.nextUrl.pathname.startsWith("/settings");
-
-  if (!user && isProtectedRoute) {
+  // For protected routes without session, redirect to login
+  if (!session && isProtectedRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return applySecurityHeaders(NextResponse.redirect(url));
   }
 
-  if (user && isAuthRoute) {
+  // For auth routes with session, redirect to dashboard
+  if (session && isAuthRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return applySecurityHeaders(NextResponse.redirect(url));
+  }
+
+  // Only call getUser() to refresh token if session exists and might be stale
+  // This avoids unnecessary network calls for most navigations
+  if (session) {
+    // Check if token is close to expiry (within 5 minutes)
+    const expiresAt = session.expires_at;
+    const now = Math.floor(Date.now() / 1000);
+    const fiveMinutes = 5 * 60;
+
+    if (expiresAt && expiresAt - now < fiveMinutes) {
+      // Token is close to expiry, refresh it
+      await supabase.auth.getUser();
+    }
   }
 
   return applySecurityHeaders(supabaseResponse);

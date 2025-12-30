@@ -825,8 +825,8 @@ export async function sendCompletedContractWithCertificate({
 
     <p style="margin: 16px 0; color: #475569;">
       ${isOwner
-        ? "Great news! All parties have signed your contract:"
-        : "Great news! All parties have signed the following contract:"}
+      ? "Great news! All parties have signed your contract:"
+      : "Great news! All parties have signed the following contract:"}
     </p>
 
     <div style="background: linear-gradient(135deg, ${BRAND.emerald}10 0%, #d1fae520 100%); border: 2px solid ${BRAND.emerald}; border-radius: 12px; padding: 24px; margin: 24px 0; text-align: center;">
@@ -992,3 +992,102 @@ Powered by Lexport
     throw error;
   }
 }
+
+export interface TeamInviteEmailParams {
+  to: string;
+  inviterName: string;
+  organizationName: string;
+  inviteToken: string;
+  role: string;
+}
+
+/**
+ * Send a team invite email
+ */
+export async function sendTeamInviteEmail({
+  to,
+  inviterName,
+  organizationName,
+  inviteToken,
+  role,
+}: TeamInviteEmailParams) {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
+  const inviteUrl = `${baseUrl}/invite?token=${inviteToken}`;
+
+  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+
+  const content = `
+    <div style="text-align: center; margin-bottom: 24px;">
+      <span style="display: inline-block; background-color: ${BRAND.blue}15; color: ${BRAND.blue}; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;">👥 Team Invitation</span>
+    </div>
+
+    <h2 style="color: ${BRAND.navy}; font-size: 22px; margin: 0 0 20px; text-align: center;">You've been invited to join a team</h2>
+
+    <p style="margin: 16px 0; color: #475569;">
+      <strong>${inviterName}</strong> has invited you to join <strong>${organizationName}</strong> on Lexport as a <strong>${roleLabel}</strong>.
+    </p>
+
+    <div style="background: linear-gradient(135deg, ${BRAND.navy}08 0%, ${BRAND.blue}08 100%); border-radius: 12px; padding: 20px; margin: 24px 0; border: 1px solid ${BRAND.navy}15; text-align: center;">
+      <p style="margin: 0; color: ${BRAND.navy}; font-size: 18px; font-weight: 600;">${organizationName}</p>
+      <p style="margin: 8px 0 0; color: ${BRAND.slate}; font-size: 14px;">Role: ${roleLabel}</p>
+    </div>
+
+    ${primaryButton(inviteUrl, "Accept Invitation")}
+
+    <div style="background-color: ${BRAND.lightSlate}; border-radius: 10px; padding: 16px; margin: 24px 0; text-align: center;">
+      <p style="margin: 0; font-size: 13px; color: ${BRAND.slate};">
+        🕐 This invitation expires in <strong>7 days</strong>
+      </p>
+    </div>
+
+    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0;">
+
+    <p style="margin: 0 0 12px; font-size: 12px; color: #94a3b8; text-align: center;">
+      Can't click the button? Copy this link:<br>
+      <a href="${inviteUrl}" style="color: ${BRAND.blue}; word-break: break-all;">${inviteUrl}</a>
+    </p>
+
+    <p style="margin: 0; font-size: 12px; color: #94a3b8; text-align: center;">
+      Didn't expect this invitation? You can safely ignore this email.
+    </p>
+  `;
+
+  const html = emailWrapper(content);
+
+  const text = `
+You've been invited to join a team
+
+${inviterName} has invited you to join ${organizationName} on Lexport as a ${roleLabel}.
+
+Click here to accept: ${inviteUrl}
+
+This invitation expires in 7 days.
+
+If you didn't expect this invitation, you can safely ignore this email.
+
+---
+Powered by Lexport
+`;
+
+  try {
+    const { data, error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to: [to],
+      subject: `👥 ${inviterName} invited you to join ${organizationName}`,
+      html,
+      text,
+    });
+
+    if (error) {
+      console.error("Failed to send team invite:", error);
+      throw error;
+    }
+
+    console.log(`Team invite sent to ${to}:`, data?.id);
+    return { success: true, id: data?.id };
+  } catch (error) {
+    console.error("Error sending team invite:", error);
+    throw error;
+  }
+}
+

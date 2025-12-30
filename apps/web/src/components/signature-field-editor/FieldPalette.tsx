@@ -39,9 +39,8 @@ function DraggableField({ type, label, description, color }: DraggableFieldProps
       style={style}
       {...listeners}
       {...attributes}
-      className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-grab active:cursor-grabbing transition-all hover:shadow-md ${
-        isDragging ? "shadow-lg ring-2 ring-[#529ec6]" : "hover:border-slate-300"
-      }`}
+      className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-grab active:cursor-grabbing transition-all hover:shadow-md ${isDragging ? "shadow-lg ring-2 ring-[#529ec6]" : "hover:border-slate-300"
+        }`}
       role="button"
       tabIndex={0}
     >
@@ -94,8 +93,7 @@ export function FieldPalette({
         >
           {signers.map((signer) => (
             <option key={signer.id} value={signer.id}>
-              {signer.role}
-              {signer.name ? ` - ${signer.name}` : ""}
+              {signer.name ? `${signer.name} (${signer.role})` : signer.role}
             </option>
           ))}
         </select>

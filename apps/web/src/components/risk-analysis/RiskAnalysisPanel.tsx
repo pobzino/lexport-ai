@@ -26,6 +26,7 @@ interface RiskAnalysisPanelProps {
   contractId: string;
   onClose: () => void;
   onJumpToClause: (clauseId: string) => void;
+  onImplement?: (risk: ClauseRisk | MissingProtection | JurisdictionAlert) => Promise<void>;
   analysis: RiskAnalysisResult | null;
   loading: boolean;
   error: string | null;
@@ -36,6 +37,7 @@ export function RiskAnalysisPanel({
   contractId,
   onClose,
   onJumpToClause,
+  onImplement,
   analysis,
   loading,
   error,
@@ -44,22 +46,22 @@ export function RiskAnalysisPanel({
   // Group risks by severity for display
   const groupedRisks = analysis
     ? {
-        critical: [
-          ...analysis.clauseRisks.filter((r) => r.severity === "critical"),
-          ...analysis.missingProtections.filter((r) => r.severity === "critical"),
-          ...analysis.jurisdictionAlerts.filter((r) => r.severity === "critical"),
-        ],
-        warning: [
-          ...analysis.clauseRisks.filter((r) => r.severity === "warning"),
-          ...analysis.missingProtections.filter((r) => r.severity === "warning"),
-          ...analysis.jurisdictionAlerts.filter((r) => r.severity === "warning"),
-        ],
-        info: [
-          ...analysis.clauseRisks.filter((r) => r.severity === "info"),
-          ...analysis.missingProtections.filter((r) => r.severity === "info"),
-          ...analysis.jurisdictionAlerts.filter((r) => r.severity === "info"),
-        ],
-      }
+      critical: [
+        ...analysis.clauseRisks.filter((r) => r.severity === "critical"),
+        ...analysis.missingProtections.filter((r) => r.severity === "critical"),
+        ...analysis.jurisdictionAlerts.filter((r) => r.severity === "critical"),
+      ],
+      warning: [
+        ...analysis.clauseRisks.filter((r) => r.severity === "warning"),
+        ...analysis.missingProtections.filter((r) => r.severity === "warning"),
+        ...analysis.jurisdictionAlerts.filter((r) => r.severity === "warning"),
+      ],
+      info: [
+        ...analysis.clauseRisks.filter((r) => r.severity === "info"),
+        ...analysis.missingProtections.filter((r) => r.severity === "info"),
+        ...analysis.jurisdictionAlerts.filter((r) => r.severity === "info"),
+      ],
+    }
     : null;
 
   // Helper to determine risk type
@@ -193,9 +195,8 @@ export function RiskAnalysisPanel({
             {/* Overall summary */}
             {analysis.overallSummary && (
               <div
-                className={`p-3 rounded-lg border ${
-                  getRiskLevelStyle(analysis.overallRiskLevel).bg
-                } ${getRiskLevelStyle(analysis.overallRiskLevel).border}`}
+                className={`p-3 rounded-lg border ${getRiskLevelStyle(analysis.overallRiskLevel).bg
+                  } ${getRiskLevelStyle(analysis.overallRiskLevel).border}`}
               >
                 <div className="flex items-center gap-2 mb-2">
                   {(() => {
@@ -242,6 +243,7 @@ export function RiskAnalysisPanel({
                       risk={risk}
                       type={getRiskType(risk)}
                       onJumpToClause={onJumpToClause}
+                      onImplement={onImplement}
                     />
                   ))}
                 </div>
@@ -262,6 +264,7 @@ export function RiskAnalysisPanel({
                       risk={risk}
                       type={getRiskType(risk)}
                       onJumpToClause={onJumpToClause}
+                      onImplement={onImplement}
                     />
                   ))}
                 </div>
@@ -282,6 +285,7 @@ export function RiskAnalysisPanel({
                       risk={risk}
                       type={getRiskType(risk)}
                       onJumpToClause={onJumpToClause}
+                      onImplement={onImplement}
                     />
                   ))}
                 </div>

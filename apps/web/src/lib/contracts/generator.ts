@@ -1,10 +1,10 @@
 /**
- * Contract Generator using OpenAI GPT-5-mini
+ * Contract Generator using OpenAI GPT-5.1
  *
- * Uses manifest-based dynamic prompts for optimal quality/cost balance.
- * Manifests are generated from GPT-5.2 to ensure clause completeness.
+ * Uses manifest-based dynamic prompts for optimal quality.
+ * GPT-5.1 produces ~75% more substantive clause content than GPT-5-mini.
  *
- * Cost: ~$0.009 per contract (vs $0.072 with GPT-5.2)
+ * Quality metrics (avg words/clause): GPT-5.1: 286 vs GPT-5-mini: 164
  */
 
 import OpenAI from "openai";
@@ -33,9 +33,9 @@ function getOpenAI(): OpenAI {
   return openaiClient;
 }
 
-// Models
-const GENERATION_MODEL = "gpt-5-mini"; // Fast, cost-effective for generation
-const REASONING_EFFORT = "low"; // Low effort is sufficient with manifest guidance
+// Models - GPT-5.1 for best quality (286 words/clause avg)
+const GENERATION_MODEL = "gpt-5.1";
+const REASONING_EFFORT = "low";
 const CHAT_MODEL = "gpt-4.1-mini"; // Fast, cost-effective for chat/explanations
 
 // Map contract types to manifest keys

@@ -40,6 +40,7 @@ import {
   FileStack,
   BookOpen,
   Lock,
+  Upload,
 } from "lucide-react";
 import type { Clause } from "@/lib/contracts/schemas";
 import { SignatureFieldEditor, type SignatureField } from "@/components/signature-field-editor";
@@ -59,6 +60,8 @@ import { SectionExplainer } from "@/components/contracts/SectionExplainer";
 import { SaveAsTemplateModal } from "@/components/templates/SaveAsTemplateModal";
 import { FieldTemplateEditor } from "@/components/templates/FieldTemplateEditor";
 import { PDFPreviewModal } from "@/components/pdf-preview-modal";
+import { EmbeddedPDFViewer } from "@/components/embedded-pdf-viewer";
+import { DefineSignersModal, type SignerDefinition } from "@/components/define-signers-modal";
 import type { ContractVersion, ContractContent as ContractContentType } from "@/db/types";
 import type { RiskAnalysisResult } from "@/types/risk-analysis";
 
@@ -86,6 +89,12 @@ interface Contract {
   payment_status: string;
   payment_structure: "full" | "deposit_balance" | "bnpl";
   deposit_percentage: number | null;
+  // Upload support
+  source_type?: "generated" | "uploaded";
+  source_file_url?: string | null;
+  source_file_type?: "pdf" | "docx" | "jpg" | "png" | null;
+  processing_mode?: "quick" | "full" | null;
+  extracted_text?: string | null;
 }
 
 // Database signature field interface (snake_case from API)
@@ -182,6 +191,8 @@ export default function ContractEditorPage() {
   const [fieldValues, setFieldValues] = useState<FieldValue[]>([]);
   const [isEditingFields, setIsEditingFields] = useState(false);
   const [showVisualEditor, setShowVisualEditor] = useState(false);
+  const [showDefineSigners, setShowDefineSigners] = useState(false);
+  const [definedSigners, setDefinedSigners] = useState<SignerDefinition[]>([]);
   const [showSignerPanel, setShowSignerPanel] = useState(false);
   const [showFillBlanksPanel, setShowFillBlanksPanel] = useState(false);
 
@@ -810,6 +821,11 @@ export default function ContractEditorPage() {
             const dueDate = new Date(data.contract.balance_due_date);
             setBalanceDueDate(dueDate.toISOString().split("T")[0]);
           }
+
+          // Load saved defined signers from metadata
+          if (data.contract.metadata?.defined_signers) {
+            setDefinedSigners(data.contract.metadata.defined_signers);
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load contract");
@@ -1340,9 +1356,9 @@ export default function ContractEditorPage() {
               >
                 <ArrowLeft className="w-5 h-5 text-slate-600" />
               </Link>
-              <div>
-                <h1 className="font-semibold text-slate-900 text-sm">{contract.title}</h1>
-                <p className="text-xs text-slate-500">
+              <div className="min-w-0 flex-1">
+                <h1 className="font-semibold text-slate-900 text-sm truncate max-w-[150px] sm:max-w-[250px] lg:max-w-none">{contract.title}</h1>
+                <p className="text-xs text-slate-500 truncate">
                   Version {contract.version} • {contract.status}
                 </p>
               </div>
@@ -1432,18 +1448,20 @@ export default function ContractEditorPage() {
                 </button>
               )}
 
-              {/* Section Guide */}
-              <button
-                onClick={() => togglePanel('sectionExplainer')}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showSectionExplainer
-                  ? "bg-[#529ec6] text-white"
-                  : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                title="Section explanations"
-              >
-                <BookOpen className="w-4 h-4" />
-                <span className="hidden sm:inline">Guide</span>
-              </button>
+              {/* Section Guide - only for contracts with parsed clauses */}
+              {!(contract?.source_type === "uploaded" && contract?.processing_mode === "quick") && (
+                <button
+                  onClick={() => togglePanel('sectionExplainer')}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showSectionExplainer
+                    ? "bg-[#529ec6] text-white"
+                    : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                  title="Section explanations"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span className="hidden sm:inline">Guide</span>
+                </button>
+              )}
 
               {/* Divider */}
               <div className="w-px h-6 bg-slate-200 mx-1" />
@@ -1714,7 +1732,7 @@ export default function ContractEditorPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Contract Editor */}
         <main
-          className="flex-1 overflow-auto p-6"
+          className="flex-1 overflow-auto p-4 lg:p-6"
         >
           <div className="max-w-4xl mx-auto">
             {/* Payment Settings Panel */}
@@ -1895,268 +1913,315 @@ export default function ContractEditorPage() {
                 <h2 className="text-2xl font-bold text-slate-900">
                   {contract.title}
                 </h2>
-              </div>
-
-              {/* Preamble */}
-              <div className="px-8 py-6 border-b border-slate-100">
-                <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-                  {renderClauseContent(contract.content.preamble, "preamble")}
-                </p>
-              </div>
-
-              {/* Recitals */}
-              {contract.content.recitals && (
-                <div className="px-8 py-6 border-b border-slate-100 bg-slate-50">
-                  <h3 className="text-sm font-semibold text-slate-500 uppercase mb-3">
-                    Recitals
-                  </h3>
-                  <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-                    {renderClauseContent(contract.content.recitals, "recitals")}
-                  </p>
-                </div>
-              )}
-
-              {/* Clauses */}
-              <div className="divide-y divide-slate-100">
-                {contract.content.clauses.map((clause) => (
-                  <div
-                    key={clause.id}
-                    id={`clause-${clause.id}`}
-                    className={`transition-all ${activeClause === clause.id ? "bg-[#529ec6]/5" : ""
-                      }`}
-                  >
-                    {/* Clause Header */}
-                    <div
-                      onClick={() => toggleClause(clause.id)}
-                      className="w-full px-8 py-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3">
-                        {expandedClauses.has(clause.id) ? (
-                          <ChevronDown className="w-5 h-5 text-slate-400" />
-                        ) : (
-                          <ChevronRight className="w-5 h-5 text-slate-400" />
-                        )}
-                        <span className="font-semibold text-slate-900">
-                          {clause.title}
-                        </span>
-                        {clause.isEdited && (
-                          <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full">
-                            Edited
-                          </span>
-                        )}
-                        <span
-                          className={`px-2 py-0.5 text-xs rounded-full ${clause.type === "standard"
-                            ? "bg-slate-100 text-slate-600"
-                            : clause.type === "negotiable"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-purple-100 text-purple-700"
-                            }`}
-                        >
-                          {clause.type}
-                        </span>
-                        {/* Risk indicator */}
-                        {getClauseRiskLevel(clause.id) && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowRiskAnalysis(true);
-                              setShowChat(false);
-                              setShowComments(false);
-                              setShowSignerPanel(false);
-                              setShowFillBlanksPanel(false);
-                              setShowVersionHistory(false);
-                              setShowReviewPanel(false);
-                            }}
-                            className={`p-1 rounded-full ${getClauseRiskLevel(clause.id) === "critical"
-                              ? "bg-red-100 hover:bg-red-200"
-                              : "bg-amber-100 hover:bg-amber-200"
-                              }`}
-                            title="View risks for this clause"
-                          >
-                            <AlertTriangle className={`w-3.5 h-3.5 ${getClauseRiskLevel(clause.id) === "critical"
-                              ? "text-red-500"
-                              : "text-amber-500"
-                              }`} />
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {/* Comment indicator */}
-                        <CommentIndicator
-                          count={commentCounts[clause.id] || 0}
-                          isActive={showComments && activeCommentClause === clause.id}
-                          onClick={() => {
-                            setActiveCommentClause(clause.id);
-                            setShowComments(true);
-                            setShowChat(false);
-                            setShowSignerPanel(false);
-                            setShowFillBlanksPanel(false);
-                            setShowVersionHistory(false);
-                            setShowReviewPanel(false);
-                          }}
-                        />
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveClause(clause.id);
-                            explainClause(clause.id);
-                            setShowChat(true);
-                          }}
-                          className="p-2 hover:bg-slate-200 rounded-lg"
-                          title="Explain this clause"
-                        >
-                          <Info className="w-4 h-4 text-slate-500" />
-                        </button>
-                        {!isLocked && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startEditing(clause);
-                            }}
-                            className="p-2 hover:bg-slate-200 rounded-lg"
-                            title="Edit this clause"
-                          >
-                            <Edit3 className="w-4 h-4 text-slate-500" />
-                          </button>
-                        )}
-                        {!isLocked && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Require confirmation for standard clauses, quick delete for others
-                              if (clause.type === "standard") {
-                                if (confirm(`"${clause.title}" is a standard clause that's typically required in this type of contract.\n\nAre you sure you want to remove it?`)) {
-                                  removeClause(clause.id);
-                                }
-                              } else {
-                                removeClause(clause.id);
-                              }
-                            }}
-                            className="p-2 hover:bg-red-100 rounded-lg"
-                            title={clause.type === "standard" ? "Remove standard clause (confirmation required)" : "Remove this clause"}
-                          >
-                            <Trash2 className="w-4 h-4 text-slate-400 hover:text-red-500" />
-                          </button>
-                        )}
-                        {isLocked && (
-                          <div className="p-2" title="Contract is locked">
-                            <Lock className="w-4 h-4 text-amber-500" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Clause Content */}
-                    {expandedClauses.has(clause.id) && (
-                      <div className="px-8 pb-6">
-                        {editingClause === clause.id ? (
-                          <div className="space-y-3">
-                            <div>
-                              <label className="block text-sm font-medium text-slate-700 mb-1">
-                                Clause Title
-                              </label>
-                              <input
-                                type="text"
-                                value={editedTitle}
-                                onChange={(e) => setEditedTitle(e.target.value)}
-                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent text-sm font-semibold"
-                                placeholder="Enter clause title..."
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-slate-700 mb-1">
-                                Clause Content
-                              </label>
-                              <textarea
-                                value={editedContent}
-                                onChange={(e) => setEditedContent(e.target.value)}
-                                className="w-full h-64 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent resize-none font-mono text-sm"
-                                placeholder="Enter clause content..."
-                              />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={saveClauseEdit}
-                                className="flex items-center gap-2 px-4 py-2 bg-[#202e46] text-white rounded-lg hover:bg-[#1a2539]"
-                              >
-                                <Check className="w-4 h-4" />
-                                Save Changes
-                              </button>
-                              <button
-                                onClick={cancelEdit}
-                                className="flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
-                              >
-                                <X className="w-4 h-4" />
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="pl-8">
-                            <HighlightedClauseContent
-                              clauseId={clause.id}
-                              content={clause.content}
-                              comments={comments.filter(c => c.clause_id === clause.id)}
-                              onHighlightClick={(commentId) => handleHighlightClick(commentId, clause.id)}
-                              onTextSelect={handleHighlightedTextSelect}
-                              className="text-slate-700 leading-relaxed select-text"
-                              filledBlanks={filledBlanks}
-                              onBlankChange={handleBlankChange}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {/* Add Clause Button - hidden when locked */}
-                {!isLocked && (
-                  <button
-                    onClick={addClause}
-                    className="w-full py-4 border-2 border-dashed border-slate-300 hover:border-[#529ec6] hover:bg-[#529ec6]/5 rounded-lg transition-colors flex items-center justify-center gap-2 text-slate-500 hover:text-[#529ec6]"
-                  >
-                    <Plus className="w-5 h-5" />
-                    <span className="font-medium">Add Clause</span>
-                  </button>
+                {contract.source_type === "uploaded" && (
+                  <span className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 bg-blue-50 text-blue-700 text-sm rounded-full">
+                    <Upload className="w-3.5 h-3.5" />
+                    Uploaded Document
+                  </span>
                 )}
               </div>
 
-              {/* Signature Block / Field Editor */}
-              {isEditingFields ? (
-                <div className="px-8 py-6 bg-white border-t border-slate-100">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-slate-500 uppercase">
-                      Configure Signature Fields
-                    </h3>
-                    <FieldTemplateEditor
-                      contractId={contractId}
-                      contractType={contract.type}
-                      currentFields={signatureFields}
-                      onApplyTemplate={(newFields) => {
-                        setSignatureFields((prev) => [...prev, ...newFields]);
-                      }}
+              {/* Quick Mode Uploaded Contract - Show PDF preview instead of editable clauses */}
+              {contract.source_type === "uploaded" && contract.processing_mode === "quick" ? (
+                <div className="flex flex-col h-[calc(100vh-280px)] min-h-[500px]">
+                  {/* Header with actions */}
+                  <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-slate-50">
+                    <div className="flex items-center gap-2">
+                      <Upload className="w-4 h-4 text-[#529ec6]" />
+                      <span className="text-sm font-medium text-slate-700">Uploaded Document</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowDefineSigners(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[#529ec6] text-white rounded-lg font-medium hover:bg-[#4189b1] transition-colors"
+                      >
+                        <PenTool className="w-4 h-4" />
+                        Add Signatures
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Embedded PDF Viewer */}
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                    <EmbeddedPDFViewer
+                      pdfUrl={contract.source_file_url || null}
                     />
                   </div>
-                  <SignatureFieldEditor
-                    fields={signatureFields}
-                    signerRoles={getSignerRoles()}
-                    signatureBlock={contract.content.signatureBlock}
-                    onFieldsChange={setSignatureFields}
-                    onFieldCreate={handleFieldCreate}
-                    onFieldUpdate={handleFieldUpdate}
-                    onFieldDelete={handleFieldDelete}
-                  />
+
+                  {/* Footer info */}
+                  {contract.extracted_text && (
+                    <div className="px-6 py-2 border-t border-slate-200 bg-slate-50">
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <Info className="w-3 h-3" />
+                        <span>Extracted text available for AI analysis — use the AI Assistant on the right</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <SignatureBlockDisplay
-                  signatureBlock={contract.content.signatureBlock}
-                  fields={dbSignatureFields}
-                  fieldValues={fieldValues}
-                  signatures={signatures}
-                  signatureRequests={signatureRequests}
-                  showPlaceholders={true}
-                />
+                <>
+                  {/* Preamble */}
+                  <div className="px-8 py-6 border-b border-slate-100">
+                    <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+                      {renderClauseContent(contract.content.preamble, "preamble")}
+                    </p>
+                  </div>
+
+                  {/* Recitals */}
+                  {contract.content.recitals && (
+                    <div className="px-8 py-6 border-b border-slate-100 bg-slate-50">
+                      <h3 className="text-sm font-semibold text-slate-500 uppercase mb-3">
+                        Recitals
+                      </h3>
+                      <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+                        {renderClauseContent(contract.content.recitals, "recitals")}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Clauses */}
+                  <div className="divide-y divide-slate-100">
+                    {contract.content.clauses.map((clause) => (
+                      <div
+                        key={clause.id}
+                        id={`clause-${clause.id}`}
+                        className={`transition-all ${activeClause === clause.id ? "bg-[#529ec6]/5" : ""
+                          }`}
+                      >
+                        {/* Clause Header */}
+                        <div
+                          onClick={() => toggleClause(clause.id)}
+                          className="w-full px-8 py-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3">
+                            {expandedClauses.has(clause.id) ? (
+                              <ChevronDown className="w-5 h-5 text-slate-400" />
+                            ) : (
+                              <ChevronRight className="w-5 h-5 text-slate-400" />
+                            )}
+                            <span className="font-semibold text-slate-900">
+                              {clause.title}
+                            </span>
+                            {clause.isEdited && (
+                              <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full">
+                                Edited
+                              </span>
+                            )}
+                            <span
+                              className={`px-2 py-0.5 text-xs rounded-full ${clause.type === "standard"
+                                ? "bg-slate-100 text-slate-600"
+                                : clause.type === "negotiable"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : "bg-purple-100 text-purple-700"
+                                }`}
+                            >
+                              {clause.type}
+                            </span>
+                            {/* Risk indicator */}
+                            {getClauseRiskLevel(clause.id) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowRiskAnalysis(true);
+                                  setShowChat(false);
+                                  setShowComments(false);
+                                  setShowSignerPanel(false);
+                                  setShowFillBlanksPanel(false);
+                                  setShowVersionHistory(false);
+                                  setShowReviewPanel(false);
+                                }}
+                                className={`p-1 rounded-full ${getClauseRiskLevel(clause.id) === "critical"
+                                  ? "bg-red-100 hover:bg-red-200"
+                                  : "bg-amber-100 hover:bg-amber-200"
+                                  }`}
+                                title="View risks for this clause"
+                              >
+                                <AlertTriangle className={`w-3.5 h-3.5 ${getClauseRiskLevel(clause.id) === "critical"
+                                  ? "text-red-500"
+                                  : "text-amber-500"
+                                  }`} />
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {/* Comment indicator */}
+                            <CommentIndicator
+                              count={commentCounts[clause.id] || 0}
+                              isActive={showComments && activeCommentClause === clause.id}
+                              onClick={() => {
+                                setActiveCommentClause(clause.id);
+                                setShowComments(true);
+                                setShowChat(false);
+                                setShowSignerPanel(false);
+                                setShowFillBlanksPanel(false);
+                                setShowVersionHistory(false);
+                                setShowReviewPanel(false);
+                              }}
+                            />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveClause(clause.id);
+                                explainClause(clause.id);
+                                setShowChat(true);
+                              }}
+                              className="p-2 hover:bg-slate-200 rounded-lg"
+                              title="Explain this clause"
+                            >
+                              <Info className="w-4 h-4 text-slate-500" />
+                            </button>
+                            {!isLocked && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startEditing(clause);
+                                }}
+                                className="p-2 hover:bg-slate-200 rounded-lg"
+                                title="Edit this clause"
+                              >
+                                <Edit3 className="w-4 h-4 text-slate-500" />
+                              </button>
+                            )}
+                            {!isLocked && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Require confirmation for standard clauses, quick delete for others
+                                  if (clause.type === "standard") {
+                                    if (confirm(`"${clause.title}" is a standard clause that's typically required in this type of contract.\n\nAre you sure you want to remove it?`)) {
+                                      removeClause(clause.id);
+                                    }
+                                  } else {
+                                    removeClause(clause.id);
+                                  }
+                                }}
+                                className="p-2 hover:bg-red-100 rounded-lg"
+                                title={clause.type === "standard" ? "Remove standard clause (confirmation required)" : "Remove this clause"}
+                              >
+                                <Trash2 className="w-4 h-4 text-slate-400 hover:text-red-500" />
+                              </button>
+                            )}
+                            {isLocked && (
+                              <div className="p-2" title="Contract is locked">
+                                <Lock className="w-4 h-4 text-amber-500" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Clause Content */}
+                        {expandedClauses.has(clause.id) && (
+                          <div className="px-8 pb-6">
+                            {editingClause === clause.id ? (
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                                    Clause Title
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={editedTitle}
+                                    onChange={(e) => setEditedTitle(e.target.value)}
+                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent text-sm font-semibold"
+                                    placeholder="Enter clause title..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                                    Clause Content
+                                  </label>
+                                  <textarea
+                                    value={editedContent}
+                                    onChange={(e) => setEditedContent(e.target.value)}
+                                    className="w-full h-64 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent resize-none font-mono text-sm"
+                                    placeholder="Enter clause content..."
+                                  />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={saveClauseEdit}
+                                    className="flex items-center gap-2 px-4 py-2 bg-[#202e46] text-white rounded-lg hover:bg-[#1a2539]"
+                                  >
+                                    <Check className="w-4 h-4" />
+                                    Save Changes
+                                  </button>
+                                  <button
+                                    onClick={cancelEdit}
+                                    className="flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
+                                  >
+                                    <X className="w-4 h-4" />
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="pl-8">
+                                <HighlightedClauseContent
+                                  clauseId={clause.id}
+                                  content={clause.content}
+                                  comments={comments.filter(c => c.clause_id === clause.id)}
+                                  onHighlightClick={(commentId) => handleHighlightClick(commentId, clause.id)}
+                                  onTextSelect={handleHighlightedTextSelect}
+                                  className="text-slate-700 leading-relaxed select-text"
+                                  filledBlanks={filledBlanks}
+                                  onBlankChange={handleBlankChange}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Add Clause Button - hidden when locked */}
+                    {!isLocked && (
+                      <button
+                        onClick={addClause}
+                        className="w-full py-4 border-2 border-dashed border-slate-300 hover:border-[#529ec6] hover:bg-[#529ec6]/5 rounded-lg transition-colors flex items-center justify-center gap-2 text-slate-500 hover:text-[#529ec6]"
+                      >
+                        <Plus className="w-5 h-5" />
+                        <span className="font-medium">Add Clause</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Signature Block / Field Editor */}
+                  {isEditingFields ? (
+                    <div className="px-8 py-6 bg-white border-t border-slate-100">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-semibold text-slate-500 uppercase">
+                          Configure Signature Fields
+                        </h3>
+                        <FieldTemplateEditor
+                          contractId={contractId}
+                          contractType={contract.type}
+                          currentFields={signatureFields}
+                          onApplyTemplate={(newFields) => {
+                            setSignatureFields((prev) => [...prev, ...newFields]);
+                          }}
+                        />
+                      </div>
+                      <SignatureFieldEditor
+                        fields={signatureFields}
+                        signerRoles={getSignerRoles()}
+                        signatureBlock={contract.content.signatureBlock}
+                        onFieldsChange={setSignatureFields}
+                        onFieldCreate={handleFieldCreate}
+                        onFieldUpdate={handleFieldUpdate}
+                        onFieldDelete={handleFieldDelete}
+                      />
+                    </div>
+                  ) : (
+                    <SignatureBlockDisplay
+                      signatureBlock={contract.content.signatureBlock}
+                      fields={dbSignatureFields}
+                      fieldValues={fieldValues}
+                      signatures={signatures}
+                      signatureRequests={signatureRequests}
+                      showPlaceholders={true}
+                    />
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -2164,7 +2229,7 @@ export default function ContractEditorPage() {
 
         {/* AI Chat Sidebar */}
         {showChat && (
-          <aside className="w-96 flex-shrink-0 bg-white border-l border-slate-200 flex flex-col">
+          <aside className="fixed inset-0 z-50 lg:relative lg:inset-auto w-full lg:w-96 flex-shrink-0 bg-white lg:border-l border-slate-200 flex flex-col">
             {/* Chat Header */}
             <div className="px-4 py-3 border-b border-slate-200 flex-shrink-0">
               <div className="flex items-center justify-between">
@@ -2387,7 +2452,7 @@ export default function ContractEditorPage() {
 
         {/* Fill Blanks Sidebar */}
         {showFillBlanksPanel && (
-          <aside className="w-96 flex-shrink-0 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
+          <aside className="fixed inset-0 z-50 lg:relative lg:inset-auto w-full lg:w-96 flex-shrink-0 bg-white lg:border-l border-slate-200 flex flex-col overflow-hidden">
             {/* Panel Header */}
             <div className="px-4 py-3 border-b border-slate-200 flex-shrink-0">
               <div className="flex items-center justify-between">
@@ -2504,7 +2569,7 @@ export default function ContractEditorPage() {
 
         {/* Signer Status Sidebar */}
         {showSignerPanel && (
-          <aside className="w-96 flex-shrink-0 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
+          <aside className="fixed inset-0 z-50 lg:relative lg:inset-auto w-full lg:w-96 flex-shrink-0 bg-white lg:border-l border-slate-200 flex flex-col overflow-hidden">
             {/* Panel Header */}
             <div className="px-4 py-3 border-b border-slate-200 flex-shrink-0">
               <div className="flex items-center justify-between">
@@ -2612,6 +2677,55 @@ export default function ContractEditorPage() {
             contractId={contractId}
             onClose={() => setShowRiskAnalysis(false)}
             onJumpToClause={jumpToClause}
+            onImplement={async (risk) => {
+              // Get the suggestion and clause info
+              const suggestion = "suggestion" in risk ? risk.suggestion : null;
+              const clauseId = "clauseId" in risk ? risk.clauseId : ("affectedClauseId" in risk ? risk.affectedClauseId : null);
+
+              if (!suggestion) {
+                throw new Error("No suggestion available for this risk");
+              }
+
+              // Call AI to implement the fix
+              const response = await fetch("/api/contracts/ai/edit", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contractId,
+                  instruction: `Implement this fix: ${suggestion}. Risk: ${risk.title} - ${risk.description}`,
+                  clauseId: clauseId || undefined,
+                }),
+              });
+
+              if (!response.ok) {
+                throw new Error("Failed to implement fix");
+              }
+
+              const result = await response.json();
+
+              // If the AI returned updated content, apply it
+              if (result.updatedClause && clauseId && contract) {
+                const updatedClauses = contract.content.clauses.map((c: Clause) =>
+                  c.id === clauseId ? { ...c, content: result.updatedClause } : c
+                );
+                setContract({
+                  ...contract,
+                  content: { ...contract.content, clauses: updatedClauses },
+                });
+
+                // Save to backend
+                await fetch(`/api/contracts/${contractId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    content: { ...contract.content, clauses: updatedClauses },
+                  }),
+                });
+              }
+
+              // Refresh risk analysis after implementing fix
+              fetchRiskAnalysis(true);
+            }}
             analysis={riskAnalysis}
             loading={riskLoading}
             error={riskError}
@@ -2636,7 +2750,7 @@ export default function ContractEditorPage() {
         )}
 
         {/* Section Explainer Sidebar */}
-        {showSectionExplainer && contract && (
+        {showSectionExplainer && contract && contract.content?.clauses?.length > 0 && (
           <SectionExplainer
             contractId={contractId}
             clauses={contract.content.clauses.map(c => ({
@@ -2743,17 +2857,51 @@ export default function ContractEditorPage() {
         />
       )}
 
+      {/* Define Signers Modal (pre-step before visual field editor) */}
+      {showDefineSigners && contract && (
+        <DefineSignersModal
+          isOpen={showDefineSigners}
+          initialRoles={getSignerRoles()}
+          existingSigners={definedSigners.length > 0 ? definedSigners : undefined}
+          onClose={() => setShowDefineSigners(false)}
+          onConfirm={async (signers) => {
+            // Save signers to contract metadata
+            try {
+              await fetch(`/api/contracts/${contractId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  metadata: {
+                    ...contract.metadata,
+                    defined_signers: signers,
+                  },
+                }),
+              });
+            } catch (e) {
+              console.error("Failed to save signers:", e);
+            }
+            setDefinedSigners(signers);
+            setShowDefineSigners(false);
+            setShowVisualEditor(true);
+          }}
+        />
+      )}
+
       {/* Visual Signature Field Editor Modal */}
       {showVisualEditor && contract && (
         <SignatureFieldEditorVisual
           contractId={contractId}
-          pdfUrl={`/api/contracts/${contractId}/pdf`}
-          signers={getSignerRoles().map((role, idx) => ({
-            id: `signer-${idx}`,
-            role,
-            name: signatureRequests.find(sr => sr.signer_role === role)?.signer_name,
-            email: signatureRequests.find(sr => sr.signer_role === role)?.signer_email,
-          }))}
+          pdfUrl={contract.source_type === "uploaded" && contract.processing_mode === "quick" && contract.source_file_url
+            ? contract.source_file_url
+            : `/api/contracts/${contractId}/pdf`}
+          signers={definedSigners.length > 0
+            ? definedSigners.map(s => ({ id: s.id, role: s.role, name: s.name, email: s.email }))
+            : getSignerRoles().map((role, idx) => ({
+              id: `signer-${idx}`,
+              role,
+              name: signatureRequests.find(sr => sr.signer_role === role)?.signer_name,
+              email: signatureRequests.find(sr => sr.signer_role === role)?.signer_email,
+            }))}
           initialFields={signatureFields.map((f) => ({
             id: f.id,
             type: f.type,

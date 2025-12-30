@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
     FileText,
@@ -26,7 +26,15 @@ import {
     Edit,
     Eye,
     Lock,
+    Folder,
+    FolderPlus,
+    Tag,
+    ChevronRight,
+    ChevronDown,
+    Upload,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 
 interface Contract {
     id: string;
@@ -45,7 +53,30 @@ interface Contract {
     deposit_paid?: boolean;
     balance_remaining?: number;
     amount_paid?: number;
+    folder_id?: string | null;
+    tags?: { id: string; name: string; color: string }[];
+    source_type?: "generated" | "uploaded";
 }
+
+interface FolderType {
+    id: string;
+    name: string;
+    color: string;
+    icon: string;
+    contracts: { count: number }[];
+}
+
+interface TagType {
+    id: string;
+    name: string;
+    color: string;
+    contract_tags: { count: number }[];
+}
+
+const TAG_COLORS = [
+    "#202e46", "#529ec6", "#10b981", "#f59e0b", "#ef4444",
+    "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16", "#f97316"
+];
 
 // Contract type display info
 const CONTRACT_TYPE_DISPLAY: Record<string, { label: string; icon: typeof FileText; color: string; bg: string }> = {
@@ -274,6 +305,104 @@ export function ContractsList({ contracts }: ContractsListProps) {
     const [sortBy, setSortBy] = useState("updated_desc");
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
+    // Folders & Tags state
+    const [folders, setFolders] = useState<FolderType[]>([]);
+    const [tags, setTags] = useState<TagType[]>([]);
+    const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+    const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
+    const [foldersExpanded, setFoldersExpanded] = useState(true);
+    const [tagsExpanded, setTagsExpanded] = useState(true);
+    const [isAddingFolder, setIsAddingFolder] = useState(false);
+    const [isAddingTag, setIsAddingTag] = useState(false);
+    const [newFolderName, setNewFolderName] = useState("");
+    const [newTagName, setNewTagName] = useState("");
+    const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
+    const [sidebarLoading, setSidebarLoading] = useState(true);
+
+    const supabase = createClient();
+
+    // Fetch folders and tags
+    useEffect(() => {
+        async function fetchFoldersAndTags() {
+            try {
+                const [foldersRes, tagsRes] = await Promise.all([
+                    // Use !folder_id to disambiguate the relationship (direct FK vs junction table)
+                    supabase.from("folders").select("*, contracts!folder_id(count)").order("name"),
+                    supabase.from("tags").select("*, contract_tags(count)").order("name"),
+                ]);
+                if (foldersRes.data) setFolders(foldersRes.data);
+                if (tagsRes.data) setTags(tagsRes.data);
+            } catch (error) {
+                console.error("Error fetching folders/tags:", error);
+            } finally {
+                setSidebarLoading(false);
+            }
+        }
+        fetchFoldersAndTags();
+    }, []);
+
+    // Create folder
+    async function createFolder() {
+        if (!newFolderName.trim()) return;
+        try {
+            const res = await fetch("/api/folders", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: newFolderName }),
+            });
+            if (res.ok) {
+                const { folder } = await res.json();
+                setFolders(prev => [...prev, { ...folder, contracts: [{ count: 0 }] }]);
+                setNewFolderName("");
+                setIsAddingFolder(false);
+            }
+        } catch (error) {
+            console.error("Error creating folder:", error);
+        }
+    }
+
+    // Create tag
+    async function createTag() {
+        if (!newTagName.trim()) return;
+        try {
+            const res = await fetch("/api/tags", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: newTagName, color: newTagColor }),
+            });
+            if (res.ok) {
+                const { tag } = await res.json();
+                setTags(prev => [...prev, { ...tag, contract_tags: [{ count: 0 }] }]);
+                setNewTagName("");
+                setIsAddingTag(false);
+            }
+        } catch (error) {
+            console.error("Error creating tag:", error);
+        }
+    }
+
+    // Delete folder
+    async function deleteFolder(folderId: string) {
+        try {
+            await fetch(`/api/folders/${folderId}`, { method: "DELETE" });
+            setFolders(prev => prev.filter(f => f.id !== folderId));
+            if (selectedFolderId === folderId) setSelectedFolderId(null);
+        } catch (error) {
+            console.error("Error deleting folder:", error);
+        }
+    }
+
+    // Delete tag
+    async function deleteTag(tagId: string) {
+        try {
+            await fetch(`/api/tags/${tagId}`, { method: "DELETE" });
+            setTags(prev => prev.filter(t => t.id !== tagId));
+            if (selectedTagId === tagId) setSelectedTagId(null);
+        } catch (error) {
+            console.error("Error deleting tag:", error);
+        }
+    }
+
     // Filter and sort contracts
     const filteredContracts = useMemo(() => {
         // First filter
@@ -307,7 +436,13 @@ export function ContractsList({ contracts }: ContractsListProps) {
                 else if (paymentFilter === "no_payment") matchesPayment = noPayment;
             }
 
-            return matchesSearch && matchesStatus && matchesType && matchesJurisdiction && matchesPayment;
+            // Folder filter
+            const matchesFolder = !selectedFolderId || contract.folder_id === selectedFolderId;
+
+            // Tag filter (would need to fetch contract tags separately for this to work)
+            const matchesTag = !selectedTagId || contract.tags?.some(t => t.id === selectedTagId);
+
+            return matchesSearch && matchesStatus && matchesType && matchesJurisdiction && matchesPayment && matchesFolder && matchesTag;
         });
 
         // Then sort
@@ -329,9 +464,9 @@ export function ContractsList({ contracts }: ContractsListProps) {
                     return 0;
             }
         });
-    }, [contracts, searchQuery, statusFilter, typeFilter, jurisdictionFilter, paymentFilter, sortBy]);
+    }, [contracts, searchQuery, statusFilter, typeFilter, jurisdictionFilter, paymentFilter, sortBy, selectedFolderId, selectedTagId]);
 
-    const hasActiveFilters = searchQuery || statusFilter || typeFilter || jurisdictionFilter || paymentFilter;
+    const hasActiveFilters = searchQuery || statusFilter || typeFilter || jurisdictionFilter || paymentFilter || selectedFolderId || selectedTagId;
 
     const clearFilters = () => {
         setSearchQuery("");
@@ -340,6 +475,8 @@ export function ContractsList({ contracts }: ContractsListProps) {
         setJurisdictionFilter("");
         setPaymentFilter("");
         setSortBy("updated_desc");
+        setSelectedFolderId(null);
+        setSelectedTagId(null);
     };
 
     // Get unique types from contracts for dynamic filter options
@@ -361,303 +498,584 @@ export function ContractsList({ contracts }: ContractsListProps) {
         }));
     }, [contracts]);
 
+    const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+
     return (
-        <>
-            {/* Search and Filter Bar */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <div className="flex flex-col sm:flex-row gap-3">
-                    {/* Search Input */}
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <input
-                            type="text"
-                            placeholder="Search contracts..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm"
-                        />
-                    </div>
-
-                    {/* Status Filter */}
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer min-w-[160px]"
+        <div className="flex gap-6">
+            {/* Mobile Sidebar Overlay */}
+            {showMobileSidebar && (
+                <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setShowMobileSidebar(false)}>
+                    <div className="absolute inset-0 bg-black/50" />
+                    <div
+                        className="absolute left-0 top-0 bottom-0 w-72 bg-white shadow-xl overflow-auto"
+                        onClick={(e) => e.stopPropagation()}
                     >
-                        {STATUS_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
-
-                    {/* Type Filter (dynamic based on contracts) */}
-                    <select
-                        value={typeFilter}
-                        onChange={(e) => setTypeFilter(e.target.value)}
-                        className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer min-w-[180px]"
-                    >
-                        <option value="">All Types</option>
-                        {uniqueTypes.map((option) => (
-                            <option key={option.value} value={option.value}>
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
-
-                    {/* Payment Filter */}
-                    <select
-                        value={paymentFilter}
-                        onChange={(e) => setPaymentFilter(e.target.value)}
-                        className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer min-w-[170px]"
-                    >
-                        {PAYMENT_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
-
-                    {/* Clear Filters */}
-                    {hasActiveFilters && (
+                        <div className="sticky top-0 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+                            <span className="font-semibold text-slate-900">Filters</span>
+                            <button onClick={() => setShowMobileSidebar(false)} className="p-1 hover:bg-slate-100 rounded">
+                                <X className="w-5 h-5 text-slate-500" />
+                            </button>
+                        </div>
+                        {/* All Contracts - Mobile */}
                         <button
-                            onClick={clearFilters}
-                            className="flex items-center gap-1 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                            onClick={() => { setSelectedFolderId(null); setSelectedTagId(null); setShowMobileSidebar(false); }}
+                            className={cn(
+                                "flex items-center gap-2 w-full px-4 py-3 text-sm font-medium transition-colors",
+                                !selectedFolderId && !selectedTagId
+                                    ? "bg-[#529ec6]/10 text-[#202e46]"
+                                    : "text-slate-600 hover:bg-slate-50"
+                            )}
                         >
-                            <X className="w-4 h-4" />
-                            Clear
+                            <Folder className="h-4 w-4" />
+                            All Contracts
+                            <span className="ml-auto text-xs text-slate-400">{contracts.length}</span>
                         </button>
+                        {/* Folders Section - Mobile */}
+                        <div className="border-t border-slate-100 px-4 py-3">
+                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Folders</p>
+                            {folders.length === 0 ? (
+                                <p className="text-xs text-slate-400">No folders yet</p>
+                            ) : folders.map((folder) => (
+                                <button
+                                    key={folder.id}
+                                    className={cn(
+                                        "flex items-center gap-2 w-full py-2 text-sm transition-colors",
+                                        selectedFolderId === folder.id
+                                            ? "text-[#202e46] font-medium"
+                                            : "text-slate-600"
+                                    )}
+                                    onClick={() => { setSelectedFolderId(folder.id); setSelectedTagId(null); setShowMobileSidebar(false); }}
+                                >
+                                    <Folder className="h-4 w-4" style={{ color: folder.color }} />
+                                    <span className="truncate">{folder.name}</span>
+                                    <span className="ml-auto text-xs text-slate-400">{folder.contracts?.[0]?.count || 0}</span>
+                                </button>
+                            ))}
+                        </div>
+                        {/* Tags Section - Mobile */}
+                        <div className="border-t border-slate-100 px-4 py-3">
+                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Tags</p>
+                            {tags.length === 0 ? (
+                                <p className="text-xs text-slate-400">No tags yet</p>
+                            ) : tags.map((tag) => (
+                                <button
+                                    key={tag.id}
+                                    className={cn(
+                                        "flex items-center gap-2 w-full py-2 text-sm transition-colors",
+                                        selectedTagId === tag.id
+                                            ? "text-[#202e46] font-medium"
+                                            : "text-slate-600"
+                                    )}
+                                    onClick={() => { setSelectedTagId(tag.id); setSelectedFolderId(null); setShowMobileSidebar(false); }}
+                                >
+                                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: tag.color }} />
+                                    <span className="truncate">{tag.name}</span>
+                                    <span className="ml-auto text-xs text-slate-400">{tag.contract_tags?.[0]?.count || 0}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Folders & Tags Sidebar - Desktop */}
+            <div className="hidden lg:block w-56 flex-shrink-0 bg-white rounded-xl border border-slate-200 h-fit sticky top-24">
+                {/* All Contracts */}
+                <button
+                    onClick={() => { setSelectedFolderId(null); setSelectedTagId(null); }}
+                    className={cn(
+                        "flex items-center gap-2 w-full px-4 py-3 text-sm font-medium transition-colors rounded-t-xl",
+                        !selectedFolderId && !selectedTagId
+                            ? "bg-[#529ec6]/10 text-[#202e46]"
+                            : "text-slate-600 hover:bg-slate-50"
+                    )}
+                >
+                    <Folder className="h-4 w-4" />
+                    All Contracts
+                    <span className="ml-auto text-xs text-slate-400">{contracts.length}</span>
+                </button>
+
+                {/* Folders Section */}
+                <div className="border-t border-slate-100">
+                    <button
+                        onClick={() => setFoldersExpanded(!foldersExpanded)}
+                        className="flex items-center justify-between w-full px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider hover:text-slate-600"
+                    >
+                        <span>Folders</span>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setIsAddingFolder(true); }}
+                                className="p-0.5 hover:bg-slate-100 rounded"
+                            >
+                                <FolderPlus className="h-3.5 w-3.5" />
+                            </button>
+                            {foldersExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        </div>
+                    </button>
+
+                    {foldersExpanded && (
+                        <div className="pb-2">
+                            {isAddingFolder && (
+                                <div className="px-3 py-1.5">
+                                    <input
+                                        type="text"
+                                        value={newFolderName}
+                                        onChange={(e) => setNewFolderName(e.target.value)}
+                                        onKeyDown={(e) => e.key === "Enter" && createFolder()}
+                                        placeholder="Folder name..."
+                                        className="w-full px-2 py-1 text-sm border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-[#529ec6]/50"
+                                        autoFocus
+                                    />
+                                    <div className="flex gap-2 mt-1.5">
+                                        <button onClick={createFolder} className="text-xs text-[#529ec6] hover:underline">Save</button>
+                                        <button onClick={() => setIsAddingFolder(false)} className="text-xs text-slate-400 hover:underline">Cancel</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {folders.length === 0 && !isAddingFolder && (
+                                <p className="px-4 py-2 text-xs text-slate-400">No folders yet</p>
+                            )}
+
+                            {folders.map((folder) => (
+                                <div
+                                    key={folder.id}
+                                    className={cn(
+                                        "group flex items-center justify-between px-4 py-2 text-sm cursor-pointer transition-colors",
+                                        selectedFolderId === folder.id
+                                            ? "bg-[#529ec6]/10 text-[#202e46]"
+                                            : "text-slate-600 hover:bg-slate-50"
+                                    )}
+                                    onClick={() => { setSelectedFolderId(folder.id); setSelectedTagId(null); }}
+                                >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <Folder className="h-4 w-4 flex-shrink-0" style={{ color: folder.color }} />
+                                        <span className="truncate">{folder.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-xs text-slate-400">
+                                            {folder.contracts?.[0]?.count || 0}
+                                        </span>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); deleteFolder(folder.id); }}
+                                            className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500"
+                                        >
+                                            <Trash2 className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     )}
                 </div>
 
-                {/* Second row: Jurisdiction and Sort */}
-                <div className="flex flex-col sm:flex-row gap-3 mt-3 pt-3 border-t border-slate-100">
-                    {/* Jurisdiction Filter (if contracts have multiple) */}
-                    {uniqueJurisdictions.length > 1 && (
+                {/* Tags Section */}
+                <div className="border-t border-slate-100">
+                    <button
+                        onClick={() => setTagsExpanded(!tagsExpanded)}
+                        className="flex items-center justify-between w-full px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider hover:text-slate-600"
+                    >
+                        <span>Tags</span>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setIsAddingTag(true); }}
+                                className="p-0.5 hover:bg-slate-100 rounded"
+                            >
+                                <Tag className="h-3.5 w-3.5" />
+                            </button>
+                            {tagsExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        </div>
+                    </button>
+
+                    {tagsExpanded && (
+                        <div className="pb-2">
+                            {isAddingTag && (
+                                <div className="px-3 py-1.5">
+                                    <input
+                                        type="text"
+                                        value={newTagName}
+                                        onChange={(e) => setNewTagName(e.target.value)}
+                                        onKeyDown={(e) => e.key === "Enter" && createTag()}
+                                        placeholder="Tag name..."
+                                        className="w-full px-2 py-1 text-sm border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-[#529ec6]/50"
+                                        autoFocus
+                                    />
+                                    <div className="flex gap-1 mt-2 flex-wrap">
+                                        {TAG_COLORS.map((color) => (
+                                            <button
+                                                key={color}
+                                                onClick={() => setNewTagColor(color)}
+                                                className={cn(
+                                                    "h-5 w-5 rounded-full border-2",
+                                                    newTagColor === color ? "border-slate-400" : "border-transparent"
+                                                )}
+                                                style={{ backgroundColor: color }}
+                                            />
+                                        ))}
+                                    </div>
+                                    <div className="flex gap-2 mt-1.5">
+                                        <button onClick={createTag} className="text-xs text-[#529ec6] hover:underline">Save</button>
+                                        <button onClick={() => setIsAddingTag(false)} className="text-xs text-slate-400 hover:underline">Cancel</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {tags.length === 0 && !isAddingTag && (
+                                <p className="px-4 py-2 text-xs text-slate-400">No tags yet</p>
+                            )}
+
+                            {tags.map((tag) => (
+                                <div
+                                    key={tag.id}
+                                    className={cn(
+                                        "group flex items-center justify-between px-4 py-2 text-sm cursor-pointer transition-colors",
+                                        selectedTagId === tag.id
+                                            ? "bg-[#529ec6]/10 text-[#202e46]"
+                                            : "text-slate-600 hover:bg-slate-50"
+                                    )}
+                                    onClick={() => { setSelectedTagId(tag.id); setSelectedFolderId(null); }}
+                                >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <div
+                                            className="h-3 w-3 rounded-full flex-shrink-0"
+                                            style={{ backgroundColor: tag.color }}
+                                        />
+                                        <span className="truncate">{tag.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-xs text-slate-400">
+                                            {tag.contract_tags?.[0]?.count || 0}
+                                        </span>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); deleteTag(tag.id); }}
+                                            className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500"
+                                        >
+                                            <Trash2 className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1 space-y-4">
+                {/* Search and Filter Bar */}
+                <div className="bg-white rounded-xl border border-slate-200 p-4">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        {/* Mobile Folders Button */}
+                        <button
+                            onClick={() => setShowMobileSidebar(true)}
+                            className="lg:hidden flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+                        >
+                            <Folder className="w-4 h-4" />
+                            Folders & Tags
+                            {(selectedFolderId || selectedTagId) && (
+                                <span className="w-2 h-2 bg-[#529ec6] rounded-full" />
+                            )}
+                        </button>
+                        {/* Search Input */}
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Search contracts..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm"
+                            />
+                        </div>
+
+                        {/* Status Filter */}
                         <select
-                            value={jurisdictionFilter}
-                            onChange={(e) => setJurisdictionFilter(e.target.value)}
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
                             className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer min-w-[160px]"
                         >
-                            <option value="">All Jurisdictions</option>
-                            {uniqueJurisdictions.map((option) => (
+                            {STATUS_OPTIONS.map((option) => (
                                 <option key={option.value} value={option.value}>
-                                    {option.flag} {option.label}
+                                    {option.label}
                                 </option>
                             ))}
                         </select>
-                    )}
 
-                    {/* Spacer to push sort to right */}
-                    <div className="flex-1" />
+                        {/* Type Filter (dynamic based on contracts) */}
+                        <select
+                            value={typeFilter}
+                            onChange={(e) => setTypeFilter(e.target.value)}
+                            className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer min-w-[180px]"
+                        >
+                            <option value="">All Types</option>
+                            {uniqueTypes.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
 
-                    {/* Sort */}
-                    <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value)}
-                        className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer min-w-[180px]"
-                    >
-                        {SORT_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
-                </div>
+                        {/* Payment Filter */}
+                        <select
+                            value={paymentFilter}
+                            onChange={(e) => setPaymentFilter(e.target.value)}
+                            className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer min-w-[170px]"
+                        >
+                            {PAYMENT_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
 
-                {/* Active filter count */}
-                {hasActiveFilters && (
-                    <div className="mt-3 text-sm text-slate-500">
-                        Showing {filteredContracts.length} of {contracts.length} contracts
-                    </div>
-                )}
-            </div>
-
-            {/* Contracts List */}
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                {filteredContracts.length === 0 ? (
-                    <div className="text-center py-12">
-                        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <FileText className="w-8 h-8 text-slate-400" />
-                        </div>
-                        {contracts.length === 0 ? (
-                            <>
-                                <h3 className="text-lg font-medium text-slate-900 mb-2">
-                                    No contracts yet
-                                </h3>
-                                <p className="text-slate-500 mb-6 max-w-sm mx-auto">
-                                    Create your first contract using our AI-powered generator.
-                                </p>
-                                <Link
-                                    href="/contracts/new"
-                                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#202e46] text-white rounded-lg hover:bg-[#1a2539] transition-colors"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    Create Your First Contract
-                                </Link>
-                            </>
-                        ) : (
-                            <>
-                                <h3 className="text-lg font-medium text-slate-900 mb-2">
-                                    No matching contracts
-                                </h3>
-                                <p className="text-slate-500 mb-4">
-                                    Try adjusting your search or filters
-                                </p>
-                                <button
-                                    onClick={clearFilters}
-                                    className="text-brand-600 hover:text-brand-700 font-medium"
-                                >
-                                    Clear all filters
-                                </button>
-                            </>
+                        {/* Clear Filters */}
+                        {hasActiveFilters && (
+                            <button
+                                onClick={clearFilters}
+                                className="flex items-center gap-1 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                                Clear
+                            </button>
                         )}
                     </div>
-                ) : (
-                    <div className="divide-y divide-slate-100">
-                        {filteredContracts.map((contract) => {
-                            const typeDisplay = getTypeDisplay(contract.type);
-                            const jurisdictionDisplay = getJurisdictionDisplay(contract.jurisdiction);
-                            const TypeIcon = typeDisplay.icon;
 
-                            return (
-                                <div
-                                    key={contract.id}
-                                    className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors group"
-                                >
+                    {/* Second row: Jurisdiction and Sort */}
+                    <div className="flex flex-col sm:flex-row gap-3 mt-3 pt-3 border-t border-slate-100">
+                        {/* Jurisdiction Filter (if contracts have multiple) */}
+                        {uniqueJurisdictions.length > 1 && (
+                            <select
+                                value={jurisdictionFilter}
+                                onChange={(e) => setJurisdictionFilter(e.target.value)}
+                                className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer min-w-[160px]"
+                            >
+                                <option value="">All Jurisdictions</option>
+                                {uniqueJurisdictions.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                        {option.flag} {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+
+                        {/* Spacer to push sort to right */}
+                        <div className="flex-1" />
+
+                        {/* Sort */}
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                            className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer min-w-[180px]"
+                        >
+                            {SORT_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Active filter count */}
+                    {hasActiveFilters && (
+                        <div className="mt-3 text-sm text-slate-500">
+                            Showing {filteredContracts.length} of {contracts.length} contracts
+                        </div>
+                    )}
+                </div>
+
+                {/* Contracts List */}
+                <div className="bg-white rounded-xl border border-slate-200">
+                    {filteredContracts.length === 0 ? (
+                        <div className="text-center py-12">
+                            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <FileText className="w-8 h-8 text-slate-400" />
+                            </div>
+                            {contracts.length === 0 ? (
+                                <>
+                                    <h3 className="text-lg font-medium text-slate-900 mb-2">
+                                        No contracts yet
+                                    </h3>
+                                    <p className="text-slate-500 mb-6 max-w-sm mx-auto">
+                                        Create your first contract using our AI-powered generator.
+                                    </p>
                                     <Link
-                                        href={`/contracts/${contract.id}/edit`}
-                                        className="flex items-center gap-4 flex-1 min-w-0"
+                                        href="/contracts/new"
+                                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#202e46] text-white rounded-lg hover:bg-[#1a2539] transition-colors"
                                     >
-                                        {/* Type Icon */}
-                                        <div className={`w-10 h-10 ${typeDisplay.bg} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                                            <TypeIcon className={`w-5 h-5 ${typeDisplay.color}`} />
-                                        </div>
-
-                                        {/* Contract Info */}
-                                        <div className="min-w-0 flex-1">
-                                            <p className="font-medium text-slate-900 truncate">
-                                                {contract.title}
-                                            </p>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                {/* Type Badge */}
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${typeDisplay.bg} ${typeDisplay.color}`}>
-                                                    {typeDisplay.label}
-                                                </span>
-                                                {/* Jurisdiction */}
-                                                <span className="inline-flex items-center gap-1 text-xs text-slate-500">
-                                                    <span>{jurisdictionDisplay.flag}</span>
-                                                    <span>{jurisdictionDisplay.label}</span>
-                                                </span>
-                                            </div>
-                                        </div>
+                                        <Plus className="w-4 h-4" />
+                                        Create Your First Contract
                                     </Link>
+                                </>
+                            ) : (
+                                <>
+                                    <h3 className="text-lg font-medium text-slate-900 mb-2">
+                                        No matching contracts
+                                    </h3>
+                                    <p className="text-slate-500 mb-4">
+                                        Try adjusting your search or filters
+                                    </p>
+                                    <button
+                                        onClick={clearFilters}
+                                        className="text-brand-600 hover:text-brand-700 font-medium"
+                                    >
+                                        Clear all filters
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-slate-100">
+                            {filteredContracts.map((contract) => {
+                                const typeDisplay = getTypeDisplay(contract.type);
+                                const jurisdictionDisplay = getJurisdictionDisplay(contract.jurisdiction);
+                                const TypeIcon = typeDisplay.icon;
 
-                                    {/* Right side: Payment, Status, Date, Actions */}
-                                    <div className="flex items-center gap-3 flex-shrink-0">
-                                        {/* Payment Badge */}
-                                        <div className="hidden sm:block">
-                                            <PaymentBadge contract={contract} />
-                                        </div>
+                                return (
+                                    <div
+                                        key={contract.id}
+                                        className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors group"
+                                    >
+                                        <Link
+                                            href={`/contracts/${contract.id}/edit`}
+                                            className="flex items-center gap-4 flex-1 min-w-0"
+                                        >
+                                            {/* Type Icon */}
+                                            <div className={`w-10 h-10 ${typeDisplay.bg} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                                                <TypeIcon className={`w-5 h-5 ${typeDisplay.color}`} />
+                                            </div>
 
-                                        {/* Status Badge */}
-                                        <StatusBadge status={contract.status} />
+                                            {/* Contract Info */}
+                                            <div className="min-w-0 flex-1">
+                                                <p className="font-medium text-slate-900 truncate">
+                                                    {contract.title}
+                                                </p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    {/* Type Badge */}
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${typeDisplay.bg} ${typeDisplay.color}`}>
+                                                        {typeDisplay.label}
+                                                    </span>
+                                                    {/* Uploaded Badge */}
+                                                    {contract.source_type === "uploaded" && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700">
+                                                            <Upload className="w-3 h-3" />
+                                                            Uploaded
+                                                        </span>
+                                                    )}
+                                                    {/* Jurisdiction */}
+                                                    <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                                                        <span>{jurisdictionDisplay.flag}</span>
+                                                        <span>{jurisdictionDisplay.label}</span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </Link>
 
-                                        {/* Last Updated */}
-                                        <span className="text-sm text-slate-500 hidden md:block min-w-[80px] text-right">
-                                            {formatTimeAgo(contract.updated_at)}
-                                        </span>
+                                        {/* Right side: Payment, Status, Date, Actions */}
+                                        <div className="flex items-center gap-3 flex-shrink-0">
+                                            {/* Payment Badge */}
+                                            <div className="hidden sm:block">
+                                                <PaymentBadge contract={contract} />
+                                            </div>
 
-                                        {/* Actions Dropdown */}
-                                        <div className="relative">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    setOpenDropdown(openDropdown === contract.id ? null : contract.id);
-                                                }}
-                                                className="p-2 hover:bg-slate-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                                            >
-                                                <MoreHorizontal className="w-4 h-4 text-slate-500" />
-                                            </button>
+                                            {/* Status Badge */}
+                                            <StatusBadge status={contract.status} />
 
-                                            {openDropdown === contract.id && (
-                                                <>
-                                                    <div
-                                                        className="fixed inset-0 z-10"
-                                                        onClick={() => setOpenDropdown(null)}
-                                                    />
-                                                    <div className="absolute right-0 bottom-full mb-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20">
-                                                        <Link
-                                                            href={`/contracts/${contract.id}/edit`}
-                                                            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                            {/* Last Updated */}
+                                            <span className="text-sm text-slate-500 hidden md:block min-w-[80px] text-right">
+                                                {formatTimeAgo(contract.updated_at)}
+                                            </span>
+
+                                            {/* Actions Dropdown */}
+                                            <div className="relative">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setOpenDropdown(openDropdown === contract.id ? null : contract.id);
+                                                    }}
+                                                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                                >
+                                                    <MoreHorizontal className="w-4 h-4 text-slate-500" />
+                                                </button>
+
+                                                {openDropdown === contract.id && (
+                                                    <>
+                                                        <div
+                                                            className="fixed inset-0 z-10"
                                                             onClick={() => setOpenDropdown(null)}
-                                                        >
-                                                            {["pending_signature", "signed", "completed", "expired"].includes(contract.status) ? (
-                                                                <>
-                                                                    <Eye className="w-4 h-4" />
-                                                                    View Contract
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <Edit className="w-4 h-4" />
-                                                                    Edit Contract
-                                                                </>
+                                                        />
+                                                        <div className="absolute right-0 bottom-full mb-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20">
+                                                            <Link
+                                                                href={`/contracts/${contract.id}/edit`}
+                                                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                                                onClick={() => setOpenDropdown(null)}
+                                                            >
+                                                                {["pending_signature", "signed", "completed", "expired"].includes(contract.status) ? (
+                                                                    <>
+                                                                        <Eye className="w-4 h-4" />
+                                                                        View Contract
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Edit className="w-4 h-4" />
+                                                                        Edit Contract
+                                                                    </>
+                                                                )}
+                                                            </Link>
+                                                            <Link
+                                                                href={`/contracts/${contract.id}/preview`}
+                                                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                                                onClick={() => setOpenDropdown(null)}
+                                                            >
+                                                                <Eye className="w-4 h-4" />
+                                                                Preview
+                                                            </Link>
+                                                            {contract.status === "draft" && (
+                                                                <button
+                                                                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
+                                                                    onClick={() => setOpenDropdown(null)}
+                                                                >
+                                                                    <Send className="w-4 h-4" />
+                                                                    Send for Signature
+                                                                </button>
                                                             )}
-                                                        </Link>
-                                                        <Link
-                                                            href={`/contracts/${contract.id}/preview`}
-                                                            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                                                            onClick={() => setOpenDropdown(null)}
-                                                        >
-                                                            <Eye className="w-4 h-4" />
-                                                            Preview
-                                                        </Link>
-                                                        {contract.status === "draft" && (
                                                             <button
                                                                 className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
                                                                 onClick={() => setOpenDropdown(null)}
                                                             >
-                                                                <Send className="w-4 h-4" />
-                                                                Send for Signature
+                                                                <Copy className="w-4 h-4" />
+                                                                Duplicate
                                                             </button>
-                                                        )}
-                                                        <button
-                                                            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
-                                                            onClick={() => setOpenDropdown(null)}
-                                                        >
-                                                            <Copy className="w-4 h-4" />
-                                                            Duplicate
-                                                        </button>
-                                                        {/* Only show delete for draft or cancelled contracts */}
-                                                        {["draft", "cancelled"].includes(contract.status) && (
-                                                            <>
-                                                                <div className="border-t border-slate-100 my-1" />
-                                                                <button
-                                                                    className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
-                                                                    onClick={() => setOpenDropdown(null)}
-                                                                >
-                                                                    <Trash2 className="w-4 h-4" />
-                                                                    Delete
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
+                                                            {/* Only show delete for draft or cancelled contracts */}
+                                                            {["draft", "cancelled"].includes(contract.status) && (
+                                                                <>
+                                                                    <div className="border-t border-slate-100 my-1" />
+                                                                    <button
+                                                                        className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
+                                                                        onClick={() => setOpenDropdown(null)}
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                        Delete
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
 
-                                        {/* Arrow */}
-                                        <Link href={`/contracts/${contract.id}/edit`}>
-                                            <ArrowRight className="w-4 h-4 text-slate-400" />
-                                        </Link>
+                                            {/* Arrow */}
+                                            <Link href={`/contracts/${contract.id}/edit`}>
+                                                <ArrowRight className="w-4 h-4 text-slate-400" />
+                                            </Link>
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
             </div>
-        </>
+        </div>
     );
 }

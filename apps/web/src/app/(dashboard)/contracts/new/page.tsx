@@ -21,6 +21,7 @@ import {
   Play,
   X,
 } from "lucide-react";
+import { ContractGeneratingOverlay } from "@/components/contract-generating-overlay";
 
 // Placeholder type for system templates
 interface Placeholder {
@@ -91,6 +92,7 @@ export default function NewContractPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [templateSearch, setTemplateSearch] = useState("");
+  const [templateJurisdiction, setTemplateJurisdiction] = useState<string>("");
   const [isUsingTemplate, setIsUsingTemplate] = useState(false);
 
   // Smart intake state
@@ -98,6 +100,17 @@ export default function NewContractPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [intakeAnalysis, setIntakeAnalysis] = useState<IntakeAnalysis | null>(null);
   const [followUpAnswers, setFollowUpAnswers] = useState<Record<string, string>>({});
+  // Matching template from smart intake (for cost-free generation)
+  const [matchingTemplate, setMatchingTemplate] = useState<{
+    id: string;
+    title: string;
+    contractType: string;
+    jurisdiction: string;
+    placeholders: string[];
+    autoFilledValues: Record<string, string>;
+    filledCount: number;
+    totalCount: number;
+  } | null>(null);
 
   // Placeholder modal state for system templates
   const [selectedTemplate, setSelectedTemplate] = useState<(Template & { content?: { placeholders?: Placeholder[] } }) | null>(null);
@@ -165,6 +178,13 @@ export default function NewContractPage() {
       const data = await response.json();
       setIntakeAnalysis(data.analysis);
 
+      // Store matching template if found (for cost-free generation)
+      if (data.matchingTemplate) {
+        setMatchingTemplate(data.matchingTemplate);
+      } else {
+        setMatchingTemplate(null);
+      }
+
       // Pre-select the suggested type and jurisdiction
       setSelectedType(data.analysis.suggestedType as ContractType);
       if (data.analysis.jurisdiction) {
@@ -202,6 +222,7 @@ export default function NewContractPage() {
   // Reset intake to try again
   const handleResetIntake = () => {
     setIntakeAnalysis(null);
+    setMatchingTemplate(null);
     setFollowUpAnswers({});
     setSelectedType(null);
     setFormData({});
@@ -270,6 +291,7 @@ export default function NewContractPage() {
       try {
         const params = new URLSearchParams();
         if (templateSearch) params.set("search", templateSearch);
+        if (templateJurisdiction) params.set("jurisdiction", templateJurisdiction);
         params.set("public", "all");
 
         const response = await fetch(`/api/templates?${params}`);
@@ -286,7 +308,7 @@ export default function NewContractPage() {
 
     const debounce = setTimeout(fetchTemplates, 300);
     return () => clearTimeout(debounce);
-  }, [creationMode, templateSearch]);
+  }, [creationMode, templateSearch, templateJurisdiction]);
 
   // Handle clicking on a template - show modal for system templates
   const handleUseTemplate = (template: Template) => {
@@ -351,6 +373,35 @@ export default function NewContractPage() {
   const handlePlaceholderSubmit = () => {
     if (!selectedTemplate) return;
     createContractFromTemplate(selectedTemplate.id, placeholderValues);
+  };
+
+  // Handle using the matching template from smart intake (instant, $0 cost)
+  const handleUseMatchingTemplate = async () => {
+    if (!matchingTemplate) return;
+
+    setIsUsingTemplate(true);
+    setError(null);
+
+    try {
+      // Use auto-filled values from the intake analysis
+      const response = await fetch(`/api/templates/${matchingTemplate.id}/use`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          placeholderValues: matchingTemplate.autoFilledValues,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create contract from template");
+      }
+
+      const data = await response.json();
+      router.push(`/contracts/${data.contract.id}/edit`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      setIsUsingTemplate(false);
+    }
   };
 
   return (
@@ -610,6 +661,50 @@ export default function NewContractPage() {
                     </select>
                   </div>
 
+                  {/* Template Match Suggestion - Instant $0 Generation */}
+                  {matchingTemplate && (
+                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border-2 border-emerald-200 p-5 mb-4">
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Sparkles className="w-5 h-5 text-emerald-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-semibold text-emerald-800">Template Match Found!</h4>
+                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">
+                              Instant
+                            </span>
+                          </div>
+                          <p className="text-sm text-emerald-700 mb-3">
+                            We have a pre-built template that matches your needs. Use it for instant generation with no AI cost.
+                          </p>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <button
+                              onClick={handleUseMatchingTemplate}
+                              disabled={isUsingTemplate}
+                              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {isUsingTemplate ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Creating...
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="w-4 h-4" />
+                                  Use Template (Instant)
+                                </>
+                              )}
+                            </button>
+                            <span className="text-xs text-emerald-600">
+                              or continue below for AI-generated version
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Extracted Details */}
                   {Object.keys(intakeAnalysis.extractedFields).length > 0 && (
                     <div className="bg-slate-50 rounded-lg p-4 mb-4">
@@ -736,28 +831,41 @@ export default function NewContractPage() {
             {/* Template Mode - Template Browser */}
             {creationMode === "template" && (
               <div className="space-y-4">
-                {/* Search */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search templates..."
-                    value={templateSearch}
-                    onChange={(e) => setTemplateSearch(e.target.value)}
-                    className="w-full px-4 py-3 pl-10 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6]/20 focus:border-[#529ec6]"
-                  />
-                  <svg
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                {/* Search and Filter */}
+                <div className="flex gap-3">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder="Search templates..."
+                      value={templateSearch}
+                      onChange={(e) => setTemplateSearch(e.target.value)}
+                      className="w-full px-4 py-3 pl-10 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6]/20 focus:border-[#529ec6]"
                     />
-                  </svg>
+                    <svg
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                  </div>
+                  <select
+                    value={templateJurisdiction}
+                    onChange={(e) => setTemplateJurisdiction(e.target.value)}
+                    className="px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6]/20 focus:border-[#529ec6] bg-white text-slate-700 min-w-[160px]"
+                  >
+                    <option value="">All Jurisdictions</option>
+                    <option value="us_california">California</option>
+                    <option value="us_texas">Texas</option>
+                    <option value="us_new_york">New York</option>
+                    <option value="uk">United Kingdom</option>
+                  </select>
                 </div>
 
                 {/* Loading State */}
@@ -786,13 +894,21 @@ export default function NewContractPage() {
                       <FileStack className="w-8 h-8 text-slate-400" />
                     </div>
                     <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                      {templateSearch ? "No templates found" : "No templates yet"}
+                      {templateSearch || templateJurisdiction ? "No templates found" : "No templates yet"}
                     </h3>
                     <p className="text-slate-500 mb-4 max-w-md mx-auto">
-                      {templateSearch
-                        ? "Try a different search term or create a new contract with AI."
+                      {templateSearch || templateJurisdiction
+                        ? "Try adjusting your search or filter, or create a new contract with AI."
                         : "Create contracts and save them as templates to reuse later."}
                     </p>
+                    {(templateSearch || templateJurisdiction) && (
+                      <button
+                        onClick={() => { setTemplateSearch(""); setTemplateJurisdiction(""); }}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors mr-2"
+                      >
+                        Clear filters
+                      </button>
+                    )}
                     <button
                       onClick={() => setCreationMode("smart")}
                       className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#529ec6] bg-[#529ec6]/5 rounded-lg hover:bg-[#529ec6]/10 transition-colors"
@@ -1312,6 +1428,12 @@ export default function NewContractPage() {
           isSubmitting={isUsingTemplate}
         />
       )}
+
+      {/* Contract Generation Overlay */}
+      <ContractGeneratingOverlay
+        isVisible={isGenerating}
+        contractType={selectedType || undefined}
+      />
     </div>
   );
 }

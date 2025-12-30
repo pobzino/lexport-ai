@@ -12,6 +12,9 @@ export type PaymentStatus = "pending" | "processing" | "succeeded" | "failed" | 
 export type StripeConnectStatus = "not_connected" | "pending" | "active" | "restricted";
 export type PaymentType = "full" | "deposit" | "balance" | "installment";
 export type PaymentStructure = "full" | "deposit_balance" | "bnpl";
+export type ContractSourceType = "generated" | "uploaded";
+export type UploadedFileType = "pdf" | "docx" | "jpg" | "png";
+export type ProcessingMode = "quick" | "full";
 export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "cancelled" | "void";
 export type InvoiceTemplateType = "hourly" | "fixed_fee" | "milestone" | "retainer" | "custom";
 export type RetainerPeriod = "weekly" | "monthly" | "quarterly";
@@ -160,6 +163,14 @@ export interface Contract {
   // Payment structure
   payment_structure: PaymentStructure;
   deposit_percentage: number;
+  // Upload support
+  source_type: ContractSourceType;
+  source_file_url: string | null;
+  source_file_type: UploadedFileType | null;
+  processing_mode: ProcessingMode | null;
+  extracted_text: string | null;
+  // Section explanations cache
+  section_explanations: Record<string, ClauseExplanation> | null;
   created_at: string;
   updated_at: string;
 }
@@ -169,6 +180,12 @@ export interface ContractContent {
   recitals: string;
   clauses: ContractClause[];
   signatureBlock: string;
+}
+
+export interface ClauseExplanation {
+  title: string;
+  summary: string;
+  keyPoints: string[];
 }
 
 export interface ContractClause {

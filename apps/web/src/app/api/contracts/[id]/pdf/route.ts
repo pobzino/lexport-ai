@@ -153,10 +153,73 @@ export async function GET(
       .select("signer_name, signer_email, signer_role, status")
       .eq("contract_id", id);
 
+    // For Quick mode uploaded contracts, return the original PDF from storage
+    if (contract.source_type === "uploaded" && contract.processing_mode === "quick" && contract.source_file_url) {
+      let pdfBlob: Blob;
+
+      // Check if source_file_url is a full URL (legacy) or just a path (new format)
+      if (contract.source_file_url.startsWith("http")) {
+        // Legacy: It's a signed URL - fetch directly
+        try {
+          const response = await fetch(contract.source_file_url);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          pdfBlob = await response.blob();
+        } catch (fetchError) {
+          console.error("Failed to fetch PDF from signed URL:", fetchError);
+          return NextResponse.json(
+            { error: "Failed to retrieve original document (signed URL may have expired)" },
+            { status: 500 }
+          );
+        }
+      } else {
+        // New format: It's a file path - use Supabase Storage
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from("contract-uploads")
+          .download(contract.source_file_url);
+
+        if (downloadError || !fileData) {
+          console.error("Failed to download original PDF:", downloadError);
+          return NextResponse.json(
+            { error: "Failed to retrieve original document" },
+            { status: 500 }
+          );
+        }
+        pdfBlob = fileData;
+      }
+
+      // Log audit event for PDF download
+      const context = getRequestContextFromRequest(request);
+      await auditLogger.pdfDownloaded(
+        id,
+        user.id,
+        user.email || null,
+        user.user_metadata?.name || user.user_metadata?.full_name || null,
+        context
+      );
+
+      return new NextResponse(Buffer.from(await pdfBlob.arrayBuffer()), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="${sanitizeFilename(contract.title)}.pdf"`,
+        },
+      });
+    }
+
+    // For generated contracts or Full mode uploads, generate PDF from content
+    const content = contract.content as ContractContent;
+    if (!content || !content.clauses) {
+      return NextResponse.json(
+        { error: "Contract has no content to generate PDF from" },
+        { status: 400 }
+      );
+    }
+
     // Generate PDF
     const pdfBytes = await generateContractPDF(
       contract.title,
-      contract.content as ContractContent,
+      content,
       contract.jurisdiction,
       signatures,
       contract.status === "signed",

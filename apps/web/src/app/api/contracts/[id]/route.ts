@@ -158,7 +158,7 @@ export async function PATCH(
       (body.aiModified ? "ai_modification" : "edit");
 
     // Ensure version is a number, default to 1 if not provided
-    const updateData = {
+    const updateData: Record<string, unknown> = {
       ...body,
       version: body.version || 1,
       updated_at: new Date().toISOString(),
@@ -167,6 +167,51 @@ export async function PATCH(
     // Remove non-database fields
     delete updateData.changeType;
     delete updateData.aiModified;
+
+    // Smart cache invalidation: only remove changed clauses from section_explanations
+    if (contentChanged && newContent && oldContent) {
+      const changedClauseIds = new Set<string>();
+
+      // Find clauses that were modified or removed
+      const newClauseIds = new Set((newContent.clauses || []).map((c: { id: string }) => c.id));
+      for (const oldClause of (oldContent.clauses || [])) {
+        const newClause = (newContent.clauses || []).find((c: { id: string }) => c.id === oldClause.id);
+        if (!newClause) {
+          // Clause was removed
+          changedClauseIds.add(oldClause.id);
+        } else if (newClause.content !== oldClause.content || newClause.title !== oldClause.title) {
+          // Clause content or title changed
+          changedClauseIds.add(oldClause.id);
+        }
+      }
+
+      // Find new clauses that were added
+      const oldClauseIds = new Set((oldContent.clauses || []).map((c: { id: string }) => c.id));
+      for (const newClause of (newContent.clauses || [])) {
+        if (!oldClauseIds.has(newClause.id)) {
+          changedClauseIds.add(newClause.id);
+        }
+      }
+
+      // Update section_explanations cache - remove only changed clauses
+      if (changedClauseIds.size > 0 && currentContract.section_explanations) {
+        try {
+          const existingCache = typeof currentContract.section_explanations === 'string'
+            ? JSON.parse(currentContract.section_explanations)
+            : currentContract.section_explanations;
+          // Remove only the changed clause IDs from cache
+          for (const clauseId of changedClauseIds) {
+            delete existingCache[clauseId];
+          }
+          updateData.section_explanations = Object.keys(existingCache).length > 0 ? existingCache : null;
+        } catch {
+          updateData.section_explanations = null;
+        }
+      } else if (changedClauseIds.size > 0) {
+        // No existing cache, nothing to update
+        updateData.section_explanations = null;
+      }
+    }
 
     console.log("PATCH - Update data:", JSON.stringify(updateData, null, 2));
 

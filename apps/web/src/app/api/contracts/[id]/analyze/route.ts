@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { analyzeContractRisks, generateContentHash } from "@/lib/contracts/risk-analyzer";
 import { z } from "zod";
+import crypto from "crypto";
 import type {
   RiskAnalysisResult,
   ContractRiskAnalysisRecord,
@@ -14,6 +15,35 @@ const AnalyzeRequestSchema = z.object({
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ContractContent = any; // Database content is loosely typed
+
+/**
+ * Generate hash for extracted text (uploaded Quick mode contracts)
+ */
+function generateExtractedTextHash(text: string): string {
+  return crypto.createHash("sha256").update(text).digest("hex");
+}
+
+/**
+ * Convert extracted text to a content structure for analysis
+ * This allows the risk analyzer to process uploaded documents
+ */
+function textToContent(text: string): ContractContent {
+  // Split text into paragraphs and create pseudo-clauses
+  const paragraphs = text.split(/\n\n+/).filter(p => p.trim().length > 50);
+
+  return {
+    preamble: paragraphs[0] || "",
+    recitals: paragraphs[1] || "",
+    clauses: paragraphs.slice(2).map((content, index) => ({
+      id: `uploaded-clause-${index}`,
+      title: `Section ${index + 1}`,
+      content: content.trim(),
+      type: "custom",
+      order: index + 1,
+    })),
+    signatureBlock: "",
+  };
+}
 
 export async function POST(
   request: NextRequest,
@@ -56,10 +86,24 @@ export async function POST(
       return NextResponse.json({ error: "Contract not found" }, { status: 404 });
     }
 
-    const content = contract.content as ContractContent;
+    // Determine content source: for Quick mode uploads, use extracted_text
+    const isQuickModeUpload =
+      contract.source_type === "uploaded" &&
+      contract.processing_mode === "quick" &&
+      contract.extracted_text;
 
-    // Generate content hash for cache lookup
-    const contentHash = generateContentHash(content);
+    let content: ContractContent;
+    let contentHash: string;
+
+    if (isQuickModeUpload) {
+      // Use extracted text for analysis
+      content = textToContent(contract.extracted_text);
+      contentHash = generateExtractedTextHash(contract.extracted_text);
+    } else {
+      // Use structured content
+      content = contract.content as ContractContent;
+      contentHash = generateContentHash(content);
+    }
 
     // Check cache unless forceRefresh
     if (!forceRefresh) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   AlertTriangle,
   AlertCircle,
@@ -11,6 +12,9 @@ import {
   MapPin,
   HelpCircle,
   Coins,
+  Wand2,
+  Loader2,
+  Check,
 } from "lucide-react";
 import type {
   ClauseRisk,
@@ -78,9 +82,13 @@ interface RiskCardProps {
   risk: ClauseRisk | MissingProtection | JurisdictionAlert;
   type: "clause" | "missing" | "jurisdiction";
   onJumpToClause?: (clauseId: string) => void;
+  onImplement?: (risk: ClauseRisk | MissingProtection | JurisdictionAlert) => Promise<void>;
 }
 
-export function RiskCard({ risk, type, onJumpToClause }: RiskCardProps) {
+export function RiskCard({ risk, type, onJumpToClause, onImplement }: RiskCardProps) {
+  const [implementing, setImplementing] = useState(false);
+  const [implemented, setImplemented] = useState(false);
+
   const config = SEVERITY_CONFIG[risk.severity];
   const SeverityIcon = config.icon;
 
@@ -185,6 +193,41 @@ export function RiskCard({ risk, type, onJumpToClause }: RiskCardProps) {
           <p className="text-xs text-emerald-700">
             <span className="font-medium">Suggestion:</span> {suggestion}
           </p>
+          {onImplement && !implemented && (
+            <button
+              onClick={async () => {
+                setImplementing(true);
+                try {
+                  await onImplement(risk);
+                  setImplemented(true);
+                } catch (e) {
+                  console.error("Failed to implement:", e);
+                } finally {
+                  setImplementing(false);
+                }
+              }}
+              disabled={implementing}
+              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {implementing ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Implementing...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-3 h-3" />
+                  Implement Fix
+                </>
+              )}
+            </button>
+          )}
+          {implemented && (
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-100 rounded-lg">
+              <Check className="w-3 h-3" />
+              Implemented
+            </div>
+          )}
         </div>
       )}
     </div>

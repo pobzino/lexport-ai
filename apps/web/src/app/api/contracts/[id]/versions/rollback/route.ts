@@ -78,12 +78,14 @@ export async function POST(
     }
 
     // Update the contract with the target version's content
+    // Clear section_explanations cache since content changed
     const { data: updatedContract, error: updateError } = await supabase
       .from("contracts")
       .update({
         content: targetContent,
         version: newVersionNumber,
         updated_at: new Date().toISOString(),
+        section_explanations: null, // Invalidate cache - will regenerate on next Guide open
       })
       .eq("id", contractId)
       .eq("user_id", user.id)

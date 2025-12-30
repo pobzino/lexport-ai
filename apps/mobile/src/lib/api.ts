@@ -7,7 +7,7 @@ const API_BASE = process.env.EXPO_PUBLIC_API_URL || "https://lexport.ai";
 
 interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  body?: Record<string, unknown>;
+  body?: unknown;
   headers?: Record<string, string>;
 }
 

@@ -10,6 +10,9 @@ import { supabase } from "@/lib/supabase";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || "https://lexport.ai";
 
+// Type workaround for expo-file-system version mismatch
+const getCacheDir = () => (FileSystem as unknown as { cacheDirectory: string }).cacheDirectory;
+
 export default function ContractPdfScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
@@ -28,7 +31,7 @@ export default function ContractPdfScreen() {
 
         // Download PDF to local cache
         const pdfUrl = `${API_BASE}/api/contracts/${id}/pdf`;
-        const localUri = `${FileSystem.cacheDirectory}contract-${id}.pdf`;
+        const localUri = `${getCacheDir()}contract-${id}.pdf`;
 
         const downloadResult = await FileSystem.downloadAsync(pdfUrl, localUri, {
           headers: {

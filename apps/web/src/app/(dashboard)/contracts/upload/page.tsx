@@ -7,24 +7,21 @@ import {
   ArrowRight,
   Upload,
   FileText,
-  Settings,
   CheckCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FileDropzone } from "@/components/upload/file-dropzone";
-import { ModeSelector } from "@/components/upload/mode-selector";
 import { ProcessingStatus, ProcessingStep } from "@/components/upload/processing-status";
 import { ContentPreview } from "@/components/upload/content-preview";
 import type { ContractContent } from "@/db/types";
 
-type UploadStep = "upload" | "mode" | "details" | "processing";
+type UploadStep = "upload" | "details" | "processing";
 
 interface UploadState {
   file: File | null;
   filePath: string | null;
   fileType: "pdf" | "docx" | "jpg" | "png" | null;
   signedUrl: string | null;
-  mode: "quick" | "full" | null;
   extractedText: string | null;
   parsedContent: ContractContent | null;
   needsOCR: boolean;
@@ -65,7 +62,6 @@ export default function UploadContractPage() {
     filePath: null,
     fileType: null,
     signedUrl: null,
-    mode: null,
     extractedText: null,
     parsedContent: null,
     needsOCR: false,
@@ -87,6 +83,8 @@ export default function UploadContractPage() {
 
     setIsProcessing(true);
     setError(null);
+    setStep("processing");
+    setProcessingStep("uploading");
 
     try {
       const formData = new FormData();
@@ -103,48 +101,28 @@ export default function UploadContractPage() {
         throw new Error(uploadData.error || "Upload failed");
       }
 
+      const title = state.file?.name.replace(/\.[^/.]+$/, "") || "Uploaded Contract";
+
       setState((prev) => ({
         ...prev,
         filePath: uploadData.filePath,
         fileType: uploadData.fileType,
         signedUrl: uploadData.signedUrl,
-        title: state.file?.name.replace(/\.[^/.]+$/, "") || "Uploaded Contract",
+        title,
       }));
 
-      setStep("mode");
+      // Continue directly to extraction (full mode)
+      await handleExtractAfterUpload(uploadData.filePath, uploadData.fileType, title);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
+      setStep("upload");
       setIsProcessing(false);
     }
   };
 
-  // Step 2: Select mode and extract
-  const handleModeSelect = async (mode: "quick" | "full") => {
-    setState((prev) => ({ ...prev, mode }));
-  };
-
-  // Helper to safely parse JSON responses
-  const safeParseJson = async (response: Response, endpoint: string) => {
-    const text = await response.text();
-    try {
-      return JSON.parse(text);
-    } catch {
-      // If response is HTML (like a 404 page), provide a clear error
-      if (text.startsWith("<!DOCTYPE") || text.startsWith("<html")) {
-        throw new Error(`Server returned an error page for ${endpoint}. The endpoint may not exist or crashed.`);
-      }
-      throw new Error(`Invalid response from ${endpoint}: ${text.slice(0, 100)}`);
-    }
-  };
-
-  const handleExtractAndContinue = async () => {
-    if (!state.mode || !state.filePath) return;
-
-    setIsProcessing(true);
-    setStep("processing");
+  // Extract content after upload (always full mode)
+  const handleExtractAfterUpload = async (filePath: string, fileType: string, title: string) => {
     setProcessingStep("extracting");
-    setError(null);
 
     try {
       // Extract text
@@ -152,8 +130,8 @@ export default function UploadContractPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          filePath: state.filePath,
-          fileType: state.fileType,
+          filePath,
+          fileType,
         }),
       });
 
@@ -174,8 +152,8 @@ export default function UploadContractPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            filePath: state.filePath,
-            fileType: state.fileType,
+            filePath,
+            fileType,
           }),
         });
 
@@ -197,51 +175,62 @@ export default function UploadContractPage() {
         extractedText: text,
         wordCount: text.split(/\s+/).length,
         needsOCR,
-        // Use AI-suggested values from extraction (for both Quick and Full modes)
-        title: extractData.suggestedTitle || prev.title,
+        title: extractData.suggestedTitle || title,
         type: extractData.suggestedType || prev.type,
         jurisdiction: extractData.suggestedJurisdiction || prev.jurisdiction,
         confidence: extractData.confidence || prev.confidence,
       }));
 
-      // If full mode, parse the content (will override with more detailed suggestions)
-      if (state.mode === "full") {
-        setProcessingStep("parsing");
+      // Always parse content (full mode)
+      setProcessingStep("parsing");
 
-        const parseRes = await fetch("/api/contracts/upload/parse", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
+      const parseRes = await fetch("/api/contracts/upload/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
 
-        const parseData = await safeParseJson(parseRes, "parse");
+      const parseData = await safeParseJson(parseRes, "parse");
 
-        if (!parseRes.ok) {
-          throw new Error(parseData.error || "Parsing failed");
-        }
-
-        setState((prev) => ({
-          ...prev,
-          parsedContent: parseData.content,
-          title: parseData.suggestedTitle || prev.title,
-          type: parseData.suggestedType || prev.type,
-          jurisdiction: parseData.suggestedJurisdiction || prev.jurisdiction,
-          confidence: parseData.confidence,
-        }));
+      if (!parseRes.ok) {
+        throw new Error(parseData.error || "Parsing failed");
       }
 
+      setState((prev) => ({
+        ...prev,
+        parsedContent: parseData.content,
+        title: parseData.suggestedTitle || prev.title,
+        type: parseData.suggestedType || prev.type,
+        jurisdiction: parseData.suggestedJurisdiction || prev.jurisdiction,
+        confidence: parseData.confidence,
+      }));
+
       setStep("details");
+      setIsProcessing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Processing failed");
-      setStep("mode");
-    } finally {
+      setStep("upload");
       setIsProcessing(false);
     }
   };
 
-  // Step 3: Review details and create
+  // Helper to safely parse JSON responses
+  const safeParseJson = async (response: Response, endpoint: string) => {
+    const text = await response.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      // If response is HTML (like a 404 page), provide a clear error
+      if (text.startsWith("<!DOCTYPE") || text.startsWith("<html")) {
+        throw new Error(`Server returned an error page for ${endpoint}. The endpoint may not exist or crashed.`);
+      }
+      throw new Error(`Invalid response from ${endpoint}: ${text.slice(0, 100)}`);
+    }
+  };
+
+  // Step 2: Review details and create
   const handleCreateContract = async () => {
-    if (!state.mode || !state.filePath) return;
+    if (!state.filePath) return;
 
     setIsProcessing(true);
     setStep("processing");
@@ -256,9 +245,9 @@ export default function UploadContractPage() {
           title: state.title,
           type: state.type,
           jurisdiction: state.jurisdiction,
-          processingMode: state.mode,
+          processingMode: "full",
           extractedText: state.extractedText,
-          sourceFileUrl: state.signedUrl,
+          sourceFileUrl: state.filePath, // Store file path, not signed URL (which expires)
           sourceFileType: state.fileType,
           content: state.parsedContent,
         }),
@@ -313,15 +302,13 @@ export default function UploadContractPage() {
           <div className="flex items-center justify-between">
             {[
               { key: "upload", label: "Upload", icon: Upload },
-              { key: "mode", label: "Mode", icon: Settings },
-              { key: "details", label: "Details", icon: FileText },
+              { key: "details", label: "Review", icon: FileText },
               { key: "processing", label: "Complete", icon: CheckCircle },
             ].map((s, index) => {
               const Icon = s.icon;
               const isActive = s.key === step;
               const isComplete =
-                ["upload", "mode", "details", "processing"].indexOf(step) >
-                index;
+                ["upload", "details", "processing"].indexOf(step) > index;
 
               return (
                 <div key={s.key} className="flex items-center">
@@ -347,9 +334,9 @@ export default function UploadContractPage() {
                       {s.label}
                     </span>
                   </div>
-                  {index < 3 && (
+                  {index < 2 && (
                     <div
-                      className={`w-12 sm:w-24 h-0.5 mx-2 ${isComplete ? "bg-emerald-500" : "bg-slate-200"
+                      className={`w-16 sm:w-32 h-0.5 mx-2 ${isComplete ? "bg-emerald-500" : "bg-slate-200"
                         }`}
                     />
                   )}
@@ -408,74 +395,6 @@ export default function UploadContractPage() {
             </motion.div>
           )}
 
-          {step === "mode" && (
-            <motion.div
-              key="mode"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-2">
-                  How do you want to process this contract?
-                </h2>
-                <p className="text-slate-500">
-                  Choose how Lexport should handle your uploaded document
-                </p>
-              </div>
-
-              {/* Error display */}
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-red-600 text-sm font-bold">!</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-red-800">Processing failed</p>
-                      <p className="text-sm text-red-600 mt-1">{error}</p>
-                      <p className="text-xs text-red-500 mt-2">Please try again or choose a different mode.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <ModeSelector
-                selectedMode={state.mode}
-                onModeSelect={handleModeSelect}
-                disabled={isProcessing}
-              />
-
-              <div className="flex justify-between pt-4">
-                <button
-                  onClick={() => setStep("upload")}
-                  className="flex items-center gap-2 px-6 py-3 text-slate-600 hover:text-slate-800 transition-colors"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                  Back
-                </button>
-                <button
-                  onClick={handleExtractAndContinue}
-                  disabled={!state.mode || isProcessing}
-                  className="flex items-center gap-2 px-6 py-3 bg-[#529ec6] text-white rounded-xl font-medium hover:bg-[#4189b1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {isProcessing ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      Continue
-                      <ArrowRight className="w-5 h-5" />
-                    </>
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          )}
-
           {step === "processing" && (
             <motion.div
               key="processing"
@@ -486,7 +405,7 @@ export default function UploadContractPage() {
             >
               <ProcessingStatus
                 currentStep={processingStep}
-                mode={state.mode || "quick"}
+                mode="full"
                 ocrRequired={state.needsOCR}
                 error={error || undefined}
               />
@@ -514,7 +433,7 @@ export default function UploadContractPage() {
               <ContentPreview
                 text={state.extractedText || undefined}
                 content={state.parsedContent || undefined}
-                mode={state.mode || "quick"}
+                mode="full"
                 wordCount={state.wordCount}
                 confidence={state.confidence || undefined}
               />
@@ -582,7 +501,7 @@ export default function UploadContractPage() {
 
               <div className="flex justify-between pt-4">
                 <button
-                  onClick={() => setStep("mode")}
+                  onClick={() => setStep("upload")}
                   className="flex items-center gap-2 px-6 py-3 text-slate-600 hover:text-slate-800 transition-colors"
                 >
                   <ArrowLeft className="w-5 h-5" />

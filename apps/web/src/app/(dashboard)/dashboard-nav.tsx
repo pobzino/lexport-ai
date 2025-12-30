@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -15,6 +16,9 @@ import {
   CreditCard,
   Activity,
   Receipt,
+  Upload,
+  Menu,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +47,24 @@ const bottomNavItems = [
 export function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileMenuOpen]);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -51,8 +73,8 @@ export function DashboardNav({ user }: DashboardNavProps) {
     router.refresh();
   };
 
-  return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-white border-r border-slate-200 flex flex-col z-50">
+  const NavContent = () => (
+    <>
       {/* Logo */}
       <div className="h-16 flex items-center px-6 border-b border-slate-100">
         <Link href="/dashboard" className="flex items-center">
@@ -64,16 +86,31 @@ export function DashboardNav({ user }: DashboardNavProps) {
             className="h-9 w-auto"
           />
         </Link>
+        {/* Close button for mobile */}
+        <button
+          onClick={() => setMobileMenuOpen(false)}
+          className="lg:hidden ml-auto p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          aria-label="Close menu"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* New Contract Button */}
-      <div className="px-4 py-4">
+      <div className="px-4 py-4 space-y-2">
         <Link
           href="/contracts/new"
-          className="flex items-center justify-center gap-2 w-full bg-[#202e46] hover:bg-[#1a2539] text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
+          className="flex items-center justify-center gap-2 w-full bg-[#202e46] hover:bg-[#1a2539] text-white font-medium py-3 px-4 rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" />
           New Contract
+        </Link>
+        <Link
+          href="/contracts/upload"
+          className="flex items-center justify-center gap-2 w-full border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium py-3 px-4 rounded-lg transition-colors"
+        >
+          <Upload className="w-4 h-4" />
+          Upload Contract
         </Link>
       </div>
 
@@ -89,7 +126,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                "flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors",
                 isActive
                   ? "bg-[#529ec6]/10 text-[#202e46]"
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
@@ -114,7 +151,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                  "flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors",
                   isActive
                     ? "bg-[#529ec6]/10 text-[#202e46]"
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
@@ -134,10 +171,10 @@ export function DashboardNav({ user }: DashboardNavProps) {
               <img
                 src={user.image}
                 alt={user.name || "User"}
-                className="w-9 h-9 rounded-full"
+                className="w-10 h-10 rounded-full"
               />
             ) : (
-              <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
                 <span className="text-sm font-medium text-slate-600">
                   {user.name?.charAt(0) || user.email?.charAt(0) || "U"}
                 </span>
@@ -161,6 +198,60 @@ export function DashboardNav({ user }: DashboardNavProps) {
           </div>
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile Header */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 flex items-center px-4 z-40">
+        <button
+          onClick={() => setMobileMenuOpen(true)}
+          className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+        <Link href="/dashboard" className="ml-3">
+          <Image
+            src="/dark-logo.png"
+            alt="Lexport"
+            width={120}
+            height={36}
+            className="h-8 w-auto"
+          />
+        </Link>
+        <div className="ml-auto flex items-center gap-2">
+          <Link
+            href="/contracts/new"
+            className="flex items-center gap-1.5 bg-[#202e46] hover:bg-[#1a2539] text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">New</span>
+          </Link>
+        </div>
+      </header>
+
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar - Desktop always visible, Mobile slide-in */}
+      <aside
+        className={cn(
+          "fixed left-0 top-0 h-screen w-72 bg-white border-r border-slate-200 flex flex-col z-50 transition-transform duration-300 ease-in-out",
+          // Desktop: always visible
+          "lg:translate-x-0 lg:w-64",
+          // Mobile: slide in/out
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        <NavContent />
+      </aside>
+    </>
   );
 }

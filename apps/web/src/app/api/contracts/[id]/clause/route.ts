@@ -98,7 +98,23 @@ export async function POST(
           : c
       );
 
+      // Smart cache invalidation: remove only the modified clause from section_explanations
+      let updatedExplanations = contract.section_explanations;
+      if (updatedExplanations) {
+        try {
+          const existingCache = typeof updatedExplanations === 'string'
+            ? JSON.parse(updatedExplanations)
+            : updatedExplanations;
+          // Remove only the modified clause ID from cache
+          delete existingCache[clause.id];
+          updatedExplanations = Object.keys(existingCache).length > 0 ? existingCache : null;
+        } catch {
+          updatedExplanations = null;
+        }
+      }
+
       // Save to database
+      // Smart cache: only remove modified clause, keep the rest
       const { data: updated, error: updateError } = await supabase
         .from("contracts")
         .update({
@@ -107,6 +123,7 @@ export async function POST(
             clauses: updatedClauses,
           },
           updated_at: new Date().toISOString(),
+          section_explanations: updatedExplanations,
         })
         .eq("id", id)
         .select()

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import OpenAI from "openai";
 import { CONTRACT_TYPES, JURISDICTION_NAMES, type ContractType, type Jurisdiction } from "@/lib/contracts/schemas";
+import { extractPlaceholders } from "@/lib/contracts/placeholders";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -142,6 +143,70 @@ Guidelines:
     // Get contract type details for the response
     const contractTypeDef = CONTRACT_TYPES[analysis.suggestedType];
 
+    // Check for matching system template
+    const jurisdiction = analysis.jurisdiction || "us_california";
+    const { data: matchingTemplate } = await supabase
+      .from("contract_templates")
+      .select("id, title, contract_type, jurisdiction, preamble, recitals, clauses, signature_block, placeholders")
+      .eq("contract_type", analysis.suggestedType)
+      .eq("jurisdiction", jurisdiction)
+      .eq("is_active", true)
+      .limit(1)
+      .single();
+
+    // If we found a matching template, extract placeholder info
+    let templateMatch = null;
+    if (matchingTemplate) {
+      // Get all placeholders from the template content
+      const fullContent = [
+        matchingTemplate.preamble || "",
+        matchingTemplate.recitals || "",
+        matchingTemplate.signature_block || "",
+        ...((matchingTemplate.clauses as Array<{ content?: string }>) || []).map((c) => c.content || ""),
+      ].join("\n");
+
+      const placeholderTokens = extractPlaceholders(fullContent);
+
+      // Map extracted fields to placeholders where possible
+      const autoFilledValues: Record<string, string> = {};
+      const extractedFields = analysis.extractedFields || {};
+
+      // Common field mappings from extracted fields to placeholder tokens
+      const fieldMappings: Record<string, string[]> = {
+        "party_a_name": ["clientName", "companyName", "disclosingPartyName"],
+        "party_b_name": ["contractorName", "consultantName", "investorName", "freelancerName", "receivingPartyName"],
+        "party_a_company": ["clientCompany", "companyName"],
+        "party_b_company": ["contractorCompany", "consultantCompany", "investorCompany"],
+        "effective_date": ["effectiveDate", "startDate"],
+        "purpose": ["purpose", "projectDescription", "consultingScope"],
+        "payment_amount": ["paymentAmount", "totalAmount", "investmentAmount"],
+        "hourly_rate": ["hourlyRate"],
+        "scope_of_work": ["servicesDescription", "projectDescription", "consultingScope"],
+      };
+
+      // Try to auto-fill placeholders from extracted fields
+      for (const [placeholder, fieldNames] of Object.entries(fieldMappings)) {
+        for (const fieldName of fieldNames) {
+          if (extractedFields[fieldName]) {
+            autoFilledValues[placeholder] = String(extractedFields[fieldName]);
+            break;
+          }
+        }
+      }
+
+      templateMatch = {
+        id: `system_${matchingTemplate.id}`,
+        title: matchingTemplate.title,
+        contractType: matchingTemplate.contract_type,
+        jurisdiction: matchingTemplate.jurisdiction,
+        placeholders: placeholderTokens,
+        autoFilledValues,
+        // Count how many required placeholders are already filled
+        filledCount: Object.keys(autoFilledValues).length,
+        totalCount: placeholderTokens.length,
+      };
+    }
+
     return NextResponse.json({
       success: true,
       analysis: {
@@ -157,6 +222,8 @@ Guidelines:
           name: JURISDICTION_NAMES[j],
         })),
       },
+      // Include matching template if found
+      matchingTemplate: templateMatch,
     });
   } catch (error) {
     console.error("Error analyzing contract intake:", error);

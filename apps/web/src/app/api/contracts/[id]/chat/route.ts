@@ -142,15 +142,54 @@ export async function POST(
       return NextResponse.json({ error: "Contract not found" }, { status: 404 });
     }
 
-    const content = contract.content as {
+    // Check if this is a Quick mode uploaded contract (no structured content, only extracted text)
+    const isQuickModeUpload = contract.source_type === "uploaded" && contract.processing_mode === "quick";
+
+    // Define content type for use throughout
+    type ContractContent = {
       preamble: string;
       recitals: string;
       clauses: Clause[];
       signatureBlock: string;
     };
 
-    // Build system prompt with full contract content
-    const systemPrompt = `You are an AI assistant helping a user edit their ${contract.type} contract governed by ${contract.jurisdiction} law.
+    // Parse content for non-Quick mode contracts (will be null for Quick mode)
+    const content: ContractContent | null = isQuickModeUpload
+      ? null
+      : (contract.content as ContractContent);
+
+    let systemPrompt: string;
+
+    if (isQuickModeUpload) {
+      // For Quick mode uploads, use extracted text (read-only mode - no modifications)
+      const extractedText = contract.extracted_text || "No text content available for this contract.";
+
+      systemPrompt = `You are an AI assistant helping a user understand their uploaded ${contract.type} contract governed by ${contract.jurisdiction} law.
+
+IMPORTANT: This is an uploaded contract in Quick mode. The original document layout is preserved, and you can only answer questions about it. You CANNOT modify this contract through the chat interface.
+
+EXTRACTED CONTRACT TEXT:
+${extractedText}
+
+INSTRUCTIONS:
+- You can ONLY answer questions about this contract - use the answer_question function.
+- If the user asks to modify, change, or edit the contract, politely explain that Quick mode uploaded contracts cannot be edited through chat. They would need to:
+  1. Download the original document
+  2. Edit it externally
+  3. Re-upload the modified version
+  OR use "Full mode" when uploading to enable AI-powered editing.
+- Provide helpful analysis, explanations, and insights about the contract content.
+- You can discuss potential risks, missing clauses, or suggest improvements the user could make manually.`;
+    } else {
+      // For generated contracts or Full mode uploads, enable full editing capabilities
+      // Handle case where content might still be null/undefined
+      if (!content || !content.clauses) {
+        return NextResponse.json({
+          error: "Contract has no structured content available for chat"
+        }, { status: 400 });
+      }
+
+      systemPrompt = `You are an AI assistant helping a user edit their ${contract.type} contract governed by ${contract.jurisdiction} law.
 
 CURRENT CONTRACT CONTENT:
 
@@ -161,7 +200,7 @@ ${content.preamble}
 ${content.recitals}
 
 **Clauses:**
-${content.clauses.map((c) => `[clauseId: "${c.id}"] ${c.title}:\n${c.content}`).join("\n\n")}
+${content.clauses.map((c: Clause) => `[clauseId: "${c.id}"] ${c.title}:\n${c.content}`).join("\n\n")}
 
 **Signature Block:**
 ${content.signatureBlock}
@@ -176,6 +215,12 @@ INSTRUCTIONS:
 - If the user's request is unclear, use answer_question to ask for clarification.
 - IMPORTANT: If the user wants to shorten, simplify, or rewrite content, ALWAYS use modify_contract - do NOT just explain what you would do.
 - IMPORTANT: If the user wants to remove/delete clauses, use the "remove" action with the EXACT clauseId shown in the brackets (e.g., "1", "2", "12" - NOT the clause title).`;
+    }
+
+    // For Quick mode, only allow the answer_question function
+    const toolsToUse = isQuickModeUpload
+      ? [chatFunctions[1]] // Only answer_question
+      : chatFunctions; // Both modify_contract and answer_question
 
     // Call OpenAI with function calling
     const response = await getOpenAI().chat.completions.create({
@@ -188,7 +233,7 @@ INSTRUCTIONS:
           content: m.content,
         })),
       ],
-      tools: chatFunctions,
+      tools: toolsToUse,
       tool_choice: "auto",
     });
 
@@ -204,13 +249,23 @@ INSTRUCTIONS:
       const args = JSON.parse(toolCall.function.arguments);
 
       if (functionName === "modify_contract") {
+        // Guard: modify_contract should only be called for non-Quick mode contracts
+        if (!content || !content.clauses) {
+          return NextResponse.json({
+            response: "This contract cannot be modified through chat. Please download and edit it externally."
+          });
+        }
+
         // Apply modifications to the contract
         let updatedContent = { ...content, clauses: [...content.clauses] };
+        // Track which clause IDs are modified for smart cache invalidation
+        const modifiedClauseIds = new Set<string>();
 
         for (const mod of args.modifications) {
           // Handle remove action - only works for clauses
           if (mod.action === "remove" && mod.section === "clause" && mod.clauseId) {
-            updatedContent.clauses = updatedContent.clauses.filter((c) => c.id !== mod.clauseId);
+            updatedContent.clauses = updatedContent.clauses.filter((c: Clause) => c.id !== mod.clauseId);
+            modifiedClauseIds.add(mod.clauseId);
             continue;
           }
 
@@ -228,15 +283,16 @@ INSTRUCTIONS:
               updatedContent.recitals = mod.newContent;
             }
           } else if (mod.section === "clause" && mod.clauseId) {
-            updatedContent.clauses = updatedContent.clauses.map((c) => {
+            modifiedClauseIds.add(mod.clauseId);
+            updatedContent.clauses = updatedContent.clauses.map((c: Clause) => {
               if (c.id === mod.clauseId) {
-                let newContent = c.content;
+                let newClauseContent = c.content;
                 if (mod.searchText && mod.replaceText) {
-                  newContent = c.content.replace(mod.searchText, mod.replaceText);
+                  newClauseContent = c.content.replace(mod.searchText, mod.replaceText);
                 } else if (mod.newContent) {
-                  newContent = mod.newContent;
+                  newClauseContent = mod.newContent;
                 }
-                return { ...c, content: newContent, isEdited: true };
+                return { ...c, content: newClauseContent, isEdited: true };
               }
               return c;
             });
@@ -246,6 +302,24 @@ INSTRUCTIONS:
             } else if (mod.newContent) {
               updatedContent.signatureBlock = mod.newContent;
             }
+          }
+        }
+
+        // Smart cache invalidation: remove only modified clauses from section_explanations
+        console.log("[Smart Cache] Modified clause IDs:", Array.from(modifiedClauseIds));
+        let updatedExplanations = contract.section_explanations;
+        if (updatedExplanations && modifiedClauseIds.size > 0) {
+          try {
+            const existingCache = typeof updatedExplanations === 'string'
+              ? JSON.parse(updatedExplanations)
+              : updatedExplanations;
+            // Remove only the modified clause IDs from cache
+            for (const clauseId of modifiedClauseIds) {
+              delete existingCache[clauseId];
+            }
+            updatedExplanations = Object.keys(existingCache).length > 0 ? existingCache : null;
+          } catch {
+            updatedExplanations = null;
           }
         }
 
@@ -265,12 +339,14 @@ INSTRUCTIONS:
           });
 
         // Save updated contract to database
+        // Smart cache: only remove modified clauses, keep the rest
         const { data: updated, error: updateError } = await supabase
           .from("contracts")
           .update({
             content: updatedContent,
             version: newVersionNumber,
             updated_at: new Date().toISOString(),
+            section_explanations: updatedExplanations,
           })
           .eq("id", id)
           .select()

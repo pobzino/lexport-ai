@@ -340,6 +340,7 @@ export function PDFPreviewModal({
             <div className="flex justify-center">
               <div className="shadow-xl bg-white">
                 <Document
+                  key={pdfUrl}
                   file={pdfUrl}
                   onLoadSuccess={onDocumentLoadSuccess}
                   onLoadError={onDocumentLoadError}

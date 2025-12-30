@@ -10,7 +10,7 @@ Lexport is an AI-powered legal platform for startup founders and freelancers. Cr
 - **Runtime**: Bun
 - **Backend**: Supabase (PostgreSQL, Auth, Storage)
 - **Styling**: Tailwind CSS v4
-- **AI**: OpenAI (GPT-5-mini for generation, GPT-4o for analysis/chat)
+- **AI**: OpenAI (GPT-5.1 for generation, GPT-4o for analysis/chat)
 - **Hosting**: Netlify
 
 ## Project Structure
@@ -119,8 +119,12 @@ Copy `.env.example` to `.env` and fill in:
 - Payment fields in signature flow
 
 ### AI Contract Generation
-- **GPT-5-mini**: Contract generation with manifest-based prompts (~$0.009/contract)
+- **GPT-5.1**: Contract generation with manifest-based prompts (best quality)
+  - 286 words/clause avg (vs 164 for GPT-5-mini)
+  - Comprehensive Definitions clause (~516 words)
+  - Generation time: ~42 seconds
 - **GPT-4o**: Risk analysis, clause explanations, chat, modifications
+- **Reasoning Effort**: `low` for optimal speed/quality balance
 - Clause manifests in `src/lib/contracts/manifests/` define required clauses per contract type
 - Jurisdiction-aware prompts (CA non-competes unenforceable, UK GDPR, etc.)
 
@@ -138,3 +142,15 @@ Copy `.env.example` to `.env` and fill in:
 - Keep contracts jurisdiction-aware (CA, TX, NY, UK)
 - Use Supabase client from `@/lib/supabase/server` for server components
 - Use Supabase client from `@/lib/supabase/client` for client components
+
+## IMPORTANT: API Knowledge
+
+**BEFORE modifying or deleting any API calls, model names, or SDK usage:**
+
+1. **Use Context7 MCP** (`mcp__context7__resolve-library-id` and `mcp__context7__get-library-docs`) to check the latest documentation
+2. **DO NOT assume APIs don't exist** based on training knowledge cutoff
+3. This project uses newer OpenAI APIs that may not be in Claude's training data:
+   - **GPT-5-mini**: Valid model for contract generation
+   - **GPT-4.1-mini**: Valid model for chat/explanations
+   - **OpenAI Responses API** (`responses.create`): Valid API endpoint with reasoning support
+4. Always verify with up-to-date docs before claiming an API is invalid
