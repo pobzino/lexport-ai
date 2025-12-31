@@ -190,15 +190,15 @@ export function NotificationPreferences() {
                 </div>
             )}
 
-            {/* Header row */}
-            <div className="hidden sm:grid sm:grid-cols-[1fr,80px,80px] gap-4 mb-4 px-4 text-sm text-slate-500 font-medium">
+            {/* Header row - sticky on desktop */}
+            <div className="hidden sm:grid sm:grid-cols-[1fr,80px,80px] gap-4 mb-4 px-4 py-2 bg-slate-100 rounded-lg text-xs uppercase tracking-wide text-slate-600 font-semibold">
                 <div>Notification Type</div>
-                <div className="text-center flex items-center justify-center gap-1">
-                    <Mail className="w-4 h-4" />
+                <div className="text-center flex items-center justify-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5" />
                     Email
                 </div>
-                <div className="text-center flex items-center justify-center gap-1">
-                    <Smartphone className="w-4 h-4" />
+                <div className="text-center flex items-center justify-center gap-1.5">
+                    <Smartphone className="w-3.5 h-3.5" />
                     In-App
                 </div>
             </div>
@@ -291,36 +291,42 @@ export function NotificationPreferences() {
                                                     </label>
                                                 </div>
 
-                                                {/* Desktop layout */}
+                                                {/* Desktop layout - toggle switches with labels */}
                                                 <div className="hidden sm:flex items-center justify-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={pref.email_enabled}
-                                                        onChange={(e) =>
-                                                            updatePreference(
-                                                                type,
-                                                                "email_enabled",
-                                                                e.target.checked
-                                                            )
-                                                        }
-                                                        disabled={isSaving}
-                                                        className="w-5 h-5 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
-                                                    />
+                                                    <label className="relative inline-flex items-center cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={pref.email_enabled}
+                                                            onChange={(e) =>
+                                                                updatePreference(
+                                                                    type,
+                                                                    "email_enabled",
+                                                                    e.target.checked
+                                                                )
+                                                            }
+                                                            disabled={isSaving}
+                                                            className="sr-only peer"
+                                                        />
+                                                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-500/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-600 peer-disabled:opacity-50"></div>
+                                                    </label>
                                                 </div>
                                                 <div className="hidden sm:flex items-center justify-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={pref.in_app_enabled}
-                                                        onChange={(e) =>
-                                                            updatePreference(
-                                                                type,
-                                                                "in_app_enabled",
-                                                                e.target.checked
-                                                            )
-                                                        }
-                                                        disabled={isSaving}
-                                                        className="w-5 h-5 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
-                                                    />
+                                                    <label className="relative inline-flex items-center cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={pref.in_app_enabled}
+                                                            onChange={(e) =>
+                                                                updatePreference(
+                                                                    type,
+                                                                    "in_app_enabled",
+                                                                    e.target.checked
+                                                                )
+                                                            }
+                                                            disabled={isSaving}
+                                                            className="sr-only peer"
+                                                        />
+                                                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-500/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-600 peer-disabled:opacity-50"></div>
+                                                    </label>
                                                 </div>
                                             </div>
                                         );
