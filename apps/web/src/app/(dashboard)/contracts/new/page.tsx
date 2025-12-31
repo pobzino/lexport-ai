@@ -20,9 +20,20 @@ import {
   FileStack,
   Play,
   X,
+  Eye,
+  Star,
 } from "lucide-react";
 import { ContractGeneratingOverlay } from "@/components/contract-generating-overlay";
-import { useOnboarding } from "@/components/onboarding";
+import { ContractPreviewModal } from "@/components/contract-preview-modal";
+import { EnhancedPlaceholderModal } from "@/components/contracts/EnhancedPlaceholderModal";
+import { useOnboarding, type UserType } from "@/components/onboarding";
+
+// Recommended contracts by user type
+const RECOMMENDED_BY_USER_TYPE: Record<NonNullable<UserType>, ContractType[]> = {
+  startup_founder: ["safe_note", "nda_mutual", "consulting_agreement"],
+  freelancer: ["freelance_service", "nda_one_way", "nda_mutual"],
+  agency: ["consulting_agreement", "independent_contractor", "nda_mutual"],
+};
 
 // Placeholder type for system templates
 interface Placeholder {
@@ -84,10 +95,14 @@ const CONTRACT_ICONS: Record<string, typeof Shield> = {
 
 export default function NewContractPage() {
   const router = useRouter();
-  const { completeStep } = useOnboarding();
+  const { completeStep, userType } = useOnboarding();
   const [step, setStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Preview modal state
+  const [previewType, setPreviewType] = useState<ContractType | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Creation mode state - default to smart intake
   const [creationMode, setCreationMode] = useState<"smart" | "manual" | "template">("smart");
@@ -123,6 +138,7 @@ export default function NewContractPage() {
   const [selectedType, setSelectedType] = useState<ContractType | null>(null);
   const [jurisdiction, setJurisdiction] = useState<Jurisdiction>("us_california");
   const [formData, setFormData] = useState<Record<string, unknown>>({});
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Payment settings state
   const [paymentRequired, setPaymentRequired] = useState(false);
@@ -230,7 +246,176 @@ export default function NewContractPage() {
     setFormData({});
   };
 
+  // Validate form data based on contract type
+  const validateFormData = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    // Email validation helper
+    const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+    // Get signer groups from form data
+    const signerGroups = formData.signerGroups as SignerGroup[] | undefined;
+
+    // Validate based on contract type
+    switch (selectedType) {
+      case "nda_mutual":
+      case "nda_one_way": {
+        // Validate signers
+        if (signerGroups) {
+          signerGroups.forEach((group, groupIndex) => {
+            group.signers.forEach((signer, signerIndex) => {
+              if (!signer.name?.trim()) {
+                errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
+              }
+              if (!signer.email?.trim()) {
+                errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
+              } else if (!isValidEmail(signer.email)) {
+                errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
+              }
+            });
+          });
+        } else {
+          // Check legacy party fields
+          const disclosingParty = formData.disclosingParty as Record<string, string> | undefined;
+          const receivingParty = formData.receivingParty as Record<string, string> | undefined;
+
+          if (!disclosingParty?.name?.trim()) errors.disclosingPartyName = "Disclosing party name is required";
+          if (!disclosingParty?.email?.trim()) {
+            errors.disclosingPartyEmail = "Disclosing party email is required";
+          } else if (!isValidEmail(disclosingParty.email)) {
+            errors.disclosingPartyEmail = "Invalid email address";
+          }
+
+          if (!receivingParty?.name?.trim()) errors.receivingPartyName = "Receiving party name is required";
+          if (!receivingParty?.email?.trim()) {
+            errors.receivingPartyEmail = "Receiving party email is required";
+          } else if (!isValidEmail(receivingParty.email)) {
+            errors.receivingPartyEmail = "Invalid email address";
+          }
+        }
+
+        // Purpose is required
+        if (!formData.purpose || !(formData.purpose as string).trim()) {
+          errors.purpose = "Purpose of disclosure is required";
+        }
+        break;
+      }
+
+      case "consulting_agreement": {
+        // Validate signers
+        if (signerGroups) {
+          signerGroups.forEach((group, groupIndex) => {
+            group.signers.forEach((signer, signerIndex) => {
+              if (!signer.name?.trim()) {
+                errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
+              }
+              if (!signer.email?.trim()) {
+                errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
+              } else if (!isValidEmail(signer.email)) {
+                errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
+              }
+            });
+          });
+        }
+
+        // Consulting scope is required
+        if (!formData.consultingScope || !(formData.consultingScope as string).trim()) {
+          errors.consultingScope = "Consulting scope is required";
+        }
+        break;
+      }
+
+      case "freelance_service": {
+        // Validate signers
+        if (signerGroups) {
+          signerGroups.forEach((group, groupIndex) => {
+            group.signers.forEach((signer, signerIndex) => {
+              if (!signer.name?.trim()) {
+                errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
+              }
+              if (!signer.email?.trim()) {
+                errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
+              } else if (!isValidEmail(signer.email)) {
+                errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
+              }
+            });
+          });
+        }
+
+        // Project name is required
+        if (!formData.projectName || !(formData.projectName as string).trim()) {
+          errors.projectName = "Project name is required";
+        }
+        // Project description is required
+        if (!formData.projectDescription || !(formData.projectDescription as string).trim()) {
+          errors.projectDescription = "Project description is required";
+        }
+        break;
+      }
+
+      case "independent_contractor": {
+        // Validate signers
+        if (signerGroups) {
+          signerGroups.forEach((group, groupIndex) => {
+            group.signers.forEach((signer, signerIndex) => {
+              if (!signer.name?.trim()) {
+                errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
+              }
+              if (!signer.email?.trim()) {
+                errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
+              } else if (!isValidEmail(signer.email)) {
+                errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
+              }
+            });
+          });
+        }
+
+        // Services description is required
+        if (!formData.servicesDescription || !(formData.servicesDescription as string).trim()) {
+          errors.servicesDescription = "Description of services is required";
+        }
+        break;
+      }
+
+      case "safe_note": {
+        // Validate signers
+        if (signerGroups) {
+          signerGroups.forEach((group, groupIndex) => {
+            group.signers.forEach((signer, signerIndex) => {
+              if (!signer.name?.trim()) {
+                errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
+              }
+              if (!signer.email?.trim()) {
+                errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
+              } else if (!isValidEmail(signer.email)) {
+                errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
+              }
+            });
+          });
+        }
+
+        // Investment amount is required
+        if (!formData.investmentAmount || (formData.investmentAmount as number) <= 0) {
+          errors.investmentAmount = "Investment amount is required";
+        }
+        break;
+      }
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleNext = () => {
+    // Validate before moving from step 2 to step 3
+    if (step === 2) {
+      const isValid = validateFormData();
+      if (!isValid) {
+        setError("Please fill in all required fields");
+        return;
+      }
+      setError(null);
+    }
     if (step < 3) setStep(step + 1);
   };
 
@@ -794,46 +979,145 @@ export default function NewContractPage() {
 
             {/* Manual Mode - Contract Type Selection */}
             {creationMode === "manual" && (
-              <>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {Object.values(CONTRACT_TYPES).map((type) => {
-                    const Icon = CONTRACT_ICONS[type.icon] || Shield;
-                    const isSelected = selectedType === type.id;
+              <div className="space-y-8">
+                {/* Recommended for You Section */}
+                {userType && RECOMMENDED_BY_USER_TYPE[userType] && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <Star className="w-5 h-5 text-amber-500" />
+                      <h3 className="text-lg font-semibold text-slate-900">Recommended for You</h3>
+                      <span className="text-sm text-slate-500">
+                        ({userType === "startup_founder" ? "Startup Founder" : userType === "freelancer" ? "Freelancer" : "Agency"})
+                      </span>
+                    </div>
+                    <div className="grid md:grid-cols-3 gap-4">
+                      {RECOMMENDED_BY_USER_TYPE[userType].map((typeId) => {
+                        const type = CONTRACT_TYPES[typeId];
+                        if (!type) return null;
+                        const Icon = CONTRACT_ICONS[type.icon] || Shield;
+                        const isSelected = selectedType === type.id;
 
-                    return (
-                      <button
-                        key={type.id}
-                        onClick={() => handleTypeSelect(type.id)}
-                        className={`p-6 rounded-xl border-2 text-left transition-all ${
-                          isSelected
-                            ? "border-[#529ec6] bg-[#529ec6]/5"
-                            : "border-slate-200 bg-white hover:border-[#529ec6]/30"
-                        }`}
-                      >
-                        <div
-                          className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${
-                            isSelected ? "bg-[#529ec6]/10" : "bg-slate-100"
-                          }`}
-                        >
-                          <Icon
-                            className={`w-6 h-6 ${isSelected ? "text-[#529ec6]" : "text-slate-600"}`}
-                          />
-                        </div>
-                        <h3 className="font-semibold text-slate-900 mb-1">
-                          {type.name}
-                        </h3>
-                        <p className="text-sm text-slate-600 mb-3">
-                          {type.description}
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <Sparkles className="w-3 h-3" />
-                          <span>~{type.estimatedTime} with AI</span>
-                        </div>
-                      </button>
-                    );
-                  })}
+                        return (
+                          <div
+                            key={type.id}
+                            className={`relative p-5 rounded-xl border-2 text-left transition-all ${
+                              isSelected
+                                ? "border-[#529ec6] bg-[#529ec6]/5 ring-2 ring-[#529ec6]/20"
+                                : "border-amber-200 bg-gradient-to-br from-amber-50/50 to-white hover:border-[#529ec6]/30"
+                            }`}
+                          >
+                            {/* Recommended badge */}
+                            <div className="absolute -top-2 -right-2 bg-amber-500 text-white text-xs font-medium px-2 py-0.5 rounded-full">
+                              Top Pick
+                            </div>
+                            <button
+                              onClick={() => handleTypeSelect(type.id)}
+                              className="w-full text-left"
+                            >
+                              <div
+                                className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${
+                                  isSelected ? "bg-[#529ec6]/10" : "bg-amber-100"
+                                }`}
+                              >
+                                <Icon
+                                  className={`w-5 h-5 ${isSelected ? "text-[#529ec6]" : "text-amber-700"}`}
+                                />
+                              </div>
+                              <h3 className="font-semibold text-slate-900 mb-1">
+                                {type.name}
+                              </h3>
+                              <p className="text-sm text-slate-600 mb-2 line-clamp-2">
+                                {type.description}
+                              </p>
+                            </button>
+                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                                <Sparkles className="w-3 h-3" />
+                                <span>~{type.estimatedTime}</span>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPreviewType(type.id);
+                                  setShowPreview(true);
+                                }}
+                                className="flex items-center gap-1 text-xs text-[#529ec6] hover:text-[#3d7a9e] font-medium"
+                              >
+                                <Eye className="w-3 h-3" />
+                                Preview
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* All Contract Types */}
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900 mb-4">
+                    {userType ? "All Contract Types" : "Choose a Contract Type"}
+                  </h3>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Object.values(CONTRACT_TYPES)
+                      .filter((type) => !userType || !RECOMMENDED_BY_USER_TYPE[userType]?.includes(type.id))
+                      .map((type) => {
+                        const Icon = CONTRACT_ICONS[type.icon] || Shield;
+                        const isSelected = selectedType === type.id;
+
+                        return (
+                          <div
+                            key={type.id}
+                            className={`p-5 rounded-xl border-2 text-left transition-all ${
+                              isSelected
+                                ? "border-[#529ec6] bg-[#529ec6]/5"
+                                : "border-slate-200 bg-white hover:border-[#529ec6]/30"
+                            }`}
+                          >
+                            <button
+                              onClick={() => handleTypeSelect(type.id)}
+                              className="w-full text-left"
+                            >
+                              <div
+                                className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${
+                                  isSelected ? "bg-[#529ec6]/10" : "bg-slate-100"
+                                }`}
+                              >
+                                <Icon
+                                  className={`w-5 h-5 ${isSelected ? "text-[#529ec6]" : "text-slate-600"}`}
+                                />
+                              </div>
+                              <h3 className="font-semibold text-slate-900 mb-1">
+                                {type.name}
+                              </h3>
+                              <p className="text-sm text-slate-600 mb-2 line-clamp-2">
+                                {type.description}
+                              </p>
+                            </button>
+                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                                <Sparkles className="w-3 h-3" />
+                                <span>~{type.estimatedTime}</span>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPreviewType(type.id);
+                                  setShowPreview(true);
+                                }}
+                                className="flex items-center gap-1 text-xs text-[#529ec6] hover:text-[#3d7a9e] font-medium"
+                              >
+                                <Eye className="w-3 h-3" />
+                                Preview
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
                 </div>
-              </>
+              </div>
             )}
 
             {/* Template Mode - Template Browser */}
@@ -1062,6 +1346,7 @@ export default function NewContractPage() {
               jurisdiction={jurisdiction}
               formData={formData}
               onChange={setFormData}
+              errors={formErrors}
             />
 
             {/* Payment Settings Section - Only for service/work contracts */}
@@ -1423,7 +1708,7 @@ export default function NewContractPage() {
 
       {/* Placeholder Fill-in Modal for System Templates */}
       {showPlaceholderModal && selectedTemplate && (
-        <TemplatePlaceholderModal
+        <EnhancedPlaceholderModal
           template={selectedTemplate}
           placeholderValues={placeholderValues}
           onValuesChange={setPlaceholderValues}
@@ -1434,6 +1719,7 @@ export default function NewContractPage() {
             setIsUsingTemplate(false);
           }}
           isSubmitting={isUsingTemplate}
+          jurisdiction={jurisdiction}
         />
       )}
 
@@ -1442,6 +1728,24 @@ export default function NewContractPage() {
         isVisible={isGenerating}
         contractType={selectedType || undefined}
       />
+
+      {/* Contract Preview Modal */}
+      {previewType && (
+        <ContractPreviewModal
+          isOpen={showPreview}
+          onClose={() => {
+            setShowPreview(false);
+            setPreviewType(null);
+          }}
+          contractType={previewType}
+          contractName={CONTRACT_TYPES[previewType]?.name || previewType}
+          onUseThis={() => {
+            setShowPreview(false);
+            handleTypeSelect(previewType);
+            setPreviewType(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1455,11 +1759,13 @@ function ContractDetailsForm({
   jurisdiction,
   formData,
   onChange,
+  errors = {},
 }: {
   contractType: ContractType;
   jurisdiction: Jurisdiction;
   formData: Record<string, unknown>;
   onChange: (data: Record<string, unknown>) => void;
+  errors?: Record<string, string>;
 }) {
   const updateField = (field: string, value: unknown) => {
     onChange({ ...formData, [field]: value });
@@ -1481,6 +1787,7 @@ function ContractDetailsForm({
           updateNestedField={updateNestedField}
           onChange={onChange}
           isMutual={contractType === "nda_mutual"}
+          errors={errors}
         />
       );
 
@@ -1491,6 +1798,7 @@ function ContractDetailsForm({
           updateField={updateField}
           updateNestedField={updateNestedField}
           onChange={onChange}
+          errors={errors}
         />
       );
 
@@ -1501,6 +1809,7 @@ function ContractDetailsForm({
           updateField={updateField}
           updateNestedField={updateNestedField}
           onChange={onChange}
+          errors={errors}
         />
       );
 
@@ -1511,6 +1820,7 @@ function ContractDetailsForm({
           updateField={updateField}
           updateNestedField={updateNestedField}
           onChange={onChange}
+          errors={errors}
         />
       );
 
@@ -1521,6 +1831,7 @@ function ContractDetailsForm({
           updateField={updateField}
           updateNestedField={updateNestedField}
           onChange={onChange}
+          errors={errors}
         />
       );
 
@@ -1539,12 +1850,14 @@ function NDAForm({
   updateNestedField,
   onChange,
   isMutual,
+  errors = {},
 }: {
   formData: Record<string, unknown>;
   updateField: (field: string, value: unknown) => void;
   updateNestedField: (parent: string, field: string, value: unknown) => void;
   onChange: (data: Record<string, unknown>) => void;
   isMutual: boolean;
+  errors?: Record<string, string>;
 }) {
   // Initialize signer groups from form data or create defaults
   const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
@@ -1636,6 +1949,8 @@ function NDAForm({
             value={(formData.purpose as string) || ""}
             onChange={(v) => updateField("purpose", v)}
             placeholder="Describe the business purpose for sharing confidential information..."
+            required
+            error={errors.purpose}
           />
         </div>
       </div>
@@ -1680,11 +1995,13 @@ function ContractorForm({
   updateField,
   updateNestedField,
   onChange,
+  errors = {},
 }: {
   formData: Record<string, unknown>;
   updateField: (field: string, value: unknown) => void;
   updateNestedField: (parent: string, field: string, value: unknown) => void;
   onChange: (data: Record<string, unknown>) => void;
+  errors?: Record<string, string>;
 }) {
   // Initialize signer groups from form data or create defaults
   const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
@@ -1754,6 +2071,8 @@ function ContractorForm({
             value={(formData.servicesDescription as string) || ""}
             onChange={(v) => updateField("servicesDescription", v)}
             placeholder="Describe the services the contractor will provide..."
+            required
+            error={errors.servicesDescription}
           />
           <div className="grid md:grid-cols-3 gap-4">
             <FormInput
@@ -1813,11 +2132,13 @@ function ConsultingForm({
   updateField,
   updateNestedField,
   onChange,
+  errors = {},
 }: {
   formData: Record<string, unknown>;
   updateField: (field: string, value: unknown) => void;
   updateNestedField: (parent: string, field: string, value: unknown) => void;
   onChange: (data: Record<string, unknown>) => void;
+  errors?: Record<string, string>;
 }) {
   // Initialize signer groups from form data or create defaults
   const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
@@ -1885,6 +2206,8 @@ function ConsultingForm({
           value={(formData.consultingScope as string) || ""}
           onChange={(v) => updateField("consultingScope", v)}
           placeholder="Describe the consulting services and scope of work..."
+          required
+          error={errors.consultingScope}
         />
         <div className="grid md:grid-cols-3 gap-4 mt-4">
           <FormInput
@@ -1916,11 +2239,13 @@ function SAFEForm({
   updateField,
   updateNestedField,
   onChange,
+  errors = {},
 }: {
   formData: Record<string, unknown>;
   updateField: (field: string, value: unknown) => void;
   updateNestedField: (parent: string, field: string, value: unknown) => void;
   onChange: (data: Record<string, unknown>) => void;
+  errors?: Record<string, string>;
 }) {
   // Initialize signer groups from form data or create defaults
   const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
@@ -1992,6 +2317,8 @@ function SAFEForm({
             value={(formData.investmentAmount as string) || ""}
             onChange={(v) => updateField("investmentAmount", parseFloat(v))}
             placeholder="50000"
+            required
+            error={errors.investmentAmount}
           />
           <FormSelect
             label="SAFE Type"
@@ -2037,11 +2364,13 @@ function FreelanceForm({
   updateField,
   updateNestedField,
   onChange,
+  errors = {},
 }: {
   formData: Record<string, unknown>;
   updateField: (field: string, value: unknown) => void;
   updateNestedField: (parent: string, field: string, value: unknown) => void;
   onChange: (data: Record<string, unknown>) => void;
+  errors?: Record<string, string>;
 }) {
   // Initialize signer groups from form data or create defaults
   const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
@@ -2110,12 +2439,16 @@ function FreelanceForm({
             value={(formData.projectName as string) || ""}
             onChange={(v) => updateField("projectName", v)}
             placeholder="Website Redesign"
+            required
+            error={errors.projectName}
           />
           <FormTextarea
             label="Project Description"
             value={(formData.projectDescription as string) || ""}
             onChange={(v) => updateField("projectDescription", v)}
             placeholder="Describe the project scope and deliverables..."
+            required
+            error={errors.projectDescription}
           />
           <div className="grid md:grid-cols-3 gap-4">
             <FormInput
@@ -2233,25 +2566,35 @@ function FormInput({
   value,
   onChange,
   placeholder,
+  required = false,
+  error,
 }: {
   label: string;
   type?: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  required?: boolean;
+  error?: string;
 }) {
   return (
     <div>
       <label className="block text-sm font-medium text-slate-700 mb-1">
         {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6] focus:border-transparent"
+        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6] focus:border-transparent ${
+          error ? "border-red-300 bg-red-50" : "border-slate-200"
+        }`}
       />
+      {error && (
+        <p className="mt-1 text-sm text-red-600">{error}</p>
+      )}
     </div>
   );
 }
@@ -2261,24 +2604,34 @@ function FormTextarea({
   value,
   onChange,
   placeholder,
+  required = false,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  required?: boolean;
+  error?: string;
 }) {
   return (
     <div>
       <label className="block text-sm font-medium text-slate-700 mb-1">
         {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={4}
-        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6] focus:border-transparent resize-none"
+        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6] focus:border-transparent resize-none ${
+          error ? "border-red-300 bg-red-50" : "border-slate-200"
+        }`}
       />
+      {error && (
+        <p className="mt-1 text-sm text-red-600">{error}</p>
+      )}
     </div>
   );
 }

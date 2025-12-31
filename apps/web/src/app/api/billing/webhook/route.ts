@@ -51,9 +51,28 @@ export async function POST(request: NextRequest) {
           );
 
           const userId = subscription.metadata.user_id;
+          const organizationId = subscription.metadata.organization_id;
           const planId = subscription.metadata.plan_id as "pro" | "team";
 
-          if (userId && planId) {
+          // Handle organization subscription
+          if (organizationId && planId) {
+            await supabase.rpc("set_org_subscription_tier", {
+              org_uuid: organizationId,
+              new_tier: planId,
+              new_status: "active",
+            });
+
+            // Update stripe subscription ID on organization
+            await supabase
+              .from("organizations")
+              .update({
+                stripe_subscription_id: subscription.id,
+                subscription_started_at: new Date().toISOString(),
+              })
+              .eq("id", organizationId);
+          }
+          // Handle individual user subscription
+          else if (userId && planId) {
             await supabase.rpc("set_subscription_tier", {
               user_uuid: userId,
               new_tier: planId,
@@ -95,17 +114,27 @@ export async function POST(request: NextRequest) {
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
         const userId = subscription.metadata.user_id;
+        const organizationId = subscription.metadata.organization_id;
 
-        if (userId) {
-          const priceId = subscription.items.data[0]?.price.id;
-          const tier = PRICE_TO_TIER[priceId || ""] || "free";
+        const priceId = subscription.items.data[0]?.price.id;
+        const tier = PRICE_TO_TIER[priceId || ""] || "free";
 
-          const status = subscription.status === "active" || subscription.status === "trialing"
-            ? "active"
-            : subscription.status === "past_due"
-            ? "past_due"
-            : "canceled";
+        const status = subscription.status === "active" || subscription.status === "trialing"
+          ? "active"
+          : subscription.status === "past_due"
+          ? "past_due"
+          : "canceled";
 
+        // Handle organization subscription update
+        if (organizationId) {
+          await supabase.rpc("set_org_subscription_tier", {
+            org_uuid: organizationId,
+            new_tier: tier,
+            new_status: status,
+          });
+        }
+        // Handle user subscription update
+        else if (userId) {
           await supabase.rpc("set_subscription_tier", {
             user_uuid: userId,
             new_tier: tier,
@@ -118,8 +147,26 @@ export async function POST(request: NextRequest) {
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
         const userId = subscription.metadata.user_id;
+        const organizationId = subscription.metadata.organization_id;
 
-        if (userId) {
+        // Handle organization subscription deletion
+        if (organizationId) {
+          await supabase.rpc("set_org_subscription_tier", {
+            org_uuid: organizationId,
+            new_tier: "free",
+            new_status: "canceled",
+          });
+
+          await supabase
+            .from("organizations")
+            .update({
+              stripe_subscription_id: null,
+              subscription_ends_at: new Date().toISOString(),
+            })
+            .eq("id", organizationId);
+        }
+        // Handle user subscription deletion
+        else if (userId) {
           // Downgrade to free tier
           await supabase.rpc("set_subscription_tier", {
             user_uuid: userId,
@@ -148,8 +195,17 @@ export async function POST(request: NextRequest) {
         if (subscriptionId) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
           const userId = subscription.metadata.user_id;
+          const organizationId = subscription.metadata.organization_id;
 
-          if (userId) {
+          // Handle organization payment failure
+          if (organizationId) {
+            await supabase
+              .from("organizations")
+              .update({ subscription_status: "past_due" })
+              .eq("id", organizationId);
+          }
+          // Handle user payment failure
+          else if (userId) {
             await supabase
               .from("users")
               .update({ subscription_status: "past_due" })

@@ -21,8 +21,12 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Crown,
+  ShoppingCart,
+  Sparkles,
 } from "lucide-react";
 import type { Template } from "@/db/types";
+import { useSubscription } from "@/lib/hooks/useSubscription";
 
 // Contract type icons
 const CONTRACT_TYPE_ICONS: Record<string, typeof FileText> = {
@@ -66,11 +70,16 @@ export default function TemplateDetailPage() {
   const router = useRouter();
   const params = useParams();
   const templateId = params.id as string;
+  const subscription = useSubscription();
 
   const [template, setTemplate] = useState<Template | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+
+  // Premium template ownership
+  const [ownsTemplate, setOwnsTemplate] = useState<boolean | null>(null);
+  const [isPurchasing, setIsPurchasing] = useState(false);
 
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false);
@@ -84,6 +93,13 @@ export default function TemplateDetailPage() {
 
   // Clauses expansion state
   const [expandedClauses, setExpandedClauses] = useState<Set<string>>(new Set());
+
+  // Prevent right-click on protected content
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (template?.is_premium && !ownsTemplate && !subscription.hasPremiumTemplates) {
+      e.preventDefault();
+    }
+  };
 
   useEffect(() => {
     async function fetchTemplate() {
@@ -101,6 +117,17 @@ export default function TemplateDetailPage() {
           const userData = await userResponse.json();
           setIsOwner(data.template.created_by_id === userData.user?.id);
         }
+
+        // Check premium template ownership
+        if (data.template.is_premium) {
+          const ownershipResponse = await fetch(`/api/templates/${templateId}/purchase`);
+          if (ownershipResponse.ok) {
+            const ownershipData = await ownershipResponse.json();
+            setOwnsTemplate(ownershipData.owned);
+          }
+        } else {
+          setOwnsTemplate(true); // Non-premium templates are "owned" by everyone
+        }
       } catch (err) {
         console.error("Error fetching template:", err);
         setError("Failed to load template");
@@ -111,6 +138,29 @@ export default function TemplateDetailPage() {
 
     fetchTemplate();
   }, [templateId]);
+
+  // Handle purchasing premium template
+  const handlePurchase = async () => {
+    setIsPurchasing(true);
+    try {
+      const response = await fetch(`/api/templates/${templateId}/purchase`, {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (data.url) {
+        // Redirect to Stripe checkout
+        window.location.href = data.url;
+      } else if (data.success) {
+        // Pro/Team user - template was granted
+        setOwnsTemplate(true);
+      }
+    } catch (err) {
+      console.error("Failed to purchase template:", err);
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
 
   const handleEdit = () => {
     if (!template) return;
@@ -412,81 +462,134 @@ export default function TemplateDetailPage() {
       </div>
 
       {/* Contract Preview */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6">
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">Contract Preview</h2>
+      <div className="bg-white border border-slate-200 rounded-xl p-6 relative">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-slate-900">Contract Preview</h2>
+          {template.is_premium && (
+            <span className="flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+              <Crown className="w-3 h-3" />
+              Premium Template
+            </span>
+          )}
+        </div>
 
-        {/* Preamble */}
-        {content?.preamble && (
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-2">
-              Preamble
-            </h3>
-            <p className="text-slate-700 whitespace-pre-wrap">{content.preamble}</p>
-          </div>
-        )}
-
-        {/* Recitals */}
-        {content?.recitals && (
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-2">
-              Recitals
-            </h3>
-            <p className="text-slate-700 whitespace-pre-wrap">{content.recitals}</p>
-          </div>
-        )}
-
-        {/* Clauses */}
-        {content?.clauses && content.clauses.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-3">
-              Clauses ({content.clauses.length})
-            </h3>
-            <div className="space-y-2">
-              {content.clauses.map((clause, index) => (
-                <div
-                  key={clause.id}
-                  className="border border-slate-200 rounded-lg overflow-hidden"
-                >
+        {/* Premium Upgrade Banner (shown when user doesn't own premium template) */}
+        {template.is_premium && !ownsTemplate && !subscription.hasPremiumTemplates && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-slate-900 mb-1">
+                  Unlock this Premium Template
+                </h3>
+                <p className="text-sm text-slate-600 mb-3">
+                  Get access to this professionally crafted template. Pro subscribers get all premium templates included.
+                </p>
+                <div className="flex items-center gap-3">
                   <button
-                    onClick={() => toggleClause(clause.id)}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+                    onClick={handlePurchase}
+                    disabled={isPurchasing}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg hover:from-amber-600 hover:to-orange-600 transition-colors disabled:opacity-50 shadow-sm"
                   >
-                    <span className="font-medium text-slate-900">
-                      {index + 1}. {clause.title}
-                    </span>
-                    {expandedClauses.has(clause.id) ? (
-                      <ChevronUp className="w-4 h-4 text-slate-400" />
+                    {isPurchasing ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
+                      <ShoppingCart className="w-4 h-4" />
                     )}
+                    Buy for ${((template.price || 1000) / 100).toFixed(0)}
                   </button>
-                  {expandedClauses.has(clause.id) && (
-                    <div className="px-4 py-3 text-slate-700 whitespace-pre-wrap">
-                      {clause.content}
-                    </div>
-                  )}
+                  <Link
+                    href="/settings/billing"
+                    className="text-sm font-medium text-amber-700 hover:text-amber-800"
+                  >
+                    or upgrade to Pro for all templates
+                  </Link>
                 </div>
-              ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Signature Block */}
-        {content?.signatureBlock && (
-          <div>
-            <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-2">
-              Signature Block
-            </h3>
-            <p className="text-slate-700 whitespace-pre-wrap">{content.signatureBlock}</p>
-          </div>
-        )}
+        {/* Content with copy protection */}
+        <div
+          className={`${template.is_premium && !ownsTemplate && !subscription.hasPremiumTemplates ? "copy-protected" : ""}`}
+          onContextMenu={handleContextMenu}
+        >
+          {/* Preamble */}
+          {content?.preamble && (
+            <div className={`mb-6 ${template.is_premium && !ownsTemplate && !subscription.hasPremiumTemplates ? "content-blur" : ""}`}>
+              <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-2">
+                Preamble
+              </h3>
+              <p className="text-slate-700 whitespace-pre-wrap">{content.preamble}</p>
+            </div>
+          )}
 
-        {/* Empty State */}
-        {!content?.preamble && !content?.recitals && (!content?.clauses || content.clauses.length === 0) && (
-          <p className="text-slate-400 italic text-center py-8">
-            No content preview available
-          </p>
-        )}
+          {/* Recitals */}
+          {content?.recitals && (
+            <div className={`mb-6 ${template.is_premium && !ownsTemplate && !subscription.hasPremiumTemplates ? "content-blur" : ""}`}>
+              <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-2">
+                Recitals
+              </h3>
+              <p className="text-slate-700 whitespace-pre-wrap">{content.recitals}</p>
+            </div>
+          )}
+
+          {/* Clauses */}
+          {content?.clauses && content.clauses.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-3">
+                Clauses ({content.clauses.length})
+              </h3>
+              <div className="space-y-2">
+                {content.clauses.map((clause, index) => (
+                  <div
+                    key={clause.id}
+                    className="border border-slate-200 rounded-lg overflow-hidden"
+                  >
+                    <button
+                      onClick={() => toggleClause(clause.id)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+                    >
+                      <span className="font-medium text-slate-900">
+                        {index + 1}. {clause.title}
+                      </span>
+                      {expandedClauses.has(clause.id) ? (
+                        <ChevronUp className="w-4 h-4 text-slate-400" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-slate-400" />
+                      )}
+                    </button>
+                    {expandedClauses.has(clause.id) && (
+                      <div className={`px-4 py-3 text-slate-700 whitespace-pre-wrap ${template.is_premium && !ownsTemplate && !subscription.hasPremiumTemplates ? "content-blur" : ""}`}>
+                        {clause.content}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Signature Block */}
+          {content?.signatureBlock && (
+            <div className={template.is_premium && !ownsTemplate && !subscription.hasPremiumTemplates ? "content-blur" : ""}>
+              <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-2">
+                Signature Block
+              </h3>
+              <p className="text-slate-700 whitespace-pre-wrap">{content.signatureBlock}</p>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!content?.preamble && !content?.recitals && (!content?.clauses || content.clauses.length === 0) && (
+            <p className="text-slate-400 italic text-center py-8">
+              No content preview available
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

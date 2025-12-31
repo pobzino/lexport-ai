@@ -46,6 +46,9 @@ const MANIFEST_KEY_MAP: Record<ContractType, string> = {
   consulting_agreement: "consulting_agreement",
   safe_note: "safe_note",
   freelance_service: "service_agreement",
+  letter_of_intent: "letter_of_intent",
+  cofounder_agreement: "cofounder_agreement",
+  sales_contract: "sales_contract",
 };
 
 // Type for manifest structure

@@ -329,6 +329,52 @@ export default function SignContractPage() {
     setIsDrawing(false);
   };
 
+  // Touch event handlers for mobile signature drawing
+  const startDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    setIsDrawing(true);
+  };
+
+  const drawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    if (!isDrawing) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = "#1e293b";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.stroke();
+    setHasSignature(true);
+  };
+
+  const stopDrawingTouch = () => {
+    setIsDrawing(false);
+  };
+
   const clearSignature = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1790,16 +1836,19 @@ export default function SignContractPage() {
                           Clear
                         </button>
                       </div>
-                      <div className="border-2 border-dashed border-slate-200 rounded-lg overflow-hidden bg-white">
+                      <div className="border-2 border-dashed border-slate-200 rounded-lg overflow-hidden bg-white touch-none">
                         <canvas
                           ref={canvasRef}
                           width={300}
                           height={150}
-                          className="w-full cursor-crosshair"
+                          className="w-full cursor-crosshair touch-none"
                           onMouseDown={startDrawing}
                           onMouseMove={draw}
                           onMouseUp={stopDrawing}
                           onMouseLeave={stopDrawing}
+                          onTouchStart={startDrawingTouch}
+                          onTouchMove={drawTouch}
+                          onTouchEnd={stopDrawingTouch}
                         />
                       </div>
                       {!hasSignature && (
@@ -2124,16 +2173,19 @@ export default function SignContractPage() {
                       Clear
                     </button>
                   </div>
-                  <div className="border-2 border-dashed border-slate-300 rounded-xl overflow-hidden bg-white">
+                  <div className="border-2 border-dashed border-slate-300 rounded-xl overflow-hidden bg-white touch-none">
                     <canvas
                       ref={canvasRef}
                       width={500}
                       height={150}
-                      className="w-full cursor-crosshair"
+                      className="w-full cursor-crosshair touch-none"
                       onMouseDown={startDrawing}
                       onMouseMove={draw}
                       onMouseUp={stopDrawing}
                       onMouseLeave={stopDrawing}
+                      onTouchStart={startDrawingTouch}
+                      onTouchMove={drawTouch}
+                      onTouchEnd={stopDrawingTouch}
                     />
                   </div>
                   {!hasSignature && (

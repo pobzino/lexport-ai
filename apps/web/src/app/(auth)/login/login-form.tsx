@@ -18,11 +18,15 @@ const GOOGLE_OAUTH_ENABLED = true;
 const emailValidator = all(required("Email is required"), email());
 const passwordValidator = required("Password is required");
 
-export function LoginForm() {
+interface LoginFormProps {
+  initialError?: string;
+}
+
+export function LoginForm({ initialError }: LoginFormProps) {
   const router = useRouter();
   const [emailValue, setEmailValue] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError || null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<LoginMode>("default");

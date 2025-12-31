@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Search,
   Filter,
@@ -9,8 +10,11 @@ import {
   Plus,
   X,
   Sparkles,
+  Lock,
+  Crown,
 } from "lucide-react";
 import { TemplateCard, TemplateCardSkeleton } from "./TemplateCard";
+import { useSubscription } from "@/lib/hooks/useSubscription";
 import type { Template } from "@/db/types";
 
 // Contract types for filtering
@@ -47,9 +51,13 @@ export function TemplateLibrary({
   compact = false,
 }: TemplateLibraryProps) {
   const router = useRouter();
+  const subscription = useSubscription();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Check if user has template access (Pro+ only)
+  const hasTemplateAccess = subscription.hasTemplateAccess;
 
   // Filters
   const [search, setSearch] = useState("");
@@ -115,6 +123,50 @@ export function TemplateLibrary({
   };
 
   const hasFilters = search || typeFilter || jurisdictionFilter || publicFilter !== "all";
+
+  // Show upgrade prompt if user doesn't have template access
+  if (!subscription.isLoading && !hasTemplateAccess) {
+    return (
+      <div className="relative">
+        {/* Blurred preview background */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 opacity-30 blur-sm">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-slate-200 p-5 h-48" />
+            ))}
+          </div>
+        </div>
+
+        {/* Upgrade prompt overlay */}
+        <div className="relative z-10 flex flex-col items-center justify-center py-16 px-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 max-w-md text-center">
+            <div className="w-16 h-16 bg-gradient-to-br from-[#529ec6]/20 to-[#529ec6]/5 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <Crown className="w-8 h-8 text-[#529ec6]" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-3">
+              Templates Require Pro
+            </h3>
+            <p className="text-slate-600 mb-6">
+              Access our full library of professionally drafted legal templates.
+              Upgrade to Pro for unlimited template access and more.
+            </p>
+            <div className="space-y-3">
+              <Link
+                href="/settings/billing"
+                className="inline-flex items-center justify-center gap-2 w-full px-6 py-3 text-sm font-medium text-white bg-[#529ec6] rounded-lg hover:bg-[#4189b1] transition-colors"
+              >
+                <Crown className="w-4 h-4" />
+                Upgrade to Pro — $19.99/month
+              </Link>
+              <p className="text-xs text-slate-500">
+                Includes unlimited contracts, AI chat, and all templates
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

@@ -29,6 +29,9 @@ export const ContractTypeEnum = z.enum([
   "consulting_agreement",
   "safe_note",
   "freelance_service",
+  "letter_of_intent",
+  "cofounder_agreement",
+  "sales_contract",
 ]);
 
 export type ContractType = z.infer<typeof ContractTypeEnum>;
@@ -65,7 +68,12 @@ export type Clause = z.infer<typeof ClauseSchema>;
 export const PartySchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Valid email required"),
-  role: z.enum(["discloser", "recipient", "client", "contractor", "consultant", "investor", "company"]),
+  role: z.enum([
+    "discloser", "recipient", "client", "contractor", "consultant", "investor", "company",
+    "proposing_party", "receiving_party",  // LOI
+    "cofounder",                            // Co-Founder Agreement
+    "seller", "buyer",                      // Sales Contract
+  ]),
   company: z.string().optional(),
   title: z.string().optional(),
   address: z.string().optional(),
@@ -206,13 +214,126 @@ export const FreelanceMetadataSchema = z.object({
 
 export type FreelanceMetadata = z.infer<typeof FreelanceMetadataSchema>;
 
+// Letter of Intent Metadata
+export const LOIMetadataSchema = z.object({
+  contractType: z.literal("letter_of_intent"),
+  proposingParty: PartySchema,
+  receivingParty: PartySchema,
+  transactionType: z.enum(["acquisition", "investment", "partnership", "real_estate", "employment", "other"]),
+  transactionDescription: z.string().min(20, "Please describe the proposed transaction"),
+  proposedTerms: z.object({
+    purchasePrice: z.number().optional(),
+    equityPercentage: z.number().min(0).max(100).optional(),
+    keyConditions: z.array(z.string()).optional(),
+  }).optional(),
+  exclusivityPeriod: z.number().optional(), // days
+  dueDiligencePeriod: z.number().optional(), // days
+  effectiveDate: z.string(),
+  expirationDate: z.string().optional(),
+  isBindingTerms: z.array(z.string()).optional(), // Which terms are binding (e.g., confidentiality, exclusivity)
+  jurisdiction: JurisdictionEnum,
+  signerGroups: z.array(SignerGroupSchema).optional(),
+});
+
+export type LOIMetadata = z.infer<typeof LOIMetadataSchema>;
+
+// Co-Founder Agreement Metadata
+export const CofounderMetadataSchema = z.object({
+  contractType: z.literal("cofounder_agreement"),
+  companyName: z.string().min(1, "Company name required"),
+  companyType: z.enum(["llc", "corporation", "partnership", "not_yet_formed"]),
+  cofounders: z.array(z.object({
+    party: PartySchema,
+    equityPercentage: z.number().min(0).max(100),
+    vestingSchedule: z.object({
+      totalMonths: z.number().default(48),
+      cliffMonths: z.number().default(12),
+      accelerationOnChange: z.boolean().default(false),
+    }).optional(),
+    role: z.string(), // CEO, CTO, etc.
+    responsibilities: z.string().optional(),
+    initialContribution: z.object({
+      cash: z.number().optional(),
+      ipDescription: z.string().optional(),
+      otherAssets: z.string().optional(),
+    }).optional(),
+  })).min(2, "At least 2 co-founders required"),
+  decisionMaking: z.object({
+    majorDecisionThreshold: z.number().min(50).max(100).default(66), // percentage
+    deadlockResolution: z.enum(["mediation", "buyout", "dissolution", "third_party"]).default("mediation"),
+  }),
+  salaryProvisions: z.object({
+    initialSalaries: z.boolean().default(false),
+    salaryDetails: z.string().optional(),
+  }).optional(),
+  ipAssignment: z.boolean().default(true),
+  nonCompetePeriod: z.number().optional(), // months
+  exitProvisions: z.object({
+    rightOfFirstRefusal: z.boolean().default(true),
+    dragAlong: z.boolean().default(true),
+    tagAlong: z.boolean().default(true),
+  }),
+  effectiveDate: z.string(),
+  jurisdiction: JurisdictionEnum,
+  signerGroups: z.array(SignerGroupSchema).optional(),
+});
+
+export type CofounderMetadata = z.infer<typeof CofounderMetadataSchema>;
+
+// Sales Contract Metadata
+export const SalesContractMetadataSchema = z.object({
+  contractType: z.literal("sales_contract"),
+  seller: PartySchema,
+  buyer: PartySchema,
+  productDescription: z.string().min(10, "Please describe the product(s)"),
+  products: z.array(z.object({
+    name: z.string(),
+    description: z.string().optional(),
+    quantity: z.number().min(1),
+    unitPrice: z.number().min(0),
+    specifications: z.string().optional(),
+  })).min(1, "At least one product required"),
+  totalAmount: z.number().min(0),
+  currency: z.enum(["usd", "eur", "gbp"]).default("usd"),
+  paymentTerms: z.object({
+    method: z.enum(["full_upfront", "net_30", "net_60", "installments", "on_delivery"]),
+    depositPercentage: z.number().min(0).max(100).optional(),
+    installmentSchedule: z.string().optional(),
+  }),
+  deliveryTerms: z.object({
+    method: z.enum(["pickup", "delivery", "shipping"]),
+    location: z.string().optional(),
+    estimatedDate: z.string().optional(),
+    shippingTerms: z.enum(["fob_origin", "fob_destination", "cif", "exw"]).optional(),
+    riskOfLoss: z.enum(["on_shipment", "on_delivery"]).default("on_delivery"),
+  }),
+  warranty: z.object({
+    included: z.boolean().default(true),
+    periodMonths: z.number().default(12),
+    scope: z.string().optional(),
+  }).optional(),
+  returnPolicy: z.object({
+    allowed: z.boolean().default(false),
+    periodDays: z.number().optional(),
+    conditions: z.string().optional(),
+  }).optional(),
+  effectiveDate: z.string(),
+  jurisdiction: JurisdictionEnum,
+  signerGroups: z.array(SignerGroupSchema).optional(),
+});
+
+export type SalesContractMetadata = z.infer<typeof SalesContractMetadataSchema>;
+
 // Union type for all metadata
 export type ContractMetadata =
   | NDAMetadata
   | ContractorMetadata
   | ConsultingMetadata
   | SAFEMetadata
-  | FreelanceMetadata;
+  | FreelanceMetadata
+  | LOIMetadata
+  | CofounderMetadata
+  | SalesContractMetadata;
 
 // ============================================================================
 // Payment Configuration Schema
@@ -242,6 +363,9 @@ export const ContractDocumentSchema = z.object({
     ConsultingMetadataSchema,
     SAFEMetadataSchema,
     FreelanceMetadataSchema,
+    LOIMetadataSchema,
+    CofounderMetadataSchema,
+    SalesContractMetadataSchema,
   ]),
   clauses: z.array(ClauseSchema),
   createdAt: z.string(),
@@ -403,6 +527,84 @@ export const CONTRACT_TYPES: Record<ContractType, ContractTypeDefinition> = {
       { id: "liability", title: "Limitation of Liability", type: "standard", order: 9, description: "Caps on damages" },
       { id: "governing_law", title: "Governing Law", type: "standard", order: 10, description: "Applicable jurisdiction" },
       { id: "general", title: "General Provisions", type: "standard", order: 11, description: "Miscellaneous terms" },
+    ],
+  },
+  letter_of_intent: {
+    id: "letter_of_intent",
+    name: "Letter of Intent",
+    description: "Non-binding agreement outlining terms for a future deal",
+    icon: "file-text",
+    estimatedTime: "3 min",
+    jurisdictions: ["us_california", "us_texas", "us_new_york", "uk"],
+    requiredFields: ["proposingParty", "receivingParty", "transactionType", "transactionDescription", "effectiveDate"],
+    clauseTemplates: [
+      { id: "recitals", title: "Recitals", type: "standard", order: 1, description: "Background and purpose of the LOI" },
+      { id: "transaction_summary", title: "Transaction Summary", type: "negotiable", order: 2, description: "Overview of the proposed transaction" },
+      { id: "proposed_terms", title: "Proposed Terms", type: "negotiable", order: 3, description: "Key terms of the potential deal" },
+      { id: "due_diligence", title: "Due Diligence", type: "negotiable", order: 4, description: "Investigation and review period" },
+      { id: "exclusivity", title: "Exclusivity", type: "optional", order: 5, description: "No-shop period for negotiations" },
+      { id: "confidentiality", title: "Confidentiality", type: "standard", order: 6, description: "Protection of shared information" },
+      { id: "expenses", title: "Expenses", type: "standard", order: 7, description: "Each party bears own costs" },
+      { id: "non_binding", title: "Non-Binding Nature", type: "standard", order: 8, description: "Clarifies which terms are non-binding" },
+      { id: "binding_provisions", title: "Binding Provisions", type: "standard", order: 9, description: "Identifies binding terms (confidentiality, exclusivity)" },
+      { id: "termination", title: "Termination", type: "negotiable", order: 10, description: "When and how the LOI expires" },
+      { id: "governing_law", title: "Governing Law", type: "standard", order: 11, description: "Which jurisdiction's laws apply" },
+      { id: "general", title: "General Provisions", type: "standard", order: 12, description: "Miscellaneous legal provisions" },
+    ],
+  },
+  cofounder_agreement: {
+    id: "cofounder_agreement",
+    name: "Co-Founder Agreement",
+    description: "Define equity splits, roles, vesting, and exit terms",
+    icon: "users",
+    estimatedTime: "6 min",
+    jurisdictions: ["us_california", "us_texas", "us_new_york", "uk"],
+    requiredFields: ["companyName", "companyType", "cofounders", "effectiveDate"],
+    clauseTemplates: [
+      { id: "recitals", title: "Recitals", type: "standard", order: 1, description: "Background and purpose of the agreement" },
+      { id: "company_formation", title: "Company Formation", type: "standard", order: 2, description: "Details of the company being formed or joined" },
+      { id: "equity_allocation", title: "Equity Allocation", type: "negotiable", order: 3, description: "Ownership percentages for each co-founder" },
+      { id: "vesting", title: "Vesting Schedule", type: "negotiable", order: 4, description: "How equity vests over time" },
+      { id: "roles_responsibilities", title: "Roles and Responsibilities", type: "negotiable", order: 5, description: "Each co-founder's duties and authority" },
+      { id: "contributions", title: "Initial Contributions", type: "negotiable", order: 6, description: "Cash, IP, and other contributions" },
+      { id: "compensation", title: "Compensation", type: "negotiable", order: 7, description: "Salary, benefits, and expense policies" },
+      { id: "decision_making", title: "Decision Making", type: "negotiable", order: 8, description: "How major decisions are made" },
+      { id: "deadlock", title: "Deadlock Resolution", type: "standard", order: 9, description: "What happens when founders disagree" },
+      { id: "ip_assignment", title: "IP Assignment", type: "standard", order: 10, description: "Assignment of intellectual property to company" },
+      { id: "confidentiality", title: "Confidentiality", type: "standard", order: 11, description: "Keeping company information private" },
+      { id: "non_compete", title: "Non-Compete", type: "optional", order: 12, description: "Restrictions on competing activities" },
+      { id: "departure", title: "Departure and Buyout", type: "negotiable", order: 13, description: "What happens when a founder leaves" },
+      { id: "transfer_restrictions", title: "Transfer Restrictions", type: "standard", order: 14, description: "ROFR, drag-along, tag-along rights" },
+      { id: "dissolution", title: "Dissolution", type: "standard", order: 15, description: "How the company winds down if needed" },
+      { id: "governing_law", title: "Governing Law", type: "standard", order: 16, description: "Which jurisdiction's laws apply" },
+      { id: "general", title: "General Provisions", type: "standard", order: 17, description: "Miscellaneous legal provisions" },
+    ],
+  },
+  sales_contract: {
+    id: "sales_contract",
+    name: "Sales Contract",
+    description: "Agreement for the sale of goods or products",
+    icon: "shopping-cart",
+    estimatedTime: "4 min",
+    jurisdictions: ["us_california", "us_texas", "us_new_york", "uk"],
+    requiredFields: ["seller", "buyer", "productDescription", "products", "totalAmount"],
+    clauseTemplates: [
+      { id: "recitals", title: "Recitals", type: "standard", order: 1, description: "Background and purpose of the sale" },
+      { id: "products", title: "Products", type: "negotiable", order: 2, description: "Description of goods being sold" },
+      { id: "price_payment", title: "Price and Payment", type: "negotiable", order: 3, description: "Total price and payment terms" },
+      { id: "delivery", title: "Delivery", type: "negotiable", order: 4, description: "How and when goods will be delivered" },
+      { id: "risk_of_loss", title: "Risk of Loss", type: "standard", order: 5, description: "When risk transfers from seller to buyer" },
+      { id: "inspection", title: "Inspection and Acceptance", type: "negotiable", order: 6, description: "Buyer's right to inspect goods" },
+      { id: "warranty", title: "Warranties", type: "negotiable", order: 7, description: "Seller's promises about the goods" },
+      { id: "returns", title: "Returns and Refunds", type: "optional", order: 8, description: "Policies for returning goods" },
+      { id: "title", title: "Title and Ownership", type: "standard", order: 9, description: "When ownership transfers" },
+      { id: "liability", title: "Limitation of Liability", type: "standard", order: 10, description: "Caps on damages" },
+      { id: "indemnification", title: "Indemnification", type: "standard", order: 11, description: "Protection from third-party claims" },
+      { id: "force_majeure", title: "Force Majeure", type: "standard", order: 12, description: "Events beyond parties' control" },
+      { id: "termination", title: "Termination", type: "negotiable", order: 13, description: "When and how to cancel" },
+      { id: "governing_law", title: "Governing Law", type: "standard", order: 14, description: "Which jurisdiction's laws apply" },
+      { id: "dispute_resolution", title: "Dispute Resolution", type: "standard", order: 15, description: "How disputes will be resolved" },
+      { id: "general", title: "General Provisions", type: "standard", order: 16, description: "Miscellaneous legal provisions" },
     ],
   },
 };

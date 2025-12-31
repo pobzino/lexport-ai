@@ -1,0 +1,33 @@
+<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f8fafc;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e2e8f0;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Decorative elements -->
+  <circle cx="1100" cy="100" r="200" fill="#529ec6" opacity="0.1"/>
+  <circle cx="100" cy="530" r="150" fill="#202e46" opacity="0.05"/>
+
+  <!-- Logo circle -->
+  <rect x="100" y="200" width="80" height="80" rx="16" fill="#202e46"/>
+  <text x="140" y="255" font-family="system-ui, sans-serif" font-size="40" font-weight="bold" fill="white" text-anchor="middle">L</text>
+
+  <!-- Brand name -->
+  <text x="200" y="260" font-family="system-ui, sans-serif" font-size="48" font-weight="bold" fill="#0f172a">Lexport</text>
+
+  <!-- Tagline -->
+  <text x="100" y="340" font-family="system-ui, sans-serif" font-size="36" fill="#0f172a">AI-Powered Legal Contracts</text>
+  <text x="100" y="390" font-family="system-ui, sans-serif" font-size="36" fill="#0f172a">for Modern Businesses</text>
+
+  <!-- Description -->
+  <text x="100" y="470" font-family="system-ui, sans-serif" font-size="24" fill="#64748b">Create, sign, and manage contracts in minutes.</text>
+  <text x="100" y="510" font-family="system-ui, sans-serif" font-size="24" fill="#64748b">No legal expertise required.</text>
+
+  <!-- Accent line -->
+  <rect x="100" y="300" width="120" height="4" rx="2" fill="#529ec6"/>
+</svg>

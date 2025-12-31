@@ -56,7 +56,7 @@ export const metadata: Metadata = {
       "Generate legally binding contracts with AI in minutes. E-signatures, payment collection, and contract management for startups and freelancers.",
     images: [
       {
-        url: "/og-image.png",
+        url: "/og-image.svg",
         width: 1200,
         height: 630,
         alt: "Lexport - AI-Powered Legal Contracts",
@@ -68,7 +68,7 @@ export const metadata: Metadata = {
     title: "Lexport - AI-Powered Legal Contracts & E-Signatures",
     description:
       "Generate legally binding contracts with AI in minutes. E-signatures and payment collection for startups and freelancers.",
-    images: ["/og-image.png"],
+    images: ["/og-image.svg"],
     creator: "@lexport_ai",
   },
   robots: {

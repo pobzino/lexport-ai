@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 export const metadata = {
-    title: "E-Signatures | Lexport",
+    title: "E-Signatures",
     description: "Legally-binding e-signatures with full audit trails. ESIGN, UETA, and UK ECA 2000 compliant.",
 };
 

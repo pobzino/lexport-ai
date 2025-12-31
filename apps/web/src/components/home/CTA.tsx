@@ -28,29 +28,19 @@ export function CTA() {
 
                     <div className="relative z-10">
                         <h2 className="text-3xl sm:text-5xl font-bold text-white mb-6 leading-tight">
-                            Ready to experience{" "}
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-purple-200">Lexport</span>?
+                            Ready to simplify your{" "}
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-purple-200">contracts</span>?
                         </h2>
                         <p className="text-slate-300 mb-10 max-w-2xl mx-auto text-lg leading-relaxed">
-                            Join thousands of legal professionals who trust Lexport for their
-                            contract workflows. Start your free trial today - no credit card
-                            required.
+                            Join founders and freelancers who use Lexport to create, sign, and get paid — all in one place. Free plan available.
                         </p>
-                        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                            <Link
-                                href="/register"
-                                className="inline-flex items-center justify-center bg-white text-slate-900 px-8 py-4 rounded-xl text-lg font-bold hover:bg-blue-50 transition-all hover:scale-105 shadow-lg shadow-white/10"
-                            >
-                                Start your free trial
-                                <ArrowRight className="w-5 h-5 ml-2" />
-                            </Link>
-                            <Link
-                                href="/contact"
-                                className="inline-flex items-center justify-center border-2 border-slate-700 text-white px-8 py-4 rounded-xl text-lg font-bold hover:bg-slate-800 hover:border-slate-600 transition-all"
-                            >
-                                Schedule a demo
-                            </Link>
-                        </div>
+                        <Link
+                            href="/register"
+                            className="inline-flex items-center justify-center bg-white text-slate-900 px-10 py-4 rounded-xl text-lg font-bold hover:bg-blue-50 transition-all hover:scale-105 shadow-lg shadow-white/10"
+                        >
+                            Try Free
+                            <ArrowRight className="w-5 h-5 ml-2" />
+                        </Link>
                     </div>
                 </motion.div>
             </div>

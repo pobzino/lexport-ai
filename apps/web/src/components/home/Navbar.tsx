@@ -124,14 +124,15 @@ export function Navbar() {
                             {[
                                 { name: "How it works", href: "#how-it-works" },
                                 { name: "Pricing", href: "#pricing" },
+                                { name: "Contact", href: "/contact" },
                             ].map((item) => (
-                                <a
+                                <Link
                                     key={item.name}
                                     href={item.href}
                                     className="text-sm text-slate-500 hover:text-slate-900 transition-colors"
                                 >
                                     {item.name}
-                                </a>
+                                </Link>
                             ))}
                         </div>
                     </div>
@@ -212,6 +213,13 @@ export function Navbar() {
                             >
                                 Pricing
                             </a>
+                            <Link
+                                href="/contact"
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="block px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
+                            >
+                                Contact
+                            </Link>
                         </div>
 
                         {/* Sign in link for mobile */}

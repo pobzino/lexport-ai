@@ -98,6 +98,10 @@ export type ContractType =
   | "employment_offer"
   | "sow";
 
+// Subscription types
+export type SubscriptionTier = "free" | "pro" | "team";
+export type SubscriptionStatus = "active" | "past_due" | "canceled" | "trialing";
+
 // Table types
 export interface User {
   id: string;
@@ -118,6 +122,20 @@ export interface User {
   stripe_connect_account_id: string | null;
   stripe_connect_status: StripeConnectStatus;
   stripe_connect_onboarding_complete: boolean;
+  // Subscription fields
+  subscription_tier: SubscriptionTier;
+  subscription_status: SubscriptionStatus;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  subscription_started_at: string | null;
+  subscription_ends_at: string | null;
+  trial_ends_at: string | null;
+  // Usage tracking
+  ai_contracts_used: number;
+  ai_contracts_limit: number;
+  signatures_used: number;
+  signatures_limit: number;
+  usage_reset_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -128,8 +146,42 @@ export interface Organization {
   plan: Plan;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
+  // Subscription fields
+  subscription_tier: SubscriptionTier;
+  subscription_status: SubscriptionStatus;
+  subscription_started_at: string | null;
+  subscription_ends_at: string | null;
+  trial_ends_at: string | null;
+  seats_included: number;
+  seats_used: number;
   created_at: string;
   updated_at: string;
+}
+
+// Usage history for analytics and audit
+export interface UsageHistory {
+  id: string;
+  user_id: string | null;
+  organization_id: string | null;
+  period_start: string;
+  period_end: string;
+  ai_contracts_used: number;
+  signatures_used: number;
+  created_at: string;
+}
+
+// Effective subscription (result of get_effective_subscription RPC)
+export interface EffectiveSubscription {
+  effective_tier: SubscriptionTier;
+  effective_status: SubscriptionStatus;
+  source: "user" | "organization";
+  is_unlimited: boolean;
+  contracts_limit: number;
+  signatures_limit: number;
+  contracts_used: number;
+  signatures_used: number;
+  usage_reset_at: string | null;
+  organization_name: string | null;
 }
 
 export interface Contract {

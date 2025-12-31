@@ -1655,3 +1655,98 @@ Powered by Lexport
   }
 }
 
+/**
+ * Send support/contact form email
+ */
+export async function sendSupportEmail({
+  name,
+  email,
+  subject,
+  message,
+}: {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}) {
+  const content = `
+    <div style="background: linear-gradient(135deg, ${BRAND.lightSlate} 0%, #f1f5f9 100%); border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+      <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 700; color: ${BRAND.navy};">
+        New Support Message
+      </h1>
+      <p style="margin: 0; font-size: 14px; color: ${BRAND.slate};">
+        Received via the Lexport contact form
+      </p>
+    </div>
+
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+      <tr>
+        <td style="padding: 12px 16px; background: ${BRAND.lightSlate}; border-radius: 8px 8px 0 0; font-size: 13px; color: ${BRAND.slate}; font-weight: 600; width: 120px;">From</td>
+        <td style="padding: 12px 16px; background: ${BRAND.lightSlate}; border-radius: 8px 8px 0 0; font-size: 14px; color: ${BRAND.navy};">${name}</td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 16px; background: white; border: 1px solid #e2e8f0; border-top: none; font-size: 13px; color: ${BRAND.slate}; font-weight: 600;">Email</td>
+        <td style="padding: 12px 16px; background: white; border: 1px solid #e2e8f0; border-top: none; border-left: none; font-size: 14px;">
+          <a href="mailto:${email}" style="color: ${BRAND.blue}; text-decoration: none;">${email}</a>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 16px; background: ${BRAND.lightSlate}; border-radius: 0 0 8px 8px; font-size: 13px; color: ${BRAND.slate}; font-weight: 600;">Subject</td>
+        <td style="padding: 12px 16px; background: ${BRAND.lightSlate}; border-radius: 0 0 8px 8px; font-size: 14px; color: ${BRAND.navy}; font-weight: 500;">${subject}</td>
+      </tr>
+    </table>
+
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px;">
+      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: ${BRAND.navy};">Message</h3>
+      <p style="margin: 0; font-size: 14px; color: ${BRAND.slate}; line-height: 1.7; white-space: pre-wrap;">${message}</p>
+    </div>
+
+    <div style="margin-top: 24px; padding: 16px; background: ${BRAND.blue}10; border-radius: 8px; border-left: 4px solid ${BRAND.blue};">
+      <p style="margin: 0; font-size: 13px; color: ${BRAND.navy};">
+        <strong>Quick Reply:</strong> Reply directly to this email to respond to ${name}.
+      </p>
+    </div>
+  `;
+
+  const html = emailWrapper(content);
+
+  const text = `
+New Support Message from Lexport Contact Form
+
+From: ${name}
+Email: ${email}
+Subject: ${subject}
+
+Message:
+${message}
+
+---
+Reply directly to this email to respond to ${name}.
+`;
+
+  // Support email address - you can configure this
+  const supportEmail = process.env.SUPPORT_EMAIL || "support@lexport.ai";
+
+  try {
+    const { data, error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to: [supportEmail],
+      replyTo: email,
+      subject: `📬 Contact Form: ${subject}`,
+      html,
+      text,
+    });
+
+    if (error) {
+      console.error("Failed to send support email:", error);
+      throw error;
+    }
+
+    console.log(`Support email sent from ${email}:`, data?.id);
+    return { success: true, id: data?.id };
+  } catch (error) {
+    console.error("Error sending support email:", error);
+    throw error;
+  }
+}
+

@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 export const metadata = {
-    title: "Invoicing & Payments | Lexport",
+    title: "Invoicing & Payments",
     description: "Get paid faster with built-in invoicing and payment collection. Collect deposits, full payments, or offer payment plans.",
 };
 

@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   CreditCard,
   Check,
-  Sparkles,
   ArrowRight,
   Loader2,
   AlertCircle,
@@ -14,33 +13,42 @@ import {
   Users,
   FileText,
   PenTool,
+  Building2,
+  RefreshCw,
+  MessageSquare,
+  Code,
 } from "lucide-react";
+import {
+  useSubscription,
+  getUsagePercentage,
+  getTierDisplayName,
+  getTierBadgeColor,
+} from "@/lib/hooks/useSubscription";
+import type { SubscriptionTier } from "@/db/types";
 
-interface SubscriptionData {
-  tier: "free" | "pro" | "team";
-  status: string;
-  aiContractsUsed: number;
-  aiContractsLimit: number;
-  signaturesUsed: number;
-  signaturesLimit: number;
-  stripeCustomerId?: string;
-  stripeSubscriptionId?: string;
-}
-
-const PLANS = [
+const PLANS: Array<{
+  id: SubscriptionTier;
+  name: string;
+  price: number;
+  period: string;
+  description: string;
+  features: Array<{ text: string; included: boolean }>;
+  cta: string;
+  highlighted: boolean;
+}> = [
   {
     id: "free",
     name: "Free",
     price: 0,
     period: "forever",
-    description: "Try before you commit",
+    description: "Try it out",
     features: [
-      { text: "1 AI-generated contract", included: true },
-      { text: "Up to 3 signatures", included: true },
-      { text: "Basic templates", included: true },
-      { text: "0.5% payment fee", included: true },
-      { text: "Unlimited contracts", included: false },
-      { text: "AI contract review", included: false },
+      { text: "1 AI contract/month", included: true },
+      { text: "3 signature requests/month", included: true },
+      { text: "Collect payments", included: true },
+      { text: "Template library", included: false },
+      { text: "AI contract chat", included: false },
+      { text: "Team collaboration", included: false },
     ],
     cta: "Current Plan",
     highlighted: false,
@@ -48,17 +56,16 @@ const PLANS = [
   {
     id: "pro",
     name: "Pro",
-    price: 25,
+    price: 19.99,
     period: "month",
-    description: "For freelancers & small teams",
+    description: "For freelancers & professionals",
     features: [
       { text: "Unlimited AI contracts", included: true },
       { text: "Unlimited signatures", included: true },
-      { text: "All premium templates", included: true },
-      { text: "AI contract review & chat", included: true },
-      { text: "Payment collection", included: true },
-      { text: "0.25% payment fee", included: true },
+      { text: "Full template library", included: true },
+      { text: "AI contract chat & review", included: true },
       { text: "Priority support", included: true },
+      { text: "Team collaboration", included: false },
     ],
     cta: "Upgrade to Pro",
     highlighted: true,
@@ -66,48 +73,32 @@ const PLANS = [
   {
     id: "team",
     name: "Team",
-    price: 79,
+    price: 49,
     period: "month",
-    description: "For growing businesses",
+    description: "For growing teams & businesses",
     features: [
       { text: "Everything in Pro", included: true },
-      { text: "Team collaboration", included: true },
+      { text: "Up to 10 team members", included: true },
       { text: "Shared template library", included: true },
       { text: "Admin controls", included: true },
-      { text: "0% payment fee", included: true },
-      { text: "API access", included: true },
       { text: "Dedicated support", included: true },
     ],
-    cta: "Upgrade to Team",
+    cta: "Contact Us",
     highlighted: false,
   },
 ];
 
 export default function BillingPage() {
-  const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const subscription = useSubscription();
+  const searchParams = useSearchParams();
   const [upgrading, setUpgrading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchSubscription();
-  }, []);
-
-  const fetchSubscription = async () => {
-    try {
-      const response = await fetch("/api/user/subscription");
-      if (!response.ok) throw new Error("Failed to fetch subscription");
-      const data = await response.json();
-      setSubscription(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load subscription");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Get promo code from URL (e.g., /settings/billing?promo=FIRST50)
+  const promoCode = searchParams.get("promo");
 
   const handleUpgrade = async (planId: string) => {
-    if (planId === subscription?.tier) return;
+    if (planId === subscription.tier) return;
 
     setUpgrading(planId);
     setError(null);
@@ -116,7 +107,7 @@ export default function BillingPage() {
       const response = await fetch("/api/billing/create-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({ planId, promoCode: promoCode || undefined }),
       });
 
       if (!response.ok) {
@@ -153,7 +144,7 @@ export default function BillingPage() {
     }
   };
 
-  if (loading) {
+  if (subscription.isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
@@ -161,8 +152,9 @@ export default function BillingPage() {
     );
   }
 
-  const currentPlan = PLANS.find((p) => p.id === subscription?.tier) || PLANS[0];
-  const isUnlimited = subscription?.tier !== "free";
+  const currentPlan = PLANS.find((p) => p.id === subscription.tier) || PLANS[0];
+  const contractsPercent = getUsagePercentage(subscription.contractsUsed, subscription.contractsLimit);
+  const signaturesPercent = getUsagePercentage(subscription.signaturesUsed, subscription.signaturesLimit);
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -186,77 +178,159 @@ export default function BillingPage() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-              subscription?.tier === "free"
+              subscription.tier === "free"
                 ? "bg-slate-100"
-                : subscription?.tier === "pro"
+                : subscription.tier === "pro"
                 ? "bg-[#202e46]"
-                : "bg-gradient-to-br from-amber-400 to-orange-500"
+                : "bg-gradient-to-br from-purple-500 to-indigo-600"
             }`}>
-              {subscription?.tier === "free" ? (
+              {subscription.tier === "free" ? (
                 <FileText className="w-6 h-6 text-slate-600" />
-              ) : subscription?.tier === "pro" ? (
+              ) : subscription.tier === "pro" ? (
                 <Zap className="w-6 h-6 text-white" />
               ) : (
                 <Crown className="w-6 h-6 text-white" />
               )}
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                {currentPlan.name} Plan
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-slate-900">
+                  {currentPlan.name} Plan
+                </h2>
+                {subscription.source === "organization" && subscription.organizationName && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
+                    <Building2 className="w-3 h-3" />
+                    {subscription.organizationName}
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-slate-500">{currentPlan.description}</p>
             </div>
           </div>
-          {subscription?.tier !== "free" && (
-            <button
-              onClick={handleManageSubscription}
-              disabled={upgrading === "manage"}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50"
-            >
-              {upgrading === "manage" ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                "Manage Subscription"
-              )}
-            </button>
+          <div className="flex items-center gap-2">
+            {subscription.tier !== "free" && subscription.source !== "organization" && (
+              <button
+                onClick={handleManageSubscription}
+                disabled={upgrading === "manage"}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {upgrading === "manage" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  "Manage Subscription"
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Feature Badges */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {subscription.hasTemplateAccess && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-lg">
+              <FileText className="w-3 h-3" />
+              Template Library
+            </span>
+          )}
+          {subscription.hasAIChat && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-lg">
+              <MessageSquare className="w-3 h-3" />
+              AI Chat
+            </span>
+          )}
+          {subscription.hasPremiumTemplates && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-700 text-xs font-medium rounded-lg">
+              <Crown className="w-3 h-3" />
+              Premium Templates
+            </span>
+          )}
+          {subscription.hasTeamFeatures && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 text-xs font-medium rounded-lg">
+              <Users className="w-3 h-3" />
+              Team Features
+            </span>
+          )}
+          {subscription.hasApiAccess && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-lg">
+              <Code className="w-3 h-3" />
+              API Access
+            </span>
           )}
         </div>
 
         {/* Usage Stats */}
-        <div className="grid grid-cols-2 gap-4 mt-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Contracts Usage */}
           <div className="bg-slate-50 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-slate-600 mb-2">
-              <FileText className="w-4 h-4" />
-              <span className="text-sm font-medium">AI Contracts</span>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-slate-600">
+                <FileText className="w-4 h-4" />
+                <span className="text-sm font-medium">AI Contracts</span>
+              </div>
+              {!subscription.isUnlimited && subscription.daysUntilReset !== null && (
+                <span className="text-xs text-slate-500 flex items-center gap-1">
+                  <RefreshCw className="w-3 h-3" />
+                  Resets in {subscription.daysUntilReset} day{subscription.daysUntilReset !== 1 ? "s" : ""}
+                </span>
+              )}
             </div>
-            <div className="flex items-baseline gap-1">
+            <div className="flex items-baseline gap-1 mb-2">
               <span className="text-2xl font-bold text-slate-900">
-                {subscription?.aiContractsUsed || 0}
+                {subscription.contractsUsed}
               </span>
               <span className="text-slate-500">
-                / {isUnlimited ? "∞" : subscription?.aiContractsLimit || 1}
+                / {subscription.isUnlimited ? "∞" : subscription.contractsLimit}
               </span>
             </div>
-            {!isUnlimited && (subscription?.aiContractsUsed || 0) >= (subscription?.aiContractsLimit || 1) && (
-              <p className="text-xs text-amber-600 mt-1">Limit reached</p>
+            {!subscription.isUnlimited && (
+              <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    contractsPercent >= 100 ? "bg-red-500" : contractsPercent >= 80 ? "bg-amber-500" : "bg-emerald-500"
+                  }`}
+                  style={{ width: `${Math.min(100, contractsPercent)}%` }}
+                />
+              </div>
+            )}
+            {!subscription.canCreateContract && (
+              <p className="text-xs text-red-600 mt-2 font-medium">Limit reached - upgrade to create more</p>
             )}
           </div>
 
+          {/* Signatures Usage */}
           <div className="bg-slate-50 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-slate-600 mb-2">
-              <PenTool className="w-4 h-4" />
-              <span className="text-sm font-medium">Signatures</span>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-slate-600">
+                <PenTool className="w-4 h-4" />
+                <span className="text-sm font-medium">Signature Requests</span>
+              </div>
+              {!subscription.isUnlimited && subscription.daysUntilReset !== null && (
+                <span className="text-xs text-slate-500 flex items-center gap-1">
+                  <RefreshCw className="w-3 h-3" />
+                  Resets in {subscription.daysUntilReset} day{subscription.daysUntilReset !== 1 ? "s" : ""}
+                </span>
+              )}
             </div>
-            <div className="flex items-baseline gap-1">
+            <div className="flex items-baseline gap-1 mb-2">
               <span className="text-2xl font-bold text-slate-900">
-                {subscription?.signaturesUsed || 0}
+                {subscription.signaturesUsed}
               </span>
               <span className="text-slate-500">
-                / {isUnlimited ? "∞" : subscription?.signaturesLimit || 3}
+                / {subscription.isUnlimited ? "∞" : subscription.signaturesLimit}
               </span>
             </div>
-            {!isUnlimited && (subscription?.signaturesUsed || 0) >= (subscription?.signaturesLimit || 3) && (
-              <p className="text-xs text-amber-600 mt-1">Limit reached</p>
+            {!subscription.isUnlimited && (
+              <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    signaturesPercent >= 100 ? "bg-red-500" : signaturesPercent >= 80 ? "bg-amber-500" : "bg-emerald-500"
+                  }`}
+                  style={{ width: `${Math.min(100, signaturesPercent)}%` }}
+                />
+              </div>
+            )}
+            {!subscription.canSendSignature && (
+              <p className="text-xs text-red-600 mt-2 font-medium">Limit reached - upgrade for more</p>
             )}
           </div>
         </div>
@@ -267,10 +341,12 @@ export default function BillingPage() {
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Choose Your Plan</h2>
         <div className="grid md:grid-cols-3 gap-6">
           {PLANS.map((plan) => {
-            const isCurrent = plan.id === subscription?.tier;
+            const isCurrent = plan.id === subscription.tier;
             const isUpgrade =
-              (subscription?.tier === "free" && (plan.id === "pro" || plan.id === "team")) ||
-              (subscription?.tier === "pro" && plan.id === "team");
+              (subscription.tier === "free" && plan.id === "pro") ||
+              (subscription.tier === "pro" && plan.id === "team");
+            const isTeamPlan = plan.id === "team";
+            const isManagedByOrg = subscription.source === "organization" && isCurrent;
 
             return (
               <div
@@ -303,35 +379,45 @@ export default function BillingPage() {
                     <span className="text-slate-600">/{plan.period}</span>
                   </div>
 
-                  <button
-                    onClick={() => isUpgrade && handleUpgrade(plan.id)}
-                    disabled={isCurrent || upgrading === plan.id || !isUpgrade}
-                    className={`w-full mt-6 py-3 px-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
-                      isCurrent
-                        ? "bg-emerald-100 text-emerald-700 cursor-default"
-                        : isUpgrade
-                        ? plan.highlighted
-                          ? "bg-[#202e46] text-white hover:bg-[#1a2539]"
-                          : "bg-slate-100 text-slate-900 hover:bg-slate-200"
-                        : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                    }`}
-                  >
-                    {upgrading === plan.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : isCurrent ? (
-                      <>
-                        <Check className="w-4 h-4" />
-                        Current Plan
-                      </>
-                    ) : isUpgrade ? (
-                      <>
-                        {plan.cta}
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    ) : (
-                      "Current or Lower Tier"
-                    )}
-                  </button>
+                  {isTeamPlan && !isCurrent ? (
+                    <a
+                      href="mailto:team@lexportai.com?subject=Lexport Team Plan Inquiry"
+                      className="w-full mt-6 py-3 px-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 bg-slate-100 text-slate-900 hover:bg-slate-200"
+                    >
+                      {plan.cta}
+                      <ArrowRight className="w-4 h-4" />
+                    </a>
+                  ) : (
+                    <button
+                      onClick={() => isUpgrade && !isManagedByOrg && handleUpgrade(plan.id)}
+                      disabled={isCurrent || upgrading === plan.id || !isUpgrade || isManagedByOrg}
+                      className={`w-full mt-6 py-3 px-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
+                        isCurrent
+                          ? "bg-emerald-100 text-emerald-700 cursor-default"
+                          : isUpgrade && !isManagedByOrg
+                          ? plan.highlighted
+                            ? "bg-[#202e46] text-white hover:bg-[#1a2539]"
+                            : "bg-slate-100 text-slate-900 hover:bg-slate-200"
+                          : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                      }`}
+                    >
+                      {upgrading === plan.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : isCurrent ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Current Plan
+                        </>
+                      ) : isUpgrade ? (
+                        <>
+                          {plan.cta}
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      ) : (
+                        "Current or Lower Tier"
+                      )}
+                    </button>
+                  )}
 
                   <ul className="mt-6 space-y-3">
                     {plan.features.map((feature, i) => (
@@ -371,15 +457,21 @@ export default function BillingPage() {
             </p>
           </div>
           <div>
+            <h3 className="font-medium text-slate-900">When do my free tier limits reset?</h3>
+            <p className="text-sm text-slate-600 mt-1">
+              Free tier usage limits reset on the 1st of each month. You'll see the countdown to your next reset in the usage section above.
+            </p>
+          </div>
+          <div>
             <h3 className="font-medium text-slate-900">What happens to my contracts if I downgrade?</h3>
             <p className="text-sm text-slate-600 mt-1">
               All your existing contracts remain accessible. You'll just be limited on creating new AI contracts and signatures on the free tier.
             </p>
           </div>
           <div>
-            <h3 className="font-medium text-slate-900">Do you offer refunds?</h3>
+            <h3 className="font-medium text-slate-900">Do you offer a free trial?</h3>
             <p className="text-sm text-slate-600 mt-1">
-              We offer a 7-day free trial on Pro and Team plans. If you're not satisfied, contact us within the trial period for a full refund.
+              Yes! Pro and Team plans include a 7-day free trial. If you're not satisfied, cancel within the trial period for a full refund.
             </p>
           </div>
         </div>

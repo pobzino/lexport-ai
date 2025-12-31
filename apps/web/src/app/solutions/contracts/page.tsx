@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 
 export const metadata = {
-    title: "AI Contract Generation | Lexport",
+    title: "AI Contract Generation",
     description: "Generate legally-binding contracts in minutes with AI. Jurisdiction-aware templates, risk analysis, and clause explanations.",
 };
 

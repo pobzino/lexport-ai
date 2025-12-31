@@ -9,7 +9,10 @@ export type ContractType =
   | "ip_assignment"
   | "advisor_agreement"
   | "employment_offer"
-  | "sow";
+  | "sow"
+  | "loi"
+  | "cofounder_agreement"
+  | "sales_contract";
 
 export type Jurisdiction = "CA" | "TX" | "NY" | "UK" | "other";
 
@@ -50,7 +53,7 @@ export interface ContractTypeInfo {
   description: string;
   jurisdictions: Jurisdiction[];
   estimatedTime: string;
-  category: "protection" | "work" | "investment" | "employment";
+  category: "protection" | "work" | "investment" | "employment" | "business";
 }
 
 export const CONTRACT_TYPES: ContractTypeInfo[] = [
@@ -133,6 +136,30 @@ export const CONTRACT_TYPES: ContractTypeInfo[] = [
     jurisdictions: ["CA", "TX", "NY", "UK"],
     estimatedTime: "4 min",
     category: "work",
+  },
+  {
+    type: "loi",
+    name: "Letter of Intent",
+    description: "Non-binding agreement outlining terms for a future deal",
+    jurisdictions: ["CA", "TX", "NY", "UK"],
+    estimatedTime: "3 min",
+    category: "business",
+  },
+  {
+    type: "cofounder_agreement",
+    name: "Co-Founder Agreement",
+    description: "Define equity splits, roles, vesting, and exit terms",
+    jurisdictions: ["CA", "TX", "NY", "UK"],
+    estimatedTime: "6 min",
+    category: "business",
+  },
+  {
+    type: "sales_contract",
+    name: "Sales Contract",
+    description: "Agreement for the sale of goods or products",
+    jurisdictions: ["CA", "TX", "NY", "UK"],
+    estimatedTime: "4 min",
+    category: "business",
   },
 ];
 

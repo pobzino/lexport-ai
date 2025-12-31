@@ -2,7 +2,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { LoginForm } from "./login-form";
 
-export default function LoginPage() {
+interface LoginPageProps {
+  searchParams: Promise<{ error?: string; error_description?: string }>;
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const params = await searchParams;
+  const oauthError = params.error_description || params.error;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-white px-4">
       <div className="w-full max-w-md">
@@ -28,7 +35,7 @@ export default function LoginPage() {
             Sign in to your account to continue
           </p>
 
-          <LoginForm />
+          <LoginForm initialError={oauthError} />
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-500">

@@ -196,4 +196,29 @@
   .animate-fadeIn {
     animation: fadeIn 0.3s ease-out;
   }
+
+  /* Template/Content copy protection */
+  .copy-protected {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* Additional protection for premium content */
+  .premium-protected {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    pointer-events: none;
+  }
+
+  /* Blur overlay for non-subscribers */
+  .content-blur {
+    filter: blur(4px);
+    -webkit-filter: blur(4px);
+  }
 }

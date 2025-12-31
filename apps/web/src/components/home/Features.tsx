@@ -3,11 +3,11 @@
 import { motion } from "framer-motion";
 import {
     Sparkles,
-    MessageSquare,
+    FileSignature,
     FileText,
-    Shield,
-    Globe,
-    Users,
+    ShieldCheck,
+    Receipt,
+    FolderOpen,
 } from "lucide-react";
 
 const features = [
@@ -17,29 +17,29 @@ const features = [
         description: "Generate jurisdiction-specific contracts in seconds",
     },
     {
-        icon: MessageSquare,
-        title: "AI legal chat",
-        description: "Modify clauses and ask questions in plain language",
+        icon: FileText,
+        title: "Premium templates",
+        description: "Ready-to-use templates for US states and the UK",
     },
     {
-        icon: FileText,
+        icon: ShieldCheck,
+        title: "Risk analysis",
+        description: "AI-powered review flags unfavorable clauses",
+    },
+    {
+        icon: FileSignature,
         title: "E-signatures",
         description: "Legally binding with full audit trail",
     },
     {
-        icon: Shield,
-        title: "Secure & encrypted",
-        description: "Your documents are encrypted and private",
+        icon: Receipt,
+        title: "Invoicing & payments",
+        description: "Collect payment when contracts are signed",
     },
     {
-        icon: Globe,
-        title: "Multi-jurisdiction",
-        description: "Supports CA, TX, NY, and UK templates",
-    },
-    {
-        icon: Users,
-        title: "Team collaboration",
-        description: "Invite team members and manage permissions",
+        icon: FolderOpen,
+        title: "Contract organization",
+        description: "All your contracts in one searchable dashboard",
     },
 ];
 

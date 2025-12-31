@@ -98,6 +98,8 @@ export async function POST(request: NextRequest) {
           signatureBlock: generatedContent.signatureBlock,
         },
         is_public: isPublic,
+        is_premium: false,
+        price: null,
         created_by_id: user.id,
         usage_count: 0,
       })

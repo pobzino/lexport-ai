@@ -8,6 +8,9 @@ import {
   ConsultingMetadataSchema,
   SAFEMetadataSchema,
   FreelanceMetadataSchema,
+  LOIMetadataSchema,
+  CofounderMetadataSchema,
+  SalesContractMetadataSchema,
   PaymentConfigSchema,
   type ContractMetadata,
   type ContractType,
@@ -68,6 +71,9 @@ function getAllSigners(contractType: string, metadata: ContractMetadata): Signer
     consulting_agreement: { primary: "client", secondary: "consultant" },
     safe_note: { primary: "company", secondary: "investor" },
     freelance_service: { primary: "client", secondary: "freelancer" },
+    letter_of_intent: { primary: "proposingParty", secondary: "receivingParty" },
+    cofounder_agreement: { primary: "party1", secondary: "party2" }, // Cofounders handled via signerGroups
+    sales_contract: { primary: "seller", secondary: "buyer" },
   };
 
   const roleLabelMap: Record<string, { primary: string; secondary: string }> = {
@@ -77,6 +83,9 @@ function getAllSigners(contractType: string, metadata: ContractMetadata): Signer
     consulting_agreement: { primary: "Client", secondary: "Consultant" },
     safe_note: { primary: "Company", secondary: "Investor" },
     freelance_service: { primary: "Client", secondary: "Freelancer" },
+    letter_of_intent: { primary: "Proposing Party", secondary: "Receiving Party" },
+    cofounder_agreement: { primary: "Co-Founder 1", secondary: "Co-Founder 2" },
+    sales_contract: { primary: "Seller", secondary: "Buyer" },
   };
 
   const mapping = roleMap[contractType] || { primary: "party1", secondary: "party2" };
@@ -125,6 +134,9 @@ const GenerateRequestSchema = z.object({
     ConsultingMetadataSchema,
     SAFEMetadataSchema,
     FreelanceMetadataSchema,
+    LOIMetadataSchema,
+    CofounderMetadataSchema,
+    SalesContractMetadataSchema,
   ]),
   paymentConfig: PaymentConfigSchema.optional(),
 });

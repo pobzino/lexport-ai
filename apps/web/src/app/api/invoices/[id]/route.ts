@@ -506,11 +506,18 @@ export async function GET(
     const format = searchParams.get("format");
     const download = searchParams.get("download") === "true";
 
-    // Fetch the invoice
+    // Verify user is authenticated
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Fetch the invoice - only if owned by this user
     const { data: invoice, error: invoiceError } = await supabase
       .from("invoices")
       .select("*")
       .eq("id", id)
+      .eq("user_id", user.id)
       .single();
 
     if (invoiceError || !invoice) {

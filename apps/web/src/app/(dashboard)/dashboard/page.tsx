@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { CONTRACT_TYPES } from "@/lib/contracts/schemas";
 import { DashboardChecklistWrapper } from "@/components/onboarding";
 import { ExpiringContracts } from "@/components/dashboard/ExpiringContracts";
+import { UpgradeCard } from "@/components/dashboard/UpgradeCard";
+import { UsageWarning } from "@/components/dashboard/UsageWarning";
 
 // Icon mapping for contract types
 const CONTRACT_ICONS: Record<string, typeof Shield> = {
@@ -61,13 +63,15 @@ export default async function DashboardPage() {
     user?.email?.split("@")[0] ||
     "there";
 
-  // Fetch user's contracts using Supabase client
-  const { data: userContracts = [] } = await supabase
+  // Fetch all contracts for accurate stats
+  const { data: allContracts = [] } = await supabase
     .from("contracts")
     .select("id, title, type, jurisdiction, status, updated_at, payment_status, payment_amount, payment_currency")
     .eq("user_id", user.id)
-    .order("updated_at", { ascending: false })
-    .limit(5);
+    .order("updated_at", { ascending: false });
+
+  // Get the 5 most recent for display
+  const userContracts = (allContracts || []).slice(0, 5);
 
   // Fetch user's invoices
   const { data: userInvoices = [] } = await supabase
@@ -83,12 +87,63 @@ export default async function DashboardPage() {
     .select("id, amount, currency, status")
     .eq("user_id", user.id);
 
+  // Fetch expiring contracts (pending_signature with expires_at within 7 days)
+  const sevenDaysFromNow = new Date();
+  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+
+  const { data: expiringContractsData = [] } = await supabase
+    .from("contracts")
+    .select(`
+      id,
+      title,
+      type,
+      expires_at,
+      status,
+      signature_requests!inner (
+        id,
+        signer_name,
+        signer_email,
+        token,
+        status
+      )
+    `)
+    .eq("user_id", user.id)
+    .eq("status", "pending_signature")
+    .not("expires_at", "is", null)
+    .lte("expires_at", sevenDaysFromNow.toISOString())
+    .gte("expires_at", new Date().toISOString());
+
+  // Transform to ExpiringContract format
+  const expiringContracts = (expiringContractsData || []).map((c: {
+    id: string;
+    title: string;
+    type: string;
+    expires_at: string;
+    status: string;
+    signature_requests: { id: string; signer_name: string; signer_email: string; token: string; status: string }[]
+  }) => ({
+    id: c.id,
+    title: c.title,
+    type: c.type,
+    expires_at: c.expires_at,
+    status: c.status,
+    pending_signers: (c.signature_requests || [])
+      .filter((sr: { status: string }) => sr.status === "pending")
+      .map((sr: { id: string; signer_name: string; signer_email: string; token: string }) => ({
+        id: sr.id,
+        signer_name: sr.signer_name,
+        signer_email: sr.signer_email,
+        token: sr.token,
+      })),
+  }));
+
   // Calculate stats
   const thisMonthStart = new Date();
   thisMonthStart.setDate(1);
   thisMonthStart.setHours(0, 0, 0, 0);
 
-  const contracts = (userContracts || []) as Contract[];
+  const contracts = (allContracts || []) as Contract[];
+  const recentContracts = (userContracts || []) as Contract[];
   const invoices = (userInvoices || []) as Invoice[];
   const allInvoicesList = (allInvoices || []) as { id: string; amount: number; currency: string; status: string }[];
 
@@ -126,8 +181,17 @@ export default async function DashboardPage() {
         </p>
       </div>
 
+      {/* Upgrade Card (for free users) */}
+      <UpgradeCard />
+
+      {/* Usage Warning (when near limits) */}
+      <UsageWarning />
+
       {/* Onboarding Checklist */}
       <DashboardChecklistWrapper />
+
+      {/* Expiring Contracts Alert */}
+      <ExpiringContracts contracts={expiringContracts} />
 
       {/* Contract Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -277,7 +341,7 @@ export default async function DashboardPage() {
               Your most recently created or modified contracts
             </p>
           </div>
-          {contracts.length > 0 && (
+          {recentContracts.length > 0 && (
             <Link
               href="/contracts"
               className="text-sm text-[#529ec6] hover:underline flex items-center gap-1"
@@ -288,7 +352,7 @@ export default async function DashboardPage() {
           )}
         </div>
         <div className="p-6">
-          {contracts.length === 0 ? (
+          {recentContracts.length === 0 ? (
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FileText className="w-8 h-8 text-slate-400" />
@@ -309,7 +373,7 @@ export default async function DashboardPage() {
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {contracts.map((contract) => (
+              {recentContracts.map((contract) => (
                 <Link
                   key={contract.id}
                   href={`/contracts/${contract.id}/edit`}

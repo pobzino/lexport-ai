@@ -65,11 +65,10 @@ export function Pricing() {
                             <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-100">
                                 <ul className="space-y-3">
                                     {[
-                                        { text: "1 AI-generated contract", included: true },
-                                        { text: "Up to 3 signatures", included: true },
-                                        { text: "Basic templates", included: true },
-                                        { text: "Buy more templates ($10 each)", included: true },
-                                        { text: "0.5% payment fee", included: true },
+                                        { text: "1 AI-generated contract/month", included: true },
+                                        { text: "3 signature requests/month", included: true },
+                                        { text: "Collect payments", included: true },
+                                        { text: "Template library", included: false },
                                         { text: "Unlimited contracts", included: false },
                                         { text: "AI contract review", included: false },
                                     ].map((feature, i) => (
@@ -104,7 +103,7 @@ export function Pricing() {
                             <h3 className="text-xl sm:text-2xl font-bold text-slate-900">Pro</h3>
                             <p className="text-slate-600 mt-1 text-sm sm:text-base">For freelancers & small teams</p>
                             <div className="mt-4 sm:mt-6 flex items-baseline gap-1">
-                                <span className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight">$25</span>
+                                <span className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight">$19.99</span>
                                 <span className="text-slate-600 font-medium">/month</span>
                             </div>
                             <p className="text-xs sm:text-sm text-slate-500 mt-2 mb-4 sm:mb-6">billed monthly</p>
@@ -122,10 +121,9 @@ export function Pricing() {
                                     {[
                                         "Unlimited AI contracts",
                                         "Unlimited signatures",
-                                        "All premium templates",
-                                        "AI contract review & chat",
+                                        "Full template library",
+                                        "AI contract chat & review",
                                         "Payment collection",
-                                        "0.25% payment fee",
                                         "Priority support",
                                     ].map((feature, i) => (
                                         <li key={i} className="flex items-start gap-3">
@@ -152,27 +150,26 @@ export function Pricing() {
                             <h3 className="text-xl sm:text-2xl font-bold text-slate-900">Team</h3>
                             <p className="text-slate-600 mt-1 text-sm sm:text-base">For growing businesses</p>
                             <div className="mt-4 sm:mt-6 flex items-baseline gap-1">
-                                <span className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight">$79</span>
+                                <span className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight">$49</span>
                                 <span className="text-slate-600 font-medium">/month</span>
                             </div>
-                            <p className="text-xs sm:text-sm text-slate-500 mt-2 mb-4 sm:mb-6">per seat, billed monthly</p>
+                            <p className="text-xs sm:text-sm text-slate-500 mt-2 mb-4 sm:mb-6">billed monthly</p>
 
-                            <Link
-                                href="/register"
+                            <a
+                                href="mailto:team@lexportai.com?subject=Lexport Team Plan Inquiry"
                                 className="w-full inline-flex items-center justify-center bg-slate-100 text-slate-900 px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-semibold hover:bg-slate-200 transition-all text-sm sm:text-base"
                             >
-                                Start free trial
-                            </Link>
+                                Contact Us
+                            </a>
 
                             <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-100">
                                 <ul className="space-y-3">
                                     {[
                                         "Everything in Pro",
+                                        "Up to 10 team members",
                                         "Team collaboration",
                                         "Shared template library",
                                         "Admin controls",
-                                        "0% payment fee",
-                                        "API access",
                                         "Dedicated support",
                                     ].map((feature, i) => (
                                         <li key={i} className="flex items-start gap-3">

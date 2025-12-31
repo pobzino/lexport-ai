@@ -29,11 +29,54 @@ function getOpenAI(): OpenAI {
   if (!openaiClient) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
+      // In development, allow mock fallback
+      if (process.env.NODE_ENV === "development") {
+        console.warn("OPENAI_API_KEY not found. Using mock generator.");
+        return {
+          responses: {
+            create: async () => ({
+              output_text: JSON.stringify(getMockTemplate())
+            })
+          }
+        } as unknown as OpenAI;
+      }
       throw new Error("OPENAI_API_KEY is not configured");
     }
     openaiClient = new OpenAI({ apiKey });
   }
   return openaiClient;
+}
+
+function getMockTemplate(): TemplateContent {
+  return {
+    title: "Mock Services Agreement",
+    preamble: "This Agreement is entered into as of {{effective_date}} by {{party_a_name}} and {{party_b_name}}.",
+    recitals: "WHEREAS, Party A desires to engage Party B...",
+    clauses: [
+      {
+        id: "services",
+        title: "1. Services",
+        content: "Party B shall provide the following services: {{project_scope}}.",
+        type: "standard",
+        order: 1
+      },
+      {
+        id: "payment",
+        title: "2. Payment",
+        content: "Party A shall pay {{payment_amount}} for the services.",
+        type: "standard",
+        order: 2
+      },
+      {
+        id: "term",
+        title: "3. Term",
+        content: "This agreement shall commence on {{effective_date}}.",
+        type: "standard",
+        order: 3
+      }
+    ],
+    signatureBlock: "Signature: {{party_a_name}}\nDate: {{effective_date}}"
+  };
 }
 
 // Lazy initialization of Anthropic client

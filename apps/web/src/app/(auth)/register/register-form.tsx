@@ -5,11 +5,17 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ValidatedInput, FormError } from "@/components/forms";
 import { RefreshCw } from "lucide-react";
+import { required, email as emailValidator, minLength, all } from "@/lib/validation";
 
 // Google OAuth is enabled in Supabase
 const GOOGLE_OAUTH_ENABLED = true;
+
+// Validators
+const nameValidator = all(required("Name is required"), minLength(2, "Name must be at least 2 characters"));
+const registerEmailValidator = all(required("Email is required"), emailValidator());
+const passwordValidatorFn = all(required("Password is required"), minLength(6, "Password must be at least 6 characters"));
 
 export function RegisterForm() {
   const router = useRouter();
@@ -21,6 +27,12 @@ export function RegisterForm() {
   const [success, setSuccess] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
 
+  // Field validation states
+  const [nameValid, setNameValid] = useState(true);
+  const [emailValid, setEmailValid] = useState(true);
+  const [passwordValid, setPasswordValid] = useState(true);
+  const [formTouched, setFormTouched] = useState(false);
+
   // Countdown timer for resend
   useEffect(() => {
     if (resendCountdown > 0) {
@@ -29,8 +41,40 @@ export function RegisterForm() {
     }
   }, [resendCountdown]);
 
+  // Clear error when user starts typing
+  const handleNameChange = (value: string) => {
+    setName(value);
+    if (error) setError(null);
+  };
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (error) setError(null);
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (error) setError(null);
+  };
+
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormTouched(true);
+
+    // Validate all fields
+    const nameResult = nameValidator(name);
+    const emailResult = registerEmailValidator(email);
+    const passwordResult = passwordValidatorFn(password);
+
+    setNameValid(nameResult.valid);
+    setEmailValid(emailResult.valid);
+    setPasswordValid(passwordResult.valid);
+
+    if (!nameResult.valid || !emailResult.valid || !passwordResult.valid) {
+      setError(nameResult.error || emailResult.error || passwordResult.error || "Please fix the errors above");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -181,39 +225,35 @@ export function RegisterForm() {
 
       {/* Email/Password Form */}
       <form onSubmit={handleEmailSignup} className="space-y-4">
-        <div>
-          <Input
-            type="text"
-            placeholder="Full name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            disabled={loading}
-          />
-        </div>
-        <div>
-          <Input
-            type="email"
-            placeholder="Email address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={loading}
-          />
-        </div>
-        <div>
-          <Input
-            type="password"
-            placeholder="Password (min 6 characters)"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-            disabled={loading}
-          />
-        </div>
+        <ValidatedInput
+          type="text"
+          placeholder="Full name"
+          value={name}
+          onChange={handleNameChange}
+          validators={[nameValidator]}
+          disabled={loading}
+          forceShowError={formTouched && !nameValid}
+        />
+        <ValidatedInput
+          type="email"
+          placeholder="Email address"
+          value={email}
+          onChange={handleEmailChange}
+          validators={[registerEmailValidator]}
+          disabled={loading}
+          forceShowError={formTouched && !emailValid}
+        />
+        <ValidatedInput
+          type="password"
+          placeholder="Password (min 6 characters)"
+          value={password}
+          onChange={handlePasswordChange}
+          validators={[passwordValidatorFn]}
+          disabled={loading}
+          forceShowError={formTouched && !passwordValid}
+        />
 
-        {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+        {error && <FormError message={error} />}
 
         {/* Terms and Privacy - shown before signup */}
         <p className="text-xs text-gray-500 text-center">

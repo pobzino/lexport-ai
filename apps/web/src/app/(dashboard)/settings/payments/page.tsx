@@ -25,7 +25,9 @@ import {
   Settings,
   DollarSign,
   ArrowUpRight,
+  ArrowLeft,
 } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useOnboarding } from "@/components/onboarding";
 
@@ -305,6 +307,13 @@ export default function PaymentSettingsPage() {
     return (
       <div className="space-y-6">
         <div>
+          <Link
+            href="/settings"
+            className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-4"
+          >
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            Back to Settings
+          </Link>
           <h1 className="text-2xl font-bold text-slate-900">Payment Settings</h1>
           <p className="text-slate-500 mt-1">
             Manage how you receive payments from contracts
@@ -322,6 +331,13 @@ export default function PaymentSettingsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
+          <Link
+            href="/settings"
+            className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-4"
+          >
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            Back to Settings
+          </Link>
           <h1 className="text-2xl font-bold text-slate-900">Payment Settings</h1>
           <p className="text-slate-500 mt-1">
             Manage how you receive payments from contracts

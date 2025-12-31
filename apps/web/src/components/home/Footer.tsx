@@ -34,18 +34,26 @@ export function Footer() {
                     <div>
                         <h4 className="font-bold text-slate-900 mb-4 sm:mb-6 text-sm sm:text-base">Product</h4>
                         <ul className="space-y-2 sm:space-y-3">
-                            {["Features", "Pricing", "Templates", "Integrations"].map(
-                                (item) => (
-                                    <li key={item}>
-                                        <a
-                                            href="#"
-                                            className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors"
-                                        >
-                                            {item}
-                                        </a>
-                                    </li>
-                                )
-                            )}
+                            <li>
+                                <a href="#features" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
+                                    Features
+                                </a>
+                            </li>
+                            <li>
+                                <a href="#pricing" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
+                                    Pricing
+                                </a>
+                            </li>
+                            <li>
+                                <Link href="/templates" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
+                                    Templates
+                                </Link>
+                            </li>
+                            <li>
+                                <Link href="/contracts/new" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
+                                    Create Contract
+                                </Link>
+                            </li>
                         </ul>
                     </div>
 
@@ -53,21 +61,21 @@ export function Footer() {
                     <div>
                         <h4 className="font-bold text-slate-900 mb-4 sm:mb-6 text-sm sm:text-base">Resources</h4>
                         <ul className="space-y-2 sm:space-y-3">
-                            {[
-                                "Documentation",
-                                "Legal Templates",
-                                "Help Center",
-                                "Blog",
-                            ].map((item) => (
-                                <li key={item}>
-                                    <a
-                                        href="#"
-                                        className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors"
-                                    >
-                                        {item}
-                                    </a>
-                                </li>
-                            ))}
+                            <li>
+                                <Link href="/templates" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
+                                    Legal Templates
+                                </Link>
+                            </li>
+                            <li>
+                                <Link href="/contact" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
+                                    Help Center
+                                </Link>
+                            </li>
+                            <li>
+                                <a href="#faq" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
+                                    FAQ
+                                </a>
+                            </li>
                         </ul>
                     </div>
 
@@ -76,14 +84,14 @@ export function Footer() {
                         <h4 className="font-bold text-slate-900 mb-4 sm:mb-6 text-sm sm:text-base">Company</h4>
                         <ul className="space-y-2 sm:space-y-3">
                             <li>
-                                <a href="#" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
+                                <Link href="/about" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
                                     About
-                                </a>
+                                </Link>
                             </li>
                             <li>
-                                <a href="#" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
-                                    Careers
-                                </a>
+                                <Link href="/contact" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
+                                    Contact
+                                </Link>
                             </li>
                             <li>
                                 <Link href="/privacy" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
@@ -91,9 +99,9 @@ export function Footer() {
                                 </Link>
                             </li>
                             <li>
-                                <a href="#" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
+                                <Link href="/terms" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
                                     Terms of Service
-                                </a>
+                                </Link>
                             </li>
                         </ul>
                     </div>
@@ -104,9 +112,9 @@ export function Footer() {
                         &copy; {currentYear} Lexport AI Inc. All rights reserved.
                     </p>
                     <div className="flex gap-4 sm:gap-6">
-                        <a href="#" className="text-slate-400 hover:text-slate-600 text-xs transition-colors">Twitter</a>
-                        <a href="#" className="text-slate-400 hover:text-slate-600 text-xs transition-colors">LinkedIn</a>
-                        <a href="#" className="text-slate-400 hover:text-slate-600 text-xs transition-colors">GitHub</a>
+                        <Link href="/privacy" className="text-slate-400 hover:text-slate-600 text-xs transition-colors">Privacy</Link>
+                        <Link href="/terms" className="text-slate-400 hover:text-slate-600 text-xs transition-colors">Terms</Link>
+                        <Link href="/contact" className="text-slate-400 hover:text-slate-600 text-xs transition-colors">Contact</Link>
                     </div>
                 </div>
             </div>
