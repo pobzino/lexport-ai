@@ -166,9 +166,35 @@ function formatJurisdictionName(jurisdiction: string): string {
     us_california: "California, USA",
     us_texas: "Texas, USA",
     us_new_york: "New York, USA",
+    us_delaware: "Delaware, USA",
+    us_florida: "Florida, USA",
+    us_washington: "Washington, USA",
+    us_illinois: "Illinois, USA",
+    us_georgia: "Georgia, USA",
+    us_massachusetts: "Massachusetts, USA",
+    us_pennsylvania: "Pennsylvania, USA",
+    us_colorado: "Colorado, USA",
     uk: "United Kingdom",
+    CA: "California, USA",
+    TX: "Texas, USA",
+    NY: "New York, USA",
+    UK: "United Kingdom",
   };
-  return names[jurisdiction] || jurisdiction;
+
+  if (names[jurisdiction]) return names[jurisdiction];
+
+  // Handle us_* format -> "State, USA"
+  if (jurisdiction.startsWith("us_")) {
+    const stateName = jurisdiction.slice(3).split("_")
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+    return `${stateName}, USA`;
+  }
+
+  // Fallback: format as title case
+  return jurisdiction.split("_")
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 // Map contract jurisdiction values to template enum values

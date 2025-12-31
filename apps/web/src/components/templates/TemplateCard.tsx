@@ -52,12 +52,31 @@ const JURISDICTION_NAMES: Record<string, string> = {
   us_california: "California",
   us_texas: "Texas",
   us_new_york: "New York",
-  uk: "UK",
+  us_delaware: "Delaware",
+  us_florida: "Florida",
+  us_washington: "Washington",
+  us_illinois: "Illinois",
+  us_georgia: "Georgia",
+  us_massachusetts: "Massachusetts",
+  us_pennsylvania: "Pennsylvania",
+  us_colorado: "Colorado",
+  uk: "United Kingdom",
   CA: "California",
   TX: "Texas",
   NY: "New York",
-  UK: "UK",
+  UK: "United Kingdom",
 };
+
+// Format jurisdiction code to display name (fallback for unlisted jurisdictions)
+function formatJurisdiction(code: string): string {
+  if (JURISDICTION_NAMES[code]) return JURISDICTION_NAMES[code];
+  // Handle format like "us_florida" -> "Florida"
+  if (code.startsWith("us_")) {
+    return code.slice(3).split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  }
+  // Handle other formats
+  return code.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
 
 interface TemplateCardProps {
   template: Template;
@@ -85,7 +104,7 @@ export function TemplateCard({
 
   const Icon = CONTRACT_TYPE_ICONS[template.type] || FileText;
   const typeName = CONTRACT_TYPE_NAMES[template.type] || template.type;
-  const jurisdictionName = JURISDICTION_NAMES[template.jurisdiction] || template.jurisdiction;
+  const jurisdictionName = formatJurisdiction(template.jurisdiction);
   const isPremium = template.is_premium;
   const price = template.price || 1000; // Default $10.00
 
