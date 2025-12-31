@@ -1161,6 +1161,402 @@ Powered by Lexport
   }
 }
 
+export interface ExpirationWarningEmailParams {
+  to: string;
+  signerName: string;
+  contractTitle: string;
+  signingUrl: string;
+  expiresAt: string;
+  hoursRemaining: number;
+  senderName?: string;
+}
+
+/**
+ * Send an expiration warning email for a contract/signature request
+ */
+export async function sendExpirationWarningEmail({
+  to,
+  signerName,
+  contractTitle,
+  signingUrl,
+  expiresAt,
+  hoursRemaining,
+  senderName,
+}: ExpirationWarningEmailParams) {
+  const expirationDate = new Date(expiresAt).toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  // Determine urgency level and styling
+  const isUrgent = hoursRemaining <= 24;
+  const urgencyConfig = isUrgent
+    ? {
+        bgColor: "#fef2f2",
+        borderColor: "#ef4444",
+        textColor: "#991b1b",
+        label: "URGENT: Expires Soon",
+        emoji: "🚨",
+        countdownColor: "#ef4444",
+      }
+    : {
+        bgColor: "#fffbeb",
+        borderColor: "#f59e0b",
+        textColor: "#92400e",
+        label: "Expiring Soon",
+        emoji: "⏰",
+        countdownColor: "#f59e0b",
+      };
+
+  // Format time remaining
+  const formatTimeRemaining = () => {
+    if (hoursRemaining < 1) {
+      const minutes = Math.round(hoursRemaining * 60);
+      return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+    } else if (hoursRemaining < 24) {
+      const hours = Math.round(hoursRemaining);
+      return `${hours} hour${hours !== 1 ? "s" : ""}`;
+    } else {
+      const days = Math.round(hoursRemaining / 24);
+      return `${days} day${days !== 1 ? "s" : ""}`;
+    }
+  };
+
+  const content = `
+    <div style="text-align: center; margin-bottom: 24px;">
+      <span style="display: inline-block; background-color: ${urgencyConfig.bgColor}; color: ${urgencyConfig.textColor}; padding: 8px 20px; border-radius: 20px; font-size: 14px; font-weight: 600; border: 1px solid ${urgencyConfig.borderColor};">${urgencyConfig.emoji} ${urgencyConfig.label}</span>
+    </div>
+
+    <h2 style="color: ${BRAND.navy}; font-size: 22px; margin: 0 0 20px; text-align: center;">Contract Expiring Soon</h2>
+
+    <p style="margin: 16px 0; color: #475569;">Hi ${signerName},</p>
+
+    <p style="margin: 16px 0; color: #475569;">
+      ${isUrgent ? "<strong>This is an urgent reminder.</strong> " : ""}The following contract requires your signature and will expire soon:
+    </p>
+
+    <div style="background-color: ${urgencyConfig.bgColor}; border-radius: 12px; padding: 20px; margin: 24px 0; border-left: 4px solid ${urgencyConfig.borderColor};">
+      <p style="margin: 0 0 12px; color: ${BRAND.navy}; font-size: 18px; font-weight: 600;">${contractTitle}</p>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 28px; font-weight: 700; color: ${urgencyConfig.countdownColor};">${formatTimeRemaining()}</span>
+        <span style="color: ${urgencyConfig.textColor}; font-size: 14px;">remaining</span>
+      </div>
+    </div>
+
+    <div style="background-color: ${BRAND.lightSlate}; border-radius: 10px; padding: 16px; margin: 24px 0; text-align: center;">
+      <p style="margin: 0; font-size: 13px; color: ${BRAND.slate};">
+        <strong>Expires:</strong> ${expirationDate}
+      </p>
+    </div>
+
+    ${primaryButton(signingUrl, isUrgent ? "Sign Now - Urgent" : "Review & Sign")}
+
+    <p style="margin: 16px 0; font-size: 14px; color: #475569; text-align: center;">
+      ${isUrgent
+        ? "After expiration, you will no longer be able to sign this document and a new signing request may need to be sent."
+        : "Please complete your signature before the deadline to avoid any delays."
+      }
+    </p>
+
+    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0;">
+
+    <p style="margin: 0 0 12px; font-size: 12px; color: #94a3b8; text-align: center;">
+      ${senderName ? `This contract was sent by ${senderName}.` : ""}
+      Can't click the button? Copy this link:<br>
+      <a href="${signingUrl}" style="color: ${BRAND.blue}; word-break: break-all;">${signingUrl}</a>
+    </p>
+  `;
+
+  const html = emailWrapper(content);
+
+  const text = `
+${urgencyConfig.label}
+
+Hi ${signerName},
+
+${isUrgent ? "This is an urgent reminder. " : ""}The following contract requires your signature and will expire soon:
+
+${contractTitle}
+
+Time remaining: ${formatTimeRemaining()}
+Expires: ${expirationDate}
+
+Sign now: ${signingUrl}
+
+${isUrgent
+  ? "After expiration, you will no longer be able to sign this document and a new signing request may need to be sent."
+  : "Please complete your signature before the deadline to avoid any delays."
+}
+
+${senderName ? `This contract was sent by ${senderName}.` : ""}
+
+---
+Powered by Lexport
+`;
+
+  try {
+    const { data, error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to: [to],
+      subject: `${urgencyConfig.emoji} ${isUrgent ? "URGENT: " : ""}Contract expires in ${formatTimeRemaining()}: ${contractTitle}`,
+      html,
+      text,
+    });
+
+    if (error) {
+      console.error("Failed to send expiration warning:", error);
+      throw error;
+    }
+
+    console.log(`Expiration warning sent to ${to}:`, data?.id);
+    return { success: true, id: data?.id };
+  } catch (error) {
+    console.error("Error sending expiration warning:", error);
+    throw error;
+  }
+}
+
+export interface InvoiceReminderEmailParams {
+  to: string;
+  recipientName: string;
+  invoiceNumber: string;
+  amount: number; // in cents
+  currency: string;
+  dueDate: string | null;
+  paymentUrl: string;
+  lineItems?: { description: string; quantity: number; amount: number }[];
+  senderName?: string;
+  senderEmail?: string;
+  notes?: string;
+  reminderType: "first" | "second" | "final" | "overdue";
+  reminderCount: number;
+  isOverdue: boolean;
+  daysPastDue?: number;
+}
+
+/**
+ * Send an invoice payment reminder email
+ */
+export async function sendInvoiceReminderEmail({
+  to,
+  recipientName,
+  invoiceNumber,
+  amount,
+  currency,
+  dueDate,
+  paymentUrl,
+  lineItems,
+  senderName,
+  senderEmail,
+  notes,
+  reminderType,
+  reminderCount,
+  isOverdue,
+  daysPastDue,
+}: InvoiceReminderEmailParams) {
+  const formattedAmount = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+  }).format(amount / 100);
+
+  const formattedDueDate = dueDate
+    ? new Date(dueDate).toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+    : null;
+
+  // Urgency styling based on reminder type
+  const urgencyConfig = {
+    first: {
+      bgColor: `${BRAND.blue}10`,
+      borderColor: BRAND.blue,
+      textColor: BRAND.navy,
+      label: "Payment Reminder",
+      emoji: "📋",
+      urgencyText: "This is a friendly reminder about your outstanding invoice.",
+      subjectPrefix: "",
+    },
+    second: {
+      bgColor: "#fffbeb",
+      borderColor: "#f59e0b",
+      textColor: "#92400e",
+      label: "Payment Reminder",
+      emoji: "⏰",
+      urgencyText: "This is a follow-up reminder that your invoice payment is still pending.",
+      subjectPrefix: "⏰ Reminder: ",
+    },
+    final: {
+      bgColor: "#fef2f2",
+      borderColor: "#ef4444",
+      textColor: "#991b1b",
+      label: "Final Payment Reminder",
+      emoji: "🚨",
+      urgencyText: "This is your final reminder before we close this invoice. Please complete your payment to avoid any issues.",
+      subjectPrefix: "🚨 Final Reminder: ",
+    },
+    overdue: {
+      bgColor: "#fef2f2",
+      borderColor: "#dc2626",
+      textColor: "#b91c1c",
+      label: "Overdue Payment Notice",
+      emoji: "⚠️",
+      urgencyText: `Your invoice is now ${daysPastDue ? `${daysPastDue} days ` : ""}overdue. Please process your payment immediately to avoid any service interruptions.`,
+      subjectPrefix: "⚠️ Overdue: ",
+    },
+  };
+
+  const config = urgencyConfig[reminderType];
+
+  const lineItemsHtml = lineItems && lineItems.length > 0
+    ? lineItems
+      .map(
+        (item) => `
+        <tr>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #475569;">${item.description}</td>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #475569;">${item.quantity}</td>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; text-align: right; color: ${BRAND.navy}; font-weight: 600;">
+            ${new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(item.amount / 100)}
+          </td>
+        </tr>`
+      )
+      .join("")
+    : "";
+
+  const content = `
+    <div style="text-align: center; margin-bottom: 24px;">
+      <span style="display: inline-block; background-color: ${config.bgColor}; color: ${config.textColor}; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;">${config.emoji} ${config.label}</span>
+    </div>
+
+    <h2 style="color: ${BRAND.navy}; font-size: 22px; margin: 0 0 8px; text-align: center;">Invoice ${invoiceNumber}</h2>
+    ${reminderCount > 1 ? `<p style="margin: 0 0 24px; text-align: center; color: ${BRAND.slate}; font-size: 13px;">Reminder #${reminderCount}</p>` : ""}
+
+    <p style="margin: 16px 0; color: #475569;">Hi ${recipientName},</p>
+
+    <p style="margin: 16px 0; color: #475569;">
+      ${config.urgencyText}
+    </p>
+
+    <!-- Invoice Summary -->
+    <div style="background-color: ${isOverdue ? "#fef2f2" : "#f8fafc"}; border: 1px solid ${isOverdue ? "#fecaca" : "#e2e8f0"}; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 10px 0; color: #475569; font-size: 14px;">Invoice Number</td>
+          <td style="padding: 10px 0; text-align: right; font-weight: 600; color: ${BRAND.navy};">${invoiceNumber}</td>
+        </tr>
+        ${formattedDueDate ? `
+        <tr>
+          <td style="padding: 10px 0; color: #475569; font-size: 14px;">${isOverdue ? "Was Due On" : "Due Date"}</td>
+          <td style="padding: 10px 0; text-align: right; font-weight: ${isOverdue ? "600" : "500"}; color: ${isOverdue ? "#dc2626" : BRAND.navy};">${formattedDueDate}${isOverdue && daysPastDue ? ` (${daysPastDue} days ago)` : ""}</td>
+        </tr>
+        ` : ""}
+        <tr style="border-top: 2px solid ${isOverdue ? "#fecaca" : "#e2e8f0"};">
+          <td style="padding: 16px 0 8px; color: ${BRAND.navy}; font-size: 16px; font-weight: 600;">Amount Due</td>
+          <td style="padding: 16px 0 8px; text-align: right; font-size: 24px; font-weight: 700; color: ${isOverdue ? "#dc2626" : config.textColor};">${formattedAmount}</td>
+        </tr>
+      </table>
+    </div>
+
+    ${lineItemsHtml ? `
+    <!-- Line Items -->
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; margin: 24px 0;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <thead>
+          <tr style="background-color: ${BRAND.navy}; color: white;">
+            <th style="padding: 12px; text-align: left; font-weight: 600;">Description</th>
+            <th style="padding: 12px; text-align: center; font-weight: 600;">Qty</th>
+            <th style="padding: 12px; text-align: right; font-weight: 600;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lineItemsHtml}
+        </tbody>
+      </table>
+    </div>
+    ` : ""}
+
+    ${primaryButton(paymentUrl, isOverdue ? "Pay Now - Overdue" : "Pay Now")}
+
+    ${notes ? `
+    <div style="background-color: ${BRAND.lightSlate}; border-radius: 10px; padding: 16px; margin: 24px 0;">
+      <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: ${BRAND.navy};">Notes:</p>
+      <p style="margin: 0; font-size: 14px; color: #475569;">${notes}</p>
+    </div>
+    ` : ""}
+
+    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0;">
+
+    <p style="margin: 0 0 12px; font-size: 12px; color: #94a3b8; text-align: center;">
+      ${senderName ? `This invoice is from ${senderName}${senderEmail ? ` (${senderEmail})` : ""}.` : ""}
+      Questions about this invoice? Reply to this email or contact the sender directly.
+    </p>
+
+    <p style="margin: 0; font-size: 12px; color: #94a3b8; text-align: center;">
+      Can't click the button? <a href="${paymentUrl}" style="color: ${BRAND.blue};">Pay here</a>
+    </p>
+  `;
+
+  const html = emailWrapper(content);
+
+  const lineItemsText = lineItems && lineItems.length > 0
+    ? lineItems
+      .map((item) => `  - ${item.description}: ${new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(item.amount / 100)}`)
+      .join("\n")
+    : "";
+
+  const text = `
+${config.label}${reminderCount > 1 ? ` (#${reminderCount})` : ""}
+
+Hi ${recipientName},
+
+${config.urgencyText}
+
+Invoice: ${invoiceNumber}
+${formattedDueDate ? `Due Date: ${formattedDueDate}${isOverdue && daysPastDue ? ` (${daysPastDue} days overdue)` : ""}` : ""}
+Amount Due: ${formattedAmount}
+
+${lineItemsText ? `Items:\n${lineItemsText}` : ""}
+
+${notes ? `Notes: ${notes}` : ""}
+
+Pay now: ${paymentUrl}
+
+${senderName ? `This invoice is from ${senderName}${senderEmail ? ` (${senderEmail})` : ""}.` : ""}
+
+---
+Powered by Lexport
+`;
+
+  const subjectLine = `${config.subjectPrefix}Invoice ${invoiceNumber}: ${formattedAmount} ${isOverdue ? "OVERDUE" : "payment due"}`;
+
+  try {
+    const { data, error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to: [to],
+      subject: subjectLine,
+      html,
+      text,
+    });
+
+    if (error) {
+      console.error("Failed to send invoice reminder:", error);
+      throw error;
+    }
+
+    console.log(`Invoice reminder sent to ${to}:`, data?.id);
+    return { success: true, id: data?.id };
+  } catch (error) {
+    console.error("Error sending invoice reminder:", error);
+    throw error;
+  }
+}
+
 export interface TeamInviteEmailParams {
   to: string;
   inviterName: string;

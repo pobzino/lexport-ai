@@ -39,14 +39,14 @@ const testimonials = [
 
 export function Testimonials() {
     return (
-        <section className="py-24 px-4 sm:px-6 lg:px-8 bg-white overflow-hidden">
+        <section className="py-16 sm:py-20 lg:py-24 px-4 sm:px-6 lg:px-8 bg-white overflow-hidden">
             <div className="max-w-7xl mx-auto">
-                <div className="text-center mb-16">
+                <div className="text-center mb-10 sm:mb-12 lg:mb-16">
                     <motion.p
                         initial={{ opacity: 0, y: 10 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        className="text-slate-600 mb-4 font-medium"
+                        className="text-sm sm:text-base text-slate-600 mb-4 font-medium px-4"
                     >
                         Join thousands of legal professionals who have transformed their
                         workflow
@@ -56,22 +56,22 @@ export function Testimonials() {
                         whileInView={{ opacity: 1, scale: 1 }}
                         viewport={{ once: true }}
                         transition={{ delay: 0.1 }}
-                        className="flex items-center justify-center gap-2"
+                        className="flex items-center justify-center gap-2 flex-wrap"
                     >
                         <div className="flex">
                             {[1, 2, 3, 4, 5].map((i) => (
                                 <Star
                                     key={i}
-                                    className="w-5 h-5 text-yellow-400 fill-yellow-400"
+                                    className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400 fill-yellow-400"
                                 />
                             ))}
                         </div>
-                        <span className="font-bold text-slate-900">4.9/5</span>
-                        <span className="text-slate-500">from 2,300+ reviews</span>
+                        <span className="font-bold text-slate-900 text-sm sm:text-base">4.9/5</span>
+                        <span className="text-slate-500 text-sm sm:text-base">from 2,300+ reviews</span>
                     </motion.div>
                 </div>
 
-                <div className="grid md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
                     {testimonials.map((testimonial, index) => (
                         <motion.div
                             key={index}
@@ -79,11 +79,11 @@ export function Testimonials() {
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ delay: index * 0.1 }}
-                            className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 hover:bg-white hover:border-slate-200 transition-all duration-300 relative group"
+                            className="bg-slate-50 rounded-xl sm:rounded-2xl p-5 sm:p-8 border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 hover:bg-white hover:border-slate-200 transition-all duration-300 relative group"
                         >
-                            <div className="text-[#202e46]/10 mb-6 absolute top-6 right-6 transform group-hover:scale-110 transition-transform">
+                            <div className="text-[#202e46]/10 mb-6 absolute top-4 right-4 sm:top-6 sm:right-6 transform group-hover:scale-110 transition-transform">
                                 <svg
-                                    className="w-12 h-12"
+                                    className="w-10 h-10 sm:w-12 sm:h-12"
                                     fill="currentColor"
                                     viewBox="0 0 24 24"
                                 >
@@ -100,12 +100,12 @@ export function Testimonials() {
                                 ))}
                             </div>
 
-                            <p className="text-slate-700 mb-6 leading-relaxed relative z-10">&ldquo;{testimonial.quote}&rdquo;</p>
+                            <p className="text-sm sm:text-base text-slate-700 mb-4 sm:mb-6 leading-relaxed relative z-10">&ldquo;{testimonial.quote}&rdquo;</p>
 
-                            <div className="border-t border-slate-200/60 my-6" />
+                            <div className="border-t border-slate-200/60 my-4 sm:my-6" />
 
                             <div
-                                className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mb-6 ${testimonial.color === "slate"
+                                className={`inline-block px-2.5 sm:px-3 py-1 rounded-full text-xs font-semibold mb-4 sm:mb-6 ${testimonial.color === "slate"
                                         ? "bg-[#202e46]/10 text-[#202e46]"
                                         : testimonial.color === "blue"
                                             ? "bg-blue-100 text-blue-700"

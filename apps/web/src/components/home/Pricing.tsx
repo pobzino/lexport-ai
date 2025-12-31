@@ -6,16 +6,16 @@ import { motion } from "framer-motion";
 
 export function Pricing() {
     return (
-        <section id="pricing" className="py-24 px-4 sm:px-6 lg:px-8 bg-slate-50">
+        <section id="pricing" className="py-16 sm:py-20 lg:py-24 px-4 sm:px-6 lg:px-8 bg-slate-50">
             <div className="max-w-6xl mx-auto">
-                <div className="text-center mb-16">
+                <div className="text-center mb-10 sm:mb-12 lg:mb-16">
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        className="inline-flex items-center gap-2 bg-[#202e46]/10 text-[#202e46] px-4 py-1.5 rounded-full text-sm font-medium mb-4"
+                        className="inline-flex items-center gap-2 bg-[#202e46]/10 text-[#202e46] px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium mb-3 sm:mb-4"
                     >
-                        <Sparkles className="w-4 h-4" />
+                        <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         Simple, transparent pricing
                     </motion.div>
                     <motion.h2
@@ -23,7 +23,7 @@ export function Pricing() {
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ delay: 0.1 }}
-                        className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4"
+                        className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-3 sm:mb-4"
                     >
                         Choose your plan
                     </motion.h2>
@@ -32,37 +32,37 @@ export function Pricing() {
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ delay: 0.2 }}
-                        className="text-slate-600 max-w-2xl mx-auto"
+                        className="text-sm sm:text-base text-slate-600 max-w-2xl mx-auto"
                     >
                         Start free and upgrade when you need more. No hidden fees.
                     </motion.p>
                 </div>
 
-                <div className="grid md:grid-cols-3 gap-6 items-start">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 items-start">
                     {/* Free Plan */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow"
+                        className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow"
                     >
-                        <div className="p-8">
-                            <h3 className="text-2xl font-bold text-slate-900">Free</h3>
+                        <div className="p-5 sm:p-8">
+                            <h3 className="text-xl sm:text-2xl font-bold text-slate-900">Free</h3>
                             <p className="text-slate-600 mt-1">Try before you commit</p>
-                            <div className="mt-6 flex items-baseline gap-1">
-                                <span className="text-5xl font-bold text-slate-900 tracking-tight">$0</span>
+                            <div className="mt-4 sm:mt-6 flex items-baseline gap-1">
+                                <span className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight">$0</span>
                                 <span className="text-slate-600 font-medium">/month</span>
                             </div>
-                            <p className="text-sm text-slate-500 mt-2 mb-6">forever free</p>
+                            <p className="text-xs sm:text-sm text-slate-500 mt-2 mb-4 sm:mb-6">forever free</p>
 
                             <Link
                                 href="/register"
-                                className="w-full inline-flex items-center justify-center bg-slate-100 text-slate-900 px-6 py-3 rounded-xl font-semibold hover:bg-slate-200 transition-all"
+                                className="w-full inline-flex items-center justify-center bg-slate-100 text-slate-900 px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-semibold hover:bg-slate-200 transition-all text-sm sm:text-base"
                             >
                                 Get started
                             </Link>
 
-                            <div className="mt-8 pt-6 border-t border-slate-100">
+                            <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-100">
                                 <ul className="space-y-3">
                                     {[
                                         { text: "1 AI-generated contract", included: true },
@@ -95,29 +95,29 @@ export function Pricing() {
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ delay: 0.1 }}
-                        className="bg-white rounded-2xl border-2 border-[#202e46] overflow-hidden shadow-2xl relative z-10 transform md:-translate-y-4"
+                        className="bg-white rounded-xl sm:rounded-2xl border-2 border-[#202e46] overflow-hidden shadow-xl lg:shadow-2xl relative z-10 lg:-translate-y-4 order-first lg:order-none"
                     >
-                        <div className="bg-[#202e46] text-white text-center py-2.5 text-sm font-medium tracking-wide">
+                        <div className="bg-[#202e46] text-white text-center py-2 sm:py-2.5 text-xs sm:text-sm font-medium tracking-wide">
                             MOST POPULAR
                         </div>
-                        <div className="p-8">
-                            <h3 className="text-2xl font-bold text-slate-900">Pro</h3>
-                            <p className="text-slate-600 mt-1">For freelancers & small teams</p>
-                            <div className="mt-6 flex items-baseline gap-1">
-                                <span className="text-5xl font-bold text-slate-900 tracking-tight">$25</span>
+                        <div className="p-5 sm:p-8">
+                            <h3 className="text-xl sm:text-2xl font-bold text-slate-900">Pro</h3>
+                            <p className="text-slate-600 mt-1 text-sm sm:text-base">For freelancers & small teams</p>
+                            <div className="mt-4 sm:mt-6 flex items-baseline gap-1">
+                                <span className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight">$25</span>
                                 <span className="text-slate-600 font-medium">/month</span>
                             </div>
-                            <p className="text-sm text-slate-500 mt-2 mb-6">billed monthly</p>
+                            <p className="text-xs sm:text-sm text-slate-500 mt-2 mb-4 sm:mb-6">billed monthly</p>
 
                             <Link
                                 href="/register"
-                                className="w-full inline-flex items-center justify-center bg-[#202e46] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#1a2539] transition-all hover:shadow-lg"
+                                className="w-full inline-flex items-center justify-center bg-[#202e46] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-semibold hover:bg-[#1a2539] transition-all hover:shadow-lg text-sm sm:text-base"
                             >
                                 Start free trial
                                 <ArrowRight className="w-4 h-4 ml-2" />
                             </Link>
 
-                            <div className="mt-8 pt-6 border-t border-slate-100">
+                            <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-100">
                                 <ul className="space-y-3">
                                     {[
                                         "Unlimited AI contracts",
@@ -146,25 +146,25 @@ export function Pricing() {
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ delay: 0.2 }}
-                        className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow"
+                        className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow"
                     >
-                        <div className="p-8">
-                            <h3 className="text-2xl font-bold text-slate-900">Team</h3>
-                            <p className="text-slate-600 mt-1">For growing businesses</p>
-                            <div className="mt-6 flex items-baseline gap-1">
-                                <span className="text-5xl font-bold text-slate-900 tracking-tight">$79</span>
+                        <div className="p-5 sm:p-8">
+                            <h3 className="text-xl sm:text-2xl font-bold text-slate-900">Team</h3>
+                            <p className="text-slate-600 mt-1 text-sm sm:text-base">For growing businesses</p>
+                            <div className="mt-4 sm:mt-6 flex items-baseline gap-1">
+                                <span className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight">$79</span>
                                 <span className="text-slate-600 font-medium">/month</span>
                             </div>
-                            <p className="text-sm text-slate-500 mt-2 mb-6">per seat, billed monthly</p>
+                            <p className="text-xs sm:text-sm text-slate-500 mt-2 mb-4 sm:mb-6">per seat, billed monthly</p>
 
                             <Link
                                 href="/register"
-                                className="w-full inline-flex items-center justify-center bg-slate-100 text-slate-900 px-6 py-3 rounded-xl font-semibold hover:bg-slate-200 transition-all"
+                                className="w-full inline-flex items-center justify-center bg-slate-100 text-slate-900 px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-semibold hover:bg-slate-200 transition-all text-sm sm:text-base"
                             >
                                 Start free trial
                             </Link>
 
-                            <div className="mt-8 pt-6 border-t border-slate-100">
+                            <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-100">
                                 <ul className="space-y-3">
                                     {[
                                         "Everything in Pro",

@@ -152,6 +152,8 @@ export interface Contract {
   // Reminders
   reminder_enabled: boolean;
   reminder_interval_days: number;
+  reminder_count: number;
+  max_reminders: number;
   last_reminder_sent_at: string | null;
   next_reminder_at: string | null;
   // Payments
@@ -447,6 +449,13 @@ export interface Invoice {
   // External payment tracking
   payment_method: string | null; // bank_transfer, cash, check, other
   payment_reference: string | null; // Reference number for external payments
+  // Reminder tracking
+  reminder_enabled: boolean;
+  reminder_interval_days: number;
+  next_reminder_at: string | null;
+  reminder_count: number;
+  max_reminders: number;
+  last_reminder_sent_at: string | null;
   created_at: string;
   updated_at: string;
 }

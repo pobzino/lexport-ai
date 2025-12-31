@@ -2,6 +2,7 @@ import { Settings, CreditCard, ChevronRight, Shield, Download, Trash2, ExternalL
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { PrivacyActions } from "./privacy-actions";
+import { NotificationPreferences } from "@/components/settings/NotificationPreferences";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -155,18 +156,8 @@ export default async function SettingsPage() {
         </div>
       </div>
 
-      {/* Preferences Section */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">Preferences</h2>
-        <div className="text-center py-8">
-          <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
-            <Settings className="w-6 h-6 text-slate-400" />
-          </div>
-          <p className="text-slate-500">
-            Additional settings coming soon
-          </p>
-        </div>
-      </div>
+      {/* Notification Preferences Section */}
+      <NotificationPreferences />
     </div>
   );
 }

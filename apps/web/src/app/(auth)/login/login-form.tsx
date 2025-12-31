@@ -4,17 +4,23 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ValidatedInput } from "@/components/forms";
+import { FormError, FormSuccess } from "@/components/forms";
 import { Mail, ArrowLeft, RefreshCw } from "lucide-react";
+import { required, email, minLength, all } from "@/lib/validation";
 
 type LoginMode = "default" | "magic-link" | "forgot-password";
 
 // Google OAuth is currently disabled in Supabase - set to true when enabled
 const GOOGLE_OAUTH_ENABLED = false;
 
+// Validators
+const emailValidator = all(required("Email is required"), email());
+const passwordValidator = required("Password is required");
+
 export function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [emailValue, setEmailValue] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -22,14 +28,39 @@ export function LoginForm() {
   const [mode, setMode] = useState<LoginMode>("default");
   const [resendCountdown, setResendCountdown] = useState(0);
 
+  // Field validation states
+  const [emailValid, setEmailValid] = useState(true);
+  const [passwordValid, setPasswordValid] = useState(true);
+  const [formTouched, setFormTouched] = useState(false);
+
+  const validateForm = useCallback(() => {
+    const emailResult = emailValidator(emailValue);
+    const passwordResult = passwordValidator(password);
+    return emailResult.valid && passwordResult.valid;
+  }, [emailValue, password]);
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormTouched(true);
+
+    // Validate all fields
+    const emailResult = emailValidator(emailValue);
+    const passwordResult = passwordValidator(password);
+
+    setEmailValid(emailResult.valid);
+    setPasswordValid(passwordResult.valid);
+
+    if (!emailResult.valid || !passwordResult.valid) {
+      setError(emailResult.error || passwordResult.error || "Please fix the errors above");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: emailValue,
       password,
     });
 
@@ -62,13 +93,23 @@ export function LoginForm() {
 
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormTouched(true);
+
+    const emailResult = emailValidator(emailValue);
+    setEmailValid(emailResult.valid);
+
+    if (!emailResult.valid) {
+      setError(emailResult.error || "Please enter a valid email");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setSuccess(null);
 
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
-      email,
+      email: emailValue,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
@@ -86,12 +127,22 @@ export function LoginForm() {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormTouched(true);
+
+    const emailResult = emailValidator(emailValue);
+    setEmailValid(emailResult.valid);
+
+    if (!emailResult.valid) {
+      setError(emailResult.error || "Please enter a valid email");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setSuccess(null);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(emailValue, {
       redirectTo: `${window.location.origin}/auth/callback?next=/settings`,
     });
 
@@ -110,6 +161,9 @@ export function LoginForm() {
     setError(null);
     setSuccess(null);
     setResendCountdown(0);
+    setFormTouched(false);
+    setEmailValid(true);
+    setPasswordValid(true);
   };
 
   // Countdown timer for resend
@@ -128,7 +182,7 @@ export function LoginForm() {
 
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
-      email,
+      email: emailValue,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
@@ -152,7 +206,7 @@ export function LoginForm() {
     setError(null);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(emailValue, {
       redirectTo: `${window.location.origin}/auth/callback?next=/settings`,
     });
 
@@ -165,6 +219,17 @@ export function LoginForm() {
     setSuccess("New reset link sent! Check your email.");
     setResendCountdown(60);
     setLoading(false);
+  };
+
+  // Clear error when user starts typing
+  const handleEmailChange = (value: string) => {
+    setEmailValue(value);
+    if (error) setError(null);
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (error) setError(null);
   };
 
   // Magic Link Mode
@@ -190,19 +255,22 @@ export function LoginForm() {
         </div>
 
         <form onSubmit={handleMagicLink} className="space-y-4">
-          <Input
+          <ValidatedInput
             type="email"
             placeholder="Email address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+            value={emailValue}
+            onChange={handleEmailChange}
+            validators={[emailValidator]}
             disabled={loading}
+            required
+            forceShowError={formTouched && !emailValid}
+            autoComplete="email"
           />
 
-          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+          <FormError message={error} />
           {success && (
             <div className="text-center space-y-2">
-              <p className="text-sm text-green-600">{success}</p>
+              <FormSuccess message={success} />
               <p className="text-xs text-gray-500">
                 Don&apos;t see it? Check your spam folder.
               </p>
@@ -250,19 +318,22 @@ export function LoginForm() {
         </div>
 
         <form onSubmit={handleForgotPassword} className="space-y-4">
-          <Input
+          <ValidatedInput
             type="email"
             placeholder="Email address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+            value={emailValue}
+            onChange={handleEmailChange}
+            validators={[emailValidator]}
             disabled={loading}
+            required
+            forceShowError={formTouched && !emailValid}
+            autoComplete="email"
           />
 
-          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+          <FormError message={error} />
           {success && (
             <div className="text-center space-y-2">
-              <p className="text-sm text-green-600">{success}</p>
+              <FormSuccess message={success} />
               <p className="text-xs text-gray-500">
                 Don&apos;t see it? Check your spam folder.
               </p>
@@ -345,26 +416,29 @@ export function LoginForm() {
 
       {/* Email/Password Form */}
       <form onSubmit={handleEmailLogin} className="space-y-4">
-        <div>
-          <Input
-            type="email"
-            placeholder="Email address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={loading}
-          />
-        </div>
-        <div>
-          <Input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={loading}
-          />
-        </div>
+        <ValidatedInput
+          type="email"
+          placeholder="Email address"
+          value={emailValue}
+          onChange={handleEmailChange}
+          validators={[emailValidator]}
+          disabled={loading}
+          required
+          forceShowError={formTouched && !emailValid}
+          autoComplete="email"
+        />
+
+        <ValidatedInput
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={handlePasswordChange}
+          validators={[passwordValidator]}
+          disabled={loading}
+          required
+          forceShowError={formTouched && !passwordValid}
+          autoComplete="current-password"
+        />
 
         <div className="flex justify-end">
           <button
@@ -376,9 +450,7 @@ export function LoginForm() {
           </button>
         </div>
 
-        {error && (
-          <p className="text-sm text-red-600 text-center">{error}</p>
-        )}
+        <FormError message={error} />
 
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? "Signing in..." : "Sign in"}

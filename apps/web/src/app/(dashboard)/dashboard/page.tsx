@@ -3,6 +3,7 @@ import { FileText, PenTool, Clock, Plus, ArrowRight, Shield, Briefcase, Users, T
 import { createClient } from "@/lib/supabase/server";
 import { CONTRACT_TYPES } from "@/lib/contracts/schemas";
 import { DashboardChecklistWrapper } from "@/components/onboarding";
+import { ExpiringContracts } from "@/components/dashboard/ExpiringContracts";
 
 // Icon mapping for contract types
 const CONTRACT_ICONS: Record<string, typeof Shield> = {

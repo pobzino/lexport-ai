@@ -6,27 +6,27 @@ import { Clock, Bell, CheckCircle2, ArrowRight } from "lucide-react";
 
 export function GetPaid() {
     return (
-        <section className="py-32 px-4 sm:px-6 lg:px-8 bg-white">
+        <section className="py-16 sm:py-24 lg:py-32 px-4 sm:px-6 lg:px-8 bg-white">
             <div className="max-w-5xl mx-auto">
-                <div className="grid lg:grid-cols-2 gap-16 items-center">
+                <div className="grid lg:grid-cols-2 gap-10 sm:gap-12 lg:gap-16 items-center">
                     {/* Left: Content */}
                     <motion.div
                         initial={{ opacity: 0, x: -16 }}
                         whileInView={{ opacity: 1, x: 0 }}
                         viewport={{ once: true }}
                     >
-                        <p className="text-sm font-medium text-emerald-600 uppercase tracking-wider mb-4">
+                        <p className="text-xs sm:text-sm font-medium text-emerald-600 uppercase tracking-wider mb-3 sm:mb-4">
                             Payment collection
                         </p>
-                        <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-6">
+                        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4 sm:mb-6">
                             Get paid the moment they sign
                         </h2>
-                        <p className="text-lg text-slate-500 mb-10 leading-relaxed">
+                        <p className="text-base sm:text-lg text-slate-500 mb-8 sm:mb-10 leading-relaxed">
                             Stop sending separate invoices. Attach payment to your contract and collect
                             automatically when your client signs.
                         </p>
 
-                        <div className="space-y-5 mb-10">
+                        <div className="space-y-4 sm:space-y-5 mb-8 sm:mb-10">
                             {[
                                 { icon: Clock, text: "Payment collected right after signature" },
                                 { icon: Bell, text: "Automated reminders until they sign" },
@@ -40,9 +40,8 @@ export function GetPaid() {
                                     transition={{ delay: index * 0.1 }}
                                     className="flex items-center gap-3 text-slate-600"
                                 >
-                                    <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                                        <item.icon className="w-4 h-4 text-emerald-600" />
-                               
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                                        <item.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
                                     </div>
                                     <span className="text-sm">{item.text}</span>
                                 </motion.div>
@@ -67,7 +66,7 @@ export function GetPaid() {
                         <div className="relative">
                             <div className="absolute -inset-4 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-3xl blur-2xl" />
 
-                            <div className="relative bg-white rounded-2xl shadow-xl border border-slate-200/80 p-8">
+                            <div className="relative bg-white rounded-xl sm:rounded-2xl shadow-xl border border-slate-200/80 p-5 sm:p-8">
                                 {/* Email header */}
                                 <div className="flex items-center gap-3 mb-6 pb-6 border-b border-slate-100">
                                     <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-medium text-sm">

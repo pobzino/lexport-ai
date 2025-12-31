@@ -45,14 +45,14 @@ const features = [
 
 export function Features() {
     return (
-        <section id="features" className="py-32 px-4 sm:px-6 lg:px-8 bg-white">
+        <section id="features" className="py-16 sm:py-24 lg:py-32 px-4 sm:px-6 lg:px-8 bg-white">
             <div className="max-w-5xl mx-auto">
-                <div className="text-center mb-16">
+                <div className="text-center mb-10 sm:mb-12 lg:mb-16">
                     <motion.p
                         initial={{ opacity: 0, y: 12 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-4"
+                        className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-3 sm:mb-4"
                     >
                         Features
                     </motion.p>
@@ -61,13 +61,13 @@ export function Features() {
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ delay: 0.1 }}
-                        className="text-3xl sm:text-4xl font-bold text-slate-900"
+                        className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900"
                     >
                         Everything you need for contracts
                     </motion.h2>
                 </div>
 
-                <div className="grid md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {features.map((feature, index) => (
                         <motion.div
                             key={index}
@@ -75,12 +75,12 @@ export function Features() {
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ delay: index * 0.05 }}
-                            className="bg-slate-50 rounded-xl p-6 border border-slate-100 hover:border-slate-200 transition-all group"
+                            className="bg-slate-50 rounded-xl p-4 sm:p-6 border border-slate-100 hover:border-slate-200 transition-all group"
                         >
-                            <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center mb-4 group-hover:border-slate-300 transition-colors">
-                                <feature.icon className="w-5 h-5 text-slate-600" />
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center mb-3 sm:mb-4 group-hover:border-slate-300 transition-colors">
+                                <feature.icon className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600" />
                             </div>
-                            <h3 className="font-semibold text-slate-900 mb-1">{feature.title}</h3>
+                            <h3 className="font-semibold text-slate-900 mb-1 text-sm sm:text-base">{feature.title}</h3>
                             <p className="text-sm text-slate-500">{feature.description}</p>
                         </motion.div>
                     ))}

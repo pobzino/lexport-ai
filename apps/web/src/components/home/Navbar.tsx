@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { ChevronDown, FileText, FileSignature, Receipt } from "lucide-react";
+import { ChevronDown, FileText, FileSignature, Receipt, Menu, X } from "lucide-react";
 
 const SOLUTIONS = [
     {
@@ -30,6 +30,7 @@ const SOLUTIONS = [
 export function Navbar() {
     const [scrolled, setScrolled] = useState(false);
     const [solutionsOpen, setSolutionsOpen] = useState(false);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -135,19 +136,94 @@ export function Navbar() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3 sm:gap-4">
                         <Link
                             href="/login"
-                            className="text-sm text-slate-500 hover:text-slate-900 transition-colors"
+                            className="hidden sm:block text-sm text-slate-500 hover:text-slate-900 transition-colors"
                         >
                             Sign in
                         </Link>
                         <Link
                             href="/register"
-                            className="text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800 transition-all"
+                            className="text-sm font-medium bg-slate-900 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-slate-800 transition-all"
                         >
                             Get started
                         </Link>
+
+                        {/* Mobile menu button */}
+                        <button
+                            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                            className="md:hidden p-2 -mr-2 rounded-lg hover:bg-slate-100 transition-colors"
+                            aria-label="Toggle menu"
+                        >
+                            {mobileMenuOpen ? (
+                                <X className="w-5 h-5 text-slate-600" />
+                            ) : (
+                                <Menu className="w-5 h-5 text-slate-600" />
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Mobile menu panel */}
+                <div className={cn(
+                    "md:hidden overflow-hidden transition-all duration-300",
+                    mobileMenuOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+                )}>
+                    <div className="py-4 border-t border-slate-200/50">
+                        {/* Solutions section */}
+                        <div className="mb-4">
+                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 px-1">
+                                Solutions
+                            </p>
+                            <div className="space-y-1">
+                                {SOLUTIONS.map((solution) => (
+                                    <Link
+                                        key={solution.name}
+                                        href={solution.href}
+                                        onClick={() => setMobileMenuOpen(false)}
+                                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors"
+                                    >
+                                        <div className="w-8 h-8 bg-[#529ec6]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                                            <solution.icon className="w-4 h-4 text-[#529ec6]" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-slate-900">{solution.name}</p>
+                                            <p className="text-xs text-slate-500">{solution.description}</p>
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Other links */}
+                        <div className="space-y-1 mb-4">
+                            <a
+                                href="#how-it-works"
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="block px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
+                            >
+                                How it works
+                            </a>
+                            <a
+                                href="#pricing"
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="block px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
+                            >
+                                Pricing
+                            </a>
+                        </div>
+
+                        {/* Sign in link for mobile */}
+                        <div className="pt-4 border-t border-slate-200/50">
+                            <Link
+                                href="/login"
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="block px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
+                            >
+                                Sign in
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </div>
