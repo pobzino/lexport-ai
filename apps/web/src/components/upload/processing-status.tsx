@@ -21,7 +21,6 @@ export type ProcessingStep =
 
 interface ProcessingStatusProps {
   currentStep: ProcessingStep;
-  mode: "quick" | "full";
   ocrRequired?: boolean;
   error?: string;
 }
@@ -61,12 +60,11 @@ const STEPS = {
 
 export function ProcessingStatus({
   currentStep,
-  mode,
   ocrRequired = false,
   error,
 }: ProcessingStatusProps) {
-  // Determine which steps to show based on mode and OCR
-  const stepsToShow = getStepsForMode(mode, ocrRequired);
+  // Determine which steps to show based on OCR requirement
+  const stepsToShow = getStepsForProcessing(ocrRequired);
   const currentIndex = stepsToShow.indexOf(currentStep);
 
   return (
@@ -161,21 +159,15 @@ export function ProcessingStatus({
   );
 }
 
-function getStepsForMode(
-  mode: "quick" | "full",
-  ocrRequired: boolean
-): ProcessingStep[] {
-  const baseSteps: ProcessingStep[] = ["uploading", "extracting"];
+function getStepsForProcessing(ocrRequired: boolean): ProcessingStep[] {
+  const steps: ProcessingStep[] = ["uploading", "extracting"];
 
   if (ocrRequired) {
-    baseSteps.push("ocr");
+    steps.push("ocr");
   }
 
-  if (mode === "full") {
-    baseSteps.push("parsing");
-  }
+  // Always include parsing for AI processing
+  steps.push("parsing", "creating", "complete");
 
-  baseSteps.push("creating", "complete");
-
-  return baseSteps;
+  return steps;
 }

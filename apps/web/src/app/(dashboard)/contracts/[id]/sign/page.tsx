@@ -17,6 +17,7 @@ import {
   Eye,
 } from "lucide-react";
 import { PDFPreviewModal } from "@/components/pdf-preview-modal";
+import { useOnboarding } from "@/components/onboarding";
 
 interface Signer {
   name: string;
@@ -34,6 +35,7 @@ interface Contract {
 export default function SendForSignaturePage() {
   const params = useParams();
   const router = useRouter();
+  const { completeStep } = useOnboarding();
   const contractId = params.id as string;
 
   const [contract, setContract] = useState<Contract | null>(null);
@@ -66,46 +68,74 @@ export default function SendForSignaturePage() {
         if (metadata) {
           const prefillSigners: Signer[] = [];
 
-          // Extract parties from metadata
-          if (metadata.receivingParty) {
-            const party = metadata.receivingParty as { name: string; email: string };
-            prefillSigners.push({
-              name: party.name || "",
-              email: party.email || "",
-              role: "Receiving Party",
-            });
+          // Check for defined_signers first (from visual field editor)
+          const definedSigners = metadata.defined_signers as Array<{
+            id: string;
+            role: string;
+            name?: string;
+            email?: string;
+            company?: string;
+          }> | undefined;
+
+          if (definedSigners && definedSigners.length > 0) {
+            // Use defined_signers from visual field placement
+            for (const signer of definedSigners) {
+              if (signer.name || signer.email) {
+                prefillSigners.push({
+                  name: signer.name || "",
+                  email: signer.email || "",
+                  role: signer.role,
+                });
+              }
+            }
           }
-          if (metadata.contractor) {
-            const party = metadata.contractor as { name: string; email: string };
-            prefillSigners.push({
-              name: party.name || "",
-              email: party.email || "",
-              role: "Contractor",
-            });
-          }
-          if (metadata.consultant) {
-            const party = metadata.consultant as { name: string; email: string };
-            prefillSigners.push({
-              name: party.name || "",
-              email: party.email || "",
-              role: "Consultant",
-            });
-          }
-          if (metadata.investor) {
-            const party = metadata.investor as { name: string; email: string };
-            prefillSigners.push({
-              name: party.name || "",
-              email: party.email || "",
-              role: "Investor",
-            });
-          }
-          if (metadata.freelancer) {
-            const party = metadata.freelancer as { name: string; email: string };
-            prefillSigners.push({
-              name: party.name || "",
-              email: party.email || "",
-              role: "Freelancer",
-            });
+
+          // Check for new signerGroups format (multi-signatory support)
+          const signerGroups = metadata.signerGroups as Array<{
+            role: string;
+            roleLabel: string;
+            signers: Array<{ id: string; name: string; email: string; title?: string }>;
+          }> | undefined;
+
+          if (prefillSigners.length === 0 && signerGroups && signerGroups.length > 0) {
+            // Use signerGroups for multi-signatory contracts
+            for (const group of signerGroups) {
+              for (const signer of group.signers) {
+                if (signer.name || signer.email) {
+                  prefillSigners.push({
+                    name: signer.name || "",
+                    email: signer.email || "",
+                    role: group.roleLabel,
+                  });
+                }
+              }
+            }
+          } else if (prefillSigners.length === 0) {
+            // Fallback to legacy party extraction
+            // Map of all possible party field names to their display roles
+            const partyFields: Array<{ field: string; role: string }> = [
+              { field: "disclosingParty", role: "Disclosing Party" },
+              { field: "receivingParty", role: "Receiving Party" },
+              { field: "client", role: "Client" },
+              { field: "contractor", role: "Contractor" },
+              { field: "consultant", role: "Consultant" },
+              { field: "company", role: "Company" },
+              { field: "investor", role: "Investor" },
+              { field: "freelancer", role: "Freelancer" },
+            ];
+
+            for (const { field, role } of partyFields) {
+              if (metadata[field]) {
+                const party = metadata[field] as { name?: string; email?: string };
+                if (party.name || party.email) {
+                  prefillSigners.push({
+                    name: party.name || "",
+                    email: party.email || "",
+                    role,
+                  });
+                }
+              }
+            }
           }
 
           if (prefillSigners.length > 0) {
@@ -168,6 +198,8 @@ export default function SendForSignaturePage() {
       const data = await response.json();
       setSigningUrls(data.signingUrls);
       setSent(true);
+      // Mark onboarding step complete
+      completeStep("send_signature");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send");
     } finally {

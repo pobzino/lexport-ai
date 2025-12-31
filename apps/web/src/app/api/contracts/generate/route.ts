@@ -38,12 +38,20 @@ function getAllSigners(contractType: string, metadata: ContractMetadata): Signer
   if (signerGroups && signerGroups.length > 0) {
     // Flatten all signers from all groups
     for (const group of signerGroups) {
-      for (const signer of group.signers) {
-        if (signer.name || signer.email) {
+      // Ensure at least one signer per role group (use role label as fallback name)
+      if (group.signers.length === 0) {
+        signers.push({
+          role: group.roleLabel,
+          name: group.roleLabel,
+          email: "",
+        });
+      } else {
+        for (const signer of group.signers) {
+          // Always include signers, using role label as fallback for empty names
           signers.push({
             role: group.roleLabel,
-            name: signer.name,
-            email: signer.email,
+            name: signer.name || group.roleLabel,
+            email: signer.email || "",
             title: signer.title,
           });
         }
@@ -134,6 +142,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Check subscription limits for AI contract generation
+    const { data: userData } = await supabase
+      .from("users")
+      .select("subscription_tier, ai_contracts_used, ai_contracts_limit")
+      .eq("id", user.id)
+      .single();
+
+    const tier = userData?.subscription_tier || "free";
+    const used = userData?.ai_contracts_used || 0;
+    const limit = userData?.ai_contracts_limit || 1;
+
+    // Free tier users are limited (limit -1 means unlimited for paid tiers)
+    if (tier === "free" && limit !== -1 && used >= limit) {
+      return NextResponse.json(
+        {
+          error: "Contract limit reached",
+          message: "You've used your free AI-generated contract. Upgrade to Pro for unlimited contracts.",
+          upgradeUrl: "/settings/billing"
+        },
+        { status: 403 }
+      );
+    }
+
     // Parse and validate request
     const body = await request.json();
     const parseResult = GenerateRequestSchema.safeParse(body);
@@ -192,6 +223,14 @@ export async function POST(request: NextRequest) {
         { error: "Failed to save contract" },
         { status: 500 }
       );
+    }
+
+    // Increment AI contracts used counter for the user
+    try {
+      await supabase.rpc("increment_ai_contracts_used", { user_uuid: user.id });
+    } catch (err) {
+      console.error("Failed to increment contract usage:", err);
+      // Don't fail the request if counter update fails
     }
 
     // Auto-generate signature fields for each signer (supports multi-signatory)

@@ -73,54 +73,73 @@ export async function POST(
           invoice.stripe_payment_intent_id
         );
 
-        if (
-          existingIntent.status === "requires_payment_method" ||
-          existingIntent.status === "requires_confirmation"
-        ) {
-          return NextResponse.json({
-            clientSecret: existingIntent.client_secret,
-            paymentIntentId: existingIntent.id,
-            amount: invoice.total || invoice.amount,
-            currency: invoice.currency.toLowerCase(),
-            invoiceNumber: invoice.invoice_number,
-            recipientName: invoice.recipient_name,
-            recipientEmail: invoice.recipient_email,
-            recipientAddress: invoice.recipient_address,
-            senderName: invoice.sender_name,
-            senderEmail: invoice.sender_email,
-            senderAddress: invoice.sender_address,
-            lineItems: invoice.line_items,
-            subtotal: invoice.subtotal,
-            taxAmount: invoice.tax_amount,
-            total: invoice.total || invoice.amount,
-            dueDate: invoice.due_date,
-            notes: invoice.notes,
-            createdAt: invoice.created_at,
-          });
-        }
-
         if (existingIntent.status === "succeeded") {
           return NextResponse.json(
             { error: "Invoice has already been paid" },
             { status: 400 }
           );
         }
+
+        // Cancel old payment intent to create a fresh one with all payment methods
+        if (
+          existingIntent.status === "requires_payment_method" ||
+          existingIntent.status === "requires_confirmation"
+        ) {
+          await stripe.paymentIntents.cancel(existingIntent.id);
+        }
       } catch {
         // Payment intent not found or expired, create new one
       }
     }
 
+    // Determine payment methods based on currency
+    const currency = invoice.currency.toLowerCase();
+    let paymentMethodTypes: string[] = ["card", "link"];
+
+    // Add region-specific bank payment methods
+    if (currency === "usd") {
+      paymentMethodTypes.push("us_bank_account");
+    } else if (currency === "gbp") {
+      paymentMethodTypes.push("bacs_debit");
+    } else if (currency === "eur") {
+      paymentMethodTypes.push("sepa_debit");
+    }
+
     // Create new payment intent
     const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
       amount: invoice.total || invoice.amount,
-      currency: invoice.currency.toLowerCase(),
+      currency,
       metadata: {
         invoice_id: invoice.id,
         invoice_number: invoice.invoice_number,
         type: "standalone_invoice",
       },
       description: `Invoice ${invoice.invoice_number}`,
-      receipt_email: invoice.recipient_email,
+      receipt_email: invoice.recipient_email || undefined,
+      // Explicitly specify payment methods by currency
+      payment_method_types: paymentMethodTypes as Stripe.PaymentIntentCreateParams["payment_method_types"],
+      // Bank payment options
+      payment_method_options: {
+        // US: ACH Direct Debit
+        us_bank_account: {
+          financial_connections: {
+            permissions: ["payment_method", "balances"],
+          },
+          verification_method: "automatic",
+        },
+        // UK: Bacs Direct Debit
+        bacs_debit: {
+          mandate_options: {
+            reference_prefix: "LEX",
+          },
+        },
+        // EU: SEPA Direct Debit
+        sepa_debit: {
+          mandate_options: {
+            reference_prefix: "LEX",
+          },
+        },
+      },
     };
 
     // Add application fee and connected account if user has Stripe Connect

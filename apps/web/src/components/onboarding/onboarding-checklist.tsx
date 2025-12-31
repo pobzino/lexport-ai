@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check, ChevronDown, ChevronUp, X, Sparkles } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, X } from "lucide-react";
 import { useOnboarding } from "./onboarding-context";
 
 export function OnboardingChecklist() {
@@ -33,9 +33,7 @@ export function OnboardingChecklist() {
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-violet-100 to-purple-100 rounded-xl flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-violet-600" />
-          </div>
+
           <div>
             <h3 className="font-semibold text-slate-900">Getting Started</h3>
             <p className="text-sm text-slate-500">
@@ -68,8 +66,8 @@ export function OnboardingChecklist() {
               />
               <defs>
                 <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#8b5cf6" />
-                  <stop offset="100%" stopColor="#a855f7" />
+                  <stop offset="0%" stopColor="#529ec6" />
+                  <stop offset="100%" stopColor="#38bdf8" />
                 </linearGradient>
               </defs>
             </svg>
@@ -93,28 +91,25 @@ export function OnboardingChecklist() {
             {steps.map((step, idx) => (
               <div
                 key={step.id}
-                className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${
-                  step.completed
-                    ? "bg-emerald-50"
-                    : idx === completedCount
-                      ? "bg-violet-50 border border-violet-200"
-                      : "bg-slate-50"
-                }`}
+                className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${step.completed
+                  ? "bg-emerald-50/50"
+                  : idx === completedCount
+                    ? "bg-[#529ec6]/5 border border-[#529ec6]/20"
+                    : "bg-slate-50"
+                  }`}
               >
                 {/* Checkbox */}
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                  step.completed
-                    ? "bg-emerald-500"
-                    : idx === completedCount
-                      ? "bg-violet-500"
-                      : "bg-slate-200"
-                }`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${step.completed
+                  ? "bg-emerald-500"
+                  : idx === completedCount
+                    ? "bg-[#529ec6]"
+                    : "bg-slate-200"
+                  }`}>
                   {step.completed ? (
                     <Check className="w-4 h-4 text-white" />
                   ) : (
-                    <span className={`text-xs font-semibold ${
-                      idx === completedCount ? "text-white" : "text-slate-500"
-                    }`}>
+                    <span className={`text-xs font-semibold ${idx === completedCount ? "text-white" : "text-slate-500"
+                      }`}>
                       {idx + 1}
                     </span>
                   )}
@@ -122,11 +117,10 @@ export function OnboardingChecklist() {
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <p className={`font-medium ${
-                    step.completed
-                      ? "text-emerald-700 line-through"
-                      : "text-slate-900"
-                  }`}>
+                  <p className={`font-medium ${step.completed
+                    ? "text-emerald-700 line-through"
+                    : "text-slate-900"
+                    }`}>
                     {step.label}
                   </p>
                   <p className="text-sm text-slate-500 mt-0.5">
@@ -138,7 +132,7 @@ export function OnboardingChecklist() {
                 {!step.completed && step.href && idx === completedCount && (
                   <Link
                     href={step.href}
-                    className="px-3 py-1.5 text-sm font-medium text-violet-600 bg-white border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors flex-shrink-0"
+                    className="px-3 py-1.5 text-sm font-medium text-[#529ec6] bg-white border border-[#529ec6]/20 rounded-lg hover:bg-[#529ec6]/5 transition-colors flex-shrink-0"
                   >
                     Start
                   </Link>
@@ -180,7 +174,7 @@ export function OnboardingChecklistCompact() {
   return (
     <Link
       href="/dashboard"
-      className="flex items-center gap-3 px-3 py-2 rounded-lg bg-violet-50 hover:bg-violet-100 transition-colors"
+      className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
     >
       <div className="relative w-8 h-8">
         <svg className="w-8 h-8 transform -rotate-90">
@@ -196,20 +190,20 @@ export function OnboardingChecklistCompact() {
             cx="16"
             cy="16"
             r="12"
-            stroke="#8b5cf6"
+            stroke="#529ec6"
             strokeWidth="2"
             fill="none"
             strokeLinecap="round"
             strokeDasharray={`${progressPercent * 0.75} 100`}
           />
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-violet-600">
+        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-[#529ec6]">
           {completedCount}/{totalCount}
         </span>
       </div>
       <div className="text-sm">
-        <p className="font-medium text-violet-700">Getting Started</p>
-        <p className="text-violet-500 text-xs">{progressPercent}% complete</p>
+        <p className="font-medium text-slate-700">Getting Started</p>
+        <p className="text-[#529ec6] text-xs">{progressPercent}% complete</p>
       </div>
     </Link>
   );

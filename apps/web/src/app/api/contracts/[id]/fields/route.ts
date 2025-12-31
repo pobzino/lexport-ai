@@ -12,6 +12,7 @@ const SignatureFieldSchema = z.object({
   positionY: z.number().min(0).max(100),
   width: z.number().min(50).max(400).default(200),
   height: z.number().min(20).max(200).default(60),
+  page: z.number().min(1).default(1),
   order: z.number().min(1).default(1),
 });
 
@@ -126,6 +127,7 @@ export async function POST(
         position_y: Math.round(fieldData.positionY),
         width: Math.round(fieldData.width),
         height: Math.round(fieldData.height),
+        page: fieldData.page || 1,
         order: fieldData.order,
       })
       .select()
@@ -205,6 +207,7 @@ export async function PATCH(
     if (parseResult.data.positionY !== undefined) dbUpdateData.position_y = Math.round(parseResult.data.positionY);
     if (parseResult.data.width !== undefined) dbUpdateData.width = Math.round(parseResult.data.width);
     if (parseResult.data.height !== undefined) dbUpdateData.height = Math.round(parseResult.data.height);
+    if (parseResult.data.page !== undefined) dbUpdateData.page = parseResult.data.page;
     if (parseResult.data.order !== undefined) dbUpdateData.order = parseResult.data.order;
 
     // Update the field

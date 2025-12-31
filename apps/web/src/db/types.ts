@@ -14,7 +14,7 @@ export type PaymentType = "full" | "deposit" | "balance" | "installment";
 export type PaymentStructure = "full" | "deposit_balance" | "bnpl";
 export type ContractSourceType = "generated" | "uploaded";
 export type UploadedFileType = "pdf" | "docx" | "jpg" | "png";
-export type ProcessingMode = "quick" | "full";
+export type ProcessingMode = "full";
 export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "cancelled" | "void";
 export type InvoiceTemplateType = "hourly" | "fixed_fee" | "milestone" | "retainer" | "custom";
 export type RetainerPeriod = "weekly" | "monthly" | "quarterly";
@@ -241,6 +241,7 @@ export interface SignatureField {
   position_y: number;
   width: number;
   height: number;
+  page: number; // Page number (1-indexed) where field is placed
   order: number;
   options: FieldOptions | null;
   placeholder: string | null;
@@ -310,8 +311,22 @@ export interface Template {
   jurisdiction: Jurisdiction;
   content: ContractContent;
   is_public: boolean;
+  is_premium: boolean;
+  price: number | null; // cents - null means use default ($10.00)
   created_by_id: string | null;
   usage_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TemplatePurchase {
+  id: string;
+  user_id: string;
+  template_id: string;
+  amount: number; // cents
+  status: "pending" | "succeeded" | "failed";
+  stripe_payment_intent_id: string | null;
+  purchased_at: string;
   created_at: string;
   updated_at: string;
 }

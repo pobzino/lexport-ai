@@ -153,61 +153,7 @@ export async function GET(
       .select("signer_name, signer_email, signer_role, status")
       .eq("contract_id", id);
 
-    // For Quick mode uploaded contracts, return the original PDF from storage
-    if (contract.source_type === "uploaded" && contract.processing_mode === "quick" && contract.source_file_url) {
-      let pdfBlob: Blob;
-
-      // Check if source_file_url is a full URL (legacy) or just a path (new format)
-      if (contract.source_file_url.startsWith("http")) {
-        // Legacy: It's a signed URL - fetch directly
-        try {
-          const response = await fetch(contract.source_file_url);
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
-          pdfBlob = await response.blob();
-        } catch (fetchError) {
-          console.error("Failed to fetch PDF from signed URL:", fetchError);
-          return NextResponse.json(
-            { error: "Failed to retrieve original document (signed URL may have expired)" },
-            { status: 500 }
-          );
-        }
-      } else {
-        // New format: It's a file path - use Supabase Storage
-        const { data: fileData, error: downloadError } = await supabase.storage
-          .from("contract-uploads")
-          .download(contract.source_file_url);
-
-        if (downloadError || !fileData) {
-          console.error("Failed to download original PDF:", downloadError);
-          return NextResponse.json(
-            { error: "Failed to retrieve original document" },
-            { status: 500 }
-          );
-        }
-        pdfBlob = fileData;
-      }
-
-      // Log audit event for PDF download
-      const context = getRequestContextFromRequest(request);
-      await auditLogger.pdfDownloaded(
-        id,
-        user.id,
-        user.email || null,
-        user.user_metadata?.name || user.user_metadata?.full_name || null,
-        context
-      );
-
-      return new NextResponse(Buffer.from(await pdfBlob.arrayBuffer()), {
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${sanitizeFilename(contract.title)}.pdf"`,
-        },
-      });
-    }
-
-    // For generated contracts or Full mode uploads, generate PDF from content
+    // For all contracts (generated or uploaded), generate PDF from content with signatures
     const content = contract.content as ContractContent;
     if (!content || !content.clauses) {
       return NextResponse.json(
@@ -216,13 +162,16 @@ export async function GET(
       );
     }
 
+    // Check if contract is signed (status can be 'signed' or 'completed')
+    const isSigned = contract.status === "signed" || contract.status === "completed";
+
     // Generate PDF
     const pdfBytes = await generateContractPDF(
       contract.title,
       content,
       contract.jurisdiction,
       signatures,
-      contract.status === "signed",
+      isSigned,
       (signatureFields || []) as SignatureField[],
       (fieldValues || []) as FieldValue[],
       (allSignatures || []) as SignatureRecord[],
@@ -418,191 +367,180 @@ async function generateContractPDF(
   });
   yPosition -= lineHeight * 2;
 
-  // If we have signature fields, use field-based placement (DocuSign style)
-  if (signatureFields.length > 0) {
-    // DocuSign-style colors
-    const yellowBg = rgb(1, 0.95, 0.8); // Light yellow for pending fields
-    const yellowBorder = rgb(0.9, 0.75, 0.2); // Amber border
-    const signedBg = rgb(0.95, 0.98, 0.95); // Light green for signed
-    const signedBorder = rgb(0.4, 0.7, 0.4); // Green border
-    const blueText = rgb(0.1, 0.3, 0.6); // Blue for signature text
+  // Helper to format date as "December 30, 2025"
+  const formatSignatureDate = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
 
-    // Create a signature block area - calculate height based on fields
-    const signatureBlockHeight = 250;
-    const signatureBlockWidth = contentWidth;
-    const signatureBlockStartY = yPosition;
+  // Use signature_requests as source of truth for who needs to sign (not signature_fields)
+  // This ensures we show all actual signers, even if field roles don't match
+  if (signatureRequests.length > 0) {
+    // Layout constants
+    const signatureLineWidth = 200;
+    const dateLineWidth = 120;
+    const dateX = margin + signatureLineWidth + 40;
+    const rowHeight = 90;
 
-    // Helper function to get field value
-    const getFieldValue = (fieldId: string) => fieldValues.find((fv) => fv.field_id === fieldId);
-
-    // Helper function to get signature record
-    const getSignatureRecord = (signatureId: string) => {
-      return allSignatures.find((s) => s.id === signatureId);
+    // Helper to get signature data by signer role
+    const getSignatureByRole = (role: string): SignatureData | undefined => {
+      return signatures.find((sig) => sig.signerRole === role);
     };
 
-    // Helper to get signer name by role
-    const getSignerByRole = (role: string) => {
-      return signatureRequests.find((sr) => sr.signer_role === role);
+    // Helper to extract base/display role (e.g., "CLIENT - John" -> "CLIENT", "freelancer" -> "FREELANCER")
+    const getDisplayRole = (signerRole: string): string => {
+      const dashIndex = signerRole.indexOf(" - ");
+      const baseRole = dashIndex > 0 ? signerRole.substring(0, dashIndex) : signerRole;
+      return baseRole.toUpperCase();
     };
 
-    // Group fields by signer role for better layout
-    const fieldsByRole = signatureFields.reduce((acc, field) => {
-      if (!acc[field.signer_role]) acc[field.signer_role] = [];
-      acc[field.signer_role].push(field);
-      return acc;
-    }, {} as Record<string, SignatureField[]>);
+    // Iterate through all signature requests (actual signers)
+    for (const signer of signatureRequests) {
+      // Check for page break before each signer
+      checkPageBreak(rowHeight + 20);
 
-    // Calculate column width based on number of signers
-    const numSigners = Object.keys(fieldsByRole).length;
-    const columnWidth = signatureBlockWidth / Math.max(numSigners, 1);
-    let columnIndex = 0;
+      const sigData = getSignatureByRole(signer.signer_role);
+      let signatureImage: { image: Awaited<ReturnType<typeof pdfDoc.embedPng>>; width: number; height: number } | null = null;
 
-    for (const [role, fields] of Object.entries(fieldsByRole)) {
-      const signer = getSignerByRole(role);
-      const columnX = margin + columnIndex * columnWidth;
-      let fieldYOffset = 0;
+      // Get signature image if signed
+      if (sigData?.signatureData?.startsWith("data:image")) {
+        try {
+          const base64Data = sigData.signatureData.split(",")[1];
+          const imageBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
 
-      // Draw role header
-      currentPage.drawText(role.toUpperCase(), {
-        x: columnX + 10,
-        y: signatureBlockStartY - 20,
-        size: 9,
+          let image;
+          if (sigData.signatureData.includes("image/png")) {
+            image = await pdfDoc.embedPng(imageBytes);
+          } else if (sigData.signatureData.includes("image/jpeg") || sigData.signatureData.includes("image/jpg")) {
+            image = await pdfDoc.embedJpg(imageBytes);
+          }
+
+          if (image) {
+            const maxWidth = 150;
+            const maxHeight = 45;
+            const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
+            signatureImage = {
+              image,
+              width: image.width * scale,
+              height: image.height * scale,
+            };
+          }
+        } catch (imgError) {
+          console.error("Error embedding signature:", imgError);
+        }
+      }
+
+      // Get signed date
+      const formattedDate = sigData?.signedAt ? formatSignatureDate(sigData.signedAt) : "";
+
+      // Get signer name
+      const signerName = signer.signer_name || sigData?.signerName || "";
+
+      // --- Draw the signature row ---
+
+      // Role label
+      currentPage.drawText(getDisplayRole(signer.signer_role), {
+        x: margin,
+        y: yPosition,
+        size: 10,
         font: timesRomanBoldFont,
+        color: rgb(0.2, 0.2, 0.2),
+      });
+
+      yPosition -= 55;
+
+      // Signature image (if signed)
+      if (signatureImage) {
+        currentPage.drawImage(signatureImage.image, {
+          x: margin,
+          y: yPosition + 5,
+          width: signatureImage.width,
+          height: signatureImage.height,
+        });
+      }
+
+      // Signature line
+      currentPage.drawLine({
+        start: { x: margin, y: yPosition },
+        end: { x: margin + signatureLineWidth, y: yPosition },
+        thickness: 0.75,
         color: rgb(0.3, 0.3, 0.3),
       });
 
-      fieldYOffset = 40;
+      // "Signature" label
+      currentPage.drawText("Signature", {
+        x: margin,
+        y: yPosition - 12,
+        size: 8,
+        font: timesRomanItalicFont,
+        color: rgb(0.4, 0.4, 0.4),
+      });
 
-      for (const field of fields) {
-        const fieldX = columnX + 10;
-        const fieldY = signatureBlockStartY - fieldYOffset;
-        const fieldValue = getFieldValue(field.id);
-        const fieldWidth = Math.min(field.width, columnWidth - 30);
-        const fieldHeight = field.height;
-
-        if (fieldValue) {
-          // Field has been completed - DocuSign signed style
-          const sigRecord = fieldValue.signature_id ? getSignatureRecord(fieldValue.signature_id) : null;
-
-          // Draw signed field background
-          currentPage.drawRectangle({
-            x: fieldX,
-            y: fieldY - fieldHeight,
-            width: fieldWidth,
-            height: fieldHeight,
-            color: signedBg,
-            borderColor: signedBorder,
-            borderWidth: 1,
-          });
-
-          if ((field.type === "signature" || field.type === "initials") && sigRecord?.signature_data) {
-            const sigData = sigRecord.signature_data;
-            if (sigData.startsWith("data:image")) {
-              try {
-                const base64Data = sigData.split(",")[1];
-                const imageBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-
-                let image;
-                if (sigData.includes("image/png")) {
-                  image = await pdfDoc.embedPng(imageBytes);
-                } else if (sigData.includes("image/jpeg") || sigData.includes("image/jpg")) {
-                  image = await pdfDoc.embedJpg(imageBytes);
-                }
-
-                if (image) {
-                  const maxWidth = fieldWidth - 20;
-                  const maxHeight = fieldHeight - 35;
-                  const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
-                  const width = image.width * scale;
-                  const height = image.height * scale;
-
-                  // "Signed by:" label
-                  currentPage.drawText("Signed by:", {
-                    x: fieldX + 5,
-                    y: fieldY - 12,
-                    size: 7,
-                    font: timesRomanFont,
-                    color: rgb(0.4, 0.4, 0.4),
-                  });
-
-                  // Signer name in blue
-                  currentPage.drawText(signer?.signer_name || role, {
-                    x: fieldX + 5,
-                    y: fieldY - 22,
-                    size: 9,
-                    font: timesRomanBoldFont,
-                    color: blueText,
-                  });
-
-                  // Signature image
-                  currentPage.drawImage(image, {
-                    x: fieldX + 5,
-                    y: fieldY - fieldHeight + 20,
-                    width,
-                    height,
-                  });
-
-                  // Verification hash (truncated)
-                  if (sigRecord.image_hash) {
-                    const shortHash = sigRecord.image_hash.substring(0, 16).toUpperCase() + "...";
-                    currentPage.drawText(shortHash, {
-                      x: fieldX + 5,
-                      y: fieldY - fieldHeight + 8,
-                      size: 6,
-                      font: timesRomanFont,
-                      color: rgb(0.5, 0.5, 0.5),
-                    });
-                  }
-                }
-              } catch (imgError) {
-                console.error("Error embedding field signature:", imgError);
-              }
-            }
-          } else if (fieldValue.value) {
-            // Text or date value
-            currentPage.drawText(field.type === "date" ? "Date:" : (field.label || "Value:"), {
-              x: fieldX + 5,
-              y: fieldY - 12,
-              size: 7,
-              font: timesRomanFont,
-              color: rgb(0.4, 0.4, 0.4),
-            });
-
-            currentPage.drawText(fieldValue.value, {
-              x: fieldX + 5,
-              y: fieldY - 25,
-              size: 10,
-              font: timesRomanBoldFont,
-              color: blueText,
-            });
-          }
-        } else {
-          // Field is empty - show single clean signature line (no yellow boxes in PDF)
-          currentPage.drawLine({
-            start: { x: fieldX, y: fieldY - fieldHeight - 2 },
-            end: { x: fieldX + fieldWidth, y: fieldY - fieldHeight - 2 },
-            thickness: 0.75,
-            color: rgb(0.3, 0.3, 0.3),
-          });
-        }
-
-        // Field label below
-        const labelText = field.label || (field.type.charAt(0).toUpperCase() + field.type.slice(1));
-        currentPage.drawText(labelText, {
-          x: fieldX,
-          y: fieldY - fieldHeight - 14,
-          size: 8,
-          font: timesRomanItalicFont,
-          color: rgb(0.4, 0.4, 0.4),
+      // Date (same row, to the right)
+      if (formattedDate) {
+        currentPage.drawText(formattedDate, {
+          x: dateX,
+          y: yPosition + 5,
+          size: 10,
+          font: timesRomanFont,
+          color: rgb(0.1, 0.1, 0.1),
         });
-
-        fieldYOffset += fieldHeight + 30;
       }
 
-      columnIndex++;
-    }
+      // Date line
+      currentPage.drawLine({
+        start: { x: dateX, y: yPosition },
+        end: { x: dateX + dateLineWidth, y: yPosition },
+        thickness: 0.75,
+        color: rgb(0.3, 0.3, 0.3),
+      });
 
-    yPosition = signatureBlockStartY - signatureBlockHeight - lineHeight;
+      // "Date" label
+      currentPage.drawText("Date", {
+        x: dateX,
+        y: yPosition - 12,
+        size: 8,
+        font: timesRomanItalicFont,
+        color: rgb(0.4, 0.4, 0.4),
+      });
+
+      yPosition -= 30;
+
+      // Printed Name (below signature)
+      if (signerName) {
+        currentPage.drawText(signerName, {
+          x: margin,
+          y: yPosition + 5,
+          size: 10,
+          font: timesRomanFont,
+          color: rgb(0.1, 0.1, 0.1),
+        });
+      }
+
+      // Printed name line
+      currentPage.drawLine({
+        start: { x: margin, y: yPosition },
+        end: { x: margin + signatureLineWidth, y: yPosition },
+        thickness: 0.75,
+        color: rgb(0.3, 0.3, 0.3),
+      });
+
+      // "Printed Name" label
+      currentPage.drawText("Printed Name", {
+        x: margin,
+        y: yPosition - 12,
+        size: 8,
+        font: timesRomanItalicFont,
+        color: rgb(0.4, 0.4, 0.4),
+      });
+
+      // Move to next row with spacing
+      yPosition -= 35;
+    }
   } else if (content.signatureBlock) {
     // Fallback to text-based signature block
     drawParagraph(content.signatureBlock);

@@ -32,6 +32,7 @@ import {
     ChevronRight,
     ChevronDown,
     Upload,
+    Download,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -403,10 +404,72 @@ export function ContractsList({ contracts }: ContractsListProps) {
         }
     }
 
+    // Local contracts state for mutations
+    const [localContracts, setLocalContracts] = useState<Contract[]>(contracts);
+
+    // Sync with props
+    useEffect(() => {
+        setLocalContracts(contracts);
+    }, [contracts]);
+
+    // Move contract to folder
+    async function moveToFolder(contractId: string, folderId: string | null) {
+        try {
+            const { error } = await supabase
+                .from("contracts")
+                .update({ folder_id: folderId })
+                .eq("id", contractId);
+
+            if (!error) {
+                setLocalContracts(prev =>
+                    prev.map(c => c.id === contractId ? { ...c, folder_id: folderId } : c)
+                );
+                // Refresh folder counts
+                const foldersRes = await supabase.from("folders").select("*, contracts!folder_id(count)").order("name");
+                if (foldersRes.data) setFolders(foldersRes.data);
+            }
+        } catch (error) {
+            console.error("Error moving contract:", error);
+        }
+        setOpenDropdown(null);
+    }
+
+    // Delete contract
+    async function deleteContract(contractId: string) {
+        if (!confirm("Are you sure you want to delete this contract? This cannot be undone.")) return;
+        try {
+            const { error } = await supabase
+                .from("contracts")
+                .delete()
+                .eq("id", contractId);
+
+            if (!error) {
+                setLocalContracts(prev => prev.filter(c => c.id !== contractId));
+            }
+        } catch (error) {
+            console.error("Error deleting contract:", error);
+        }
+        setOpenDropdown(null);
+    }
+
+    // Duplicate contract
+    async function duplicateContract(contractId: string) {
+        try {
+            const res = await fetch(`/api/contracts/${contractId}/duplicate`, { method: "POST" });
+            if (res.ok) {
+                const { contract } = await res.json();
+                setLocalContracts(prev => [contract, ...prev]);
+            }
+        } catch (error) {
+            console.error("Error duplicating contract:", error);
+        }
+        setOpenDropdown(null);
+    }
+
     // Filter and sort contracts
     const filteredContracts = useMemo(() => {
         // First filter
-        const filtered = contracts.filter((contract) => {
+        const filtered = localContracts.filter((contract) => {
             // Search filter (search in title and formatted type)
             const typeDisplay = getTypeDisplay(contract.type);
             const matchesSearch = searchQuery.trim() === "" ||
@@ -464,7 +527,7 @@ export function ContractsList({ contracts }: ContractsListProps) {
                     return 0;
             }
         });
-    }, [contracts, searchQuery, statusFilter, typeFilter, jurisdictionFilter, paymentFilter, sortBy, selectedFolderId, selectedTagId]);
+    }, [localContracts, searchQuery, statusFilter, typeFilter, jurisdictionFilter, paymentFilter, sortBy, selectedFolderId, selectedTagId]);
 
     const hasActiveFilters = searchQuery || statusFilter || typeFilter || jurisdictionFilter || paymentFilter || selectedFolderId || selectedTagId;
 
@@ -1004,7 +1067,7 @@ export function ContractsList({ contracts }: ContractsListProps) {
                                                             className="fixed inset-0 z-10"
                                                             onClick={() => setOpenDropdown(null)}
                                                         />
-                                                        <div className="absolute right-0 bottom-full mb-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20">
+                                                        <div className="absolute right-0 bottom-full mb-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20">
                                                             <Link
                                                                 href={`/contracts/${contract.id}/edit`}
                                                                 className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
@@ -1022,37 +1085,79 @@ export function ContractsList({ contracts }: ContractsListProps) {
                                                                     </>
                                                                 )}
                                                             </Link>
-                                                            <Link
-                                                                href={`/contracts/${contract.id}/preview`}
-                                                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                                                                onClick={() => setOpenDropdown(null)}
-                                                            >
-                                                                <Eye className="w-4 h-4" />
-                                                                Preview
-                                                            </Link>
                                                             {contract.status === "draft" && (
-                                                                <button
-                                                                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
+                                                                <Link
+                                                                    href={`/contracts/${contract.id}/sign`}
+                                                                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
                                                                     onClick={() => setOpenDropdown(null)}
                                                                 >
                                                                     <Send className="w-4 h-4" />
                                                                     Send for Signature
-                                                                </button>
+                                                                </Link>
                                                             )}
                                                             <button
                                                                 className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
-                                                                onClick={() => setOpenDropdown(null)}
+                                                                onClick={() => duplicateContract(contract.id)}
                                                             >
                                                                 <Copy className="w-4 h-4" />
                                                                 Duplicate
                                                             </button>
+                                                            <Link
+                                                                href={`/templates/create?from=${contract.id}`}
+                                                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                                                onClick={() => setOpenDropdown(null)}
+                                                            >
+                                                                <FileSignature className="w-4 h-4" />
+                                                                Save as Template
+                                                            </Link>
+                                                            <a
+                                                                href={`/api/contracts/${contract.id}/pdf`}
+                                                                download
+                                                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                                                onClick={() => setOpenDropdown(null)}
+                                                            >
+                                                                <Download className="w-4 h-4" />
+                                                                Download PDF
+                                                            </a>
+                                                            {/* Move to Folder submenu */}
+                                                            <div className="relative group">
+                                                                <button className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left">
+                                                                    <Folder className="w-4 h-4" />
+                                                                    Move to Folder
+                                                                    <ChevronRight className="w-3 h-3 ml-auto" />
+                                                                </button>
+                                                                <div className="absolute right-full top-0 mr-1 w-44 bg-white rounded-lg shadow-lg border border-slate-200 py-1 hidden group-hover:block">
+                                                                    <button
+                                                                        className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
+                                                                        onClick={() => moveToFolder(contract.id, null)}
+                                                                    >
+                                                                        <X className="w-4 h-4" />
+                                                                        No Folder
+                                                                    </button>
+                                                                    {folders.length > 0 && <div className="border-t border-slate-100 my-1" />}
+                                                                    {folders.map((folder) => (
+                                                                        <button
+                                                                            key={folder.id}
+                                                                            className={cn(
+                                                                                "flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 w-full text-left",
+                                                                                contract.folder_id === folder.id ? "text-[#529ec6] bg-[#529ec6]/5" : "text-slate-700"
+                                                                            )}
+                                                                            onClick={() => moveToFolder(contract.id, folder.id)}
+                                                                        >
+                                                                            <Folder className="w-4 h-4" style={{ color: folder.color }} />
+                                                                            <span className="truncate">{folder.name}</span>
+                                                                            {contract.folder_id === folder.id && <CheckCircle2 className="w-3 h-3 ml-auto flex-shrink-0" />}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
                                                             {/* Only show delete for draft or cancelled contracts */}
                                                             {["draft", "cancelled"].includes(contract.status) && (
                                                                 <>
                                                                     <div className="border-t border-slate-100 my-1" />
                                                                     <button
                                                                         className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
-                                                                        onClick={() => setOpenDropdown(null)}
+                                                                        onClick={() => deleteContract(contract.id)}
                                                                     >
                                                                         <Trash2 className="w-4 h-4" />
                                                                         Delete

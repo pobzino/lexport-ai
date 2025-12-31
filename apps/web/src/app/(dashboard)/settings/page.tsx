@@ -1,4 +1,4 @@
-import { Settings, CreditCard, ChevronRight, Shield, Download, Trash2, ExternalLink, Receipt, User } from "lucide-react";
+import { Settings, CreditCard, ChevronRight, Shield, Download, Trash2, ExternalLink, Receipt, User, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { PrivacyActions } from "./privacy-actions";
@@ -89,6 +89,29 @@ export default async function SettingsPage() {
             </div>
           </div>
           <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-[#529ec6] transition-colors" />
+        </div>
+      </Link>
+
+      {/* Billing & Subscription Section */}
+      <Link
+        href="/settings/billing"
+        className="block bg-white rounded-xl border border-slate-200 p-6 hover:border-emerald-200 hover:shadow-sm transition-all group"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center group-hover:bg-emerald-200 transition-colors">
+              <Sparkles className="w-6 h-6 text-emerald-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 group-hover:text-emerald-600 transition-colors">
+                Billing & Subscription
+              </h2>
+              <p className="text-sm text-slate-500">
+                Manage your plan, view usage, and upgrade
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-600 transition-colors" />
         </div>
       </Link>
 

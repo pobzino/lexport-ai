@@ -35,6 +35,7 @@ export function PDFViewer({
   const [numPages, setNumPages] = useState<number>(0);
   const [scale, setScale] = useState(1);
   const [pageWidth, setPageWidth] = useState(0);
+  const [pdfAspectRatio, setPdfAspectRatio] = useState<number | null>(null);
   const [isClient, setIsClient] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -70,8 +71,20 @@ export function PDFViewer({
   };
 
   const onPageLoadSuccess = (page: { width: number; height: number }) => {
-    onPageDimensions({ width: page.width * scale, height: page.height * scale });
+    // Store the PDF's aspect ratio for dimension calculations
+    const aspectRatio = page.height / page.width;
+    setPdfAspectRatio(aspectRatio);
   };
+
+  // Update dimensions when scale, pageWidth, or aspect ratio changes
+  useEffect(() => {
+    if (pdfAspectRatio !== null && pageWidth > 0) {
+      // react-pdf renders at: width = pageWidth * scale, height = pageWidth * aspectRatio * scale
+      const renderedWidth = pageWidth * scale;
+      const renderedHeight = pageWidth * pdfAspectRatio * scale;
+      onPageDimensions({ width: renderedWidth, height: renderedHeight });
+    }
+  }, [scale, pageWidth, pdfAspectRatio, onPageDimensions]);
 
   const goToPreviousPage = () => {
     if (currentPage > 1) {

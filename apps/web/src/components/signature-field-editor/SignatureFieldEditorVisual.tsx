@@ -84,8 +84,8 @@ export function SignatureFieldEditorVisual({
           id: `field-${Date.now()}`,
           type: type as FieldType,
           signerId: selectedSignerId,
-          // Use signer's name for display, fall back to role
-          signerRole: selectedSigner?.name || selectedSigner?.role || "Signer",
+          // Use signer's role to match with signature_requests (not name)
+          signerRole: selectedSigner?.role || "Signer",
           page: currentPage,
           x: dropX,
           y: dropY,

@@ -27,6 +27,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useOnboarding } from "@/components/onboarding";
 
 interface ConnectStatus {
   connected: boolean;
@@ -64,6 +65,7 @@ const SUPPORTED_COUNTRIES = [
 
 export default function PaymentSettingsPage() {
   const searchParams = useSearchParams();
+  const { completeStep } = useOnboarding();
   const [status, setStatus] = useState<ConnectStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
@@ -79,13 +81,15 @@ export default function PaymentSettingsPage() {
   useEffect(() => {
     if (searchParams.get("success") === "true") {
       setSuccessMessage("Your payment account has been connected successfully!");
+      // Mark onboarding step complete
+      completeStep("setup_payments");
       window.history.replaceState({}, "", "/settings/payments");
     }
     if (searchParams.get("refresh") === "true") {
       setError("Please complete your account setup to receive payments.");
       window.history.replaceState({}, "", "/settings/payments");
     }
-  }, [searchParams]);
+  }, [searchParams, completeStep]);
 
   // Fetch Connect status
   const fetchStatus = useCallback(async () => {
@@ -764,10 +768,27 @@ export default function PaymentSettingsPage() {
           <h2 className="text-lg font-semibold text-slate-900 mb-2">
             Platform Fee
           </h2>
-          <p className="text-sm text-slate-600">
-            Lexport charges a <strong>1% platform fee</strong> on all payments collected
-            through contracts. This is in addition to Stripe&apos;s standard processing
-            fees (typically 2.9% + $0.30 for cards).
+          <p className="text-sm text-slate-600 mb-4">
+            Lexport charges a small platform fee on payments collected through contracts,
+            in addition to Stripe&apos;s processing fees.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="bg-white rounded-lg p-4 border border-slate-200">
+              <p className="font-medium text-slate-900">Free Plan</p>
+              <p className="text-2xl font-bold text-brand-600 mt-1">0.5%</p>
+            </div>
+            <div className="bg-white rounded-lg p-4 border border-slate-200">
+              <p className="font-medium text-slate-900">Pro Plan</p>
+              <p className="text-2xl font-bold text-brand-600 mt-1">0.25%</p>
+            </div>
+            <div className="bg-white rounded-lg p-4 border border-slate-200">
+              <p className="font-medium text-slate-900">Team Plan</p>
+              <p className="text-2xl font-bold text-brand-600 mt-1">0%</p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 mt-4">
+            Stripe fees: 2.9% + $0.30 for cards, 0.8% (capped at $5) for bank transfers (ACH).
+            Bank transfers offer significant savings on larger payments.
           </p>
         </div>
       )}

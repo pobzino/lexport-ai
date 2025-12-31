@@ -8,14 +8,16 @@ import {
   Upload,
   FileText,
   CheckCircle,
+  Settings2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FileDropzone } from "@/components/upload/file-dropzone";
 import { ProcessingStatus, ProcessingStep } from "@/components/upload/processing-status";
 import { ContentPreview } from "@/components/upload/content-preview";
+import { ModeSelector, ProcessingMode } from "@/components/upload/mode-selector";
 import type { ContractContent } from "@/db/types";
 
-type UploadStep = "upload" | "details" | "processing";
+type UploadStep = "upload" | "mode" | "details" | "processing";
 
 interface UploadState {
   file: File | null;
@@ -30,6 +32,7 @@ interface UploadState {
   title: string;
   type: string;
   jurisdiction: string;
+  processingMode: ProcessingMode | null;
 }
 
 const CONTRACT_TYPES = [
@@ -70,6 +73,7 @@ export default function UploadContractPage() {
     title: "",
     type: "service_agreement",
     jurisdiction: "CA",
+    processingMode: null,
   });
 
   // Step 1: Upload file
@@ -111,8 +115,8 @@ export default function UploadContractPage() {
         title,
       }));
 
-      // Continue directly to extraction (full mode)
-      await handleExtractAfterUpload(uploadData.filePath, uploadData.fileType, title);
+      // Extract text for both modes (needed for risk analysis)
+      await handleExtractText(uploadData.filePath, uploadData.fileType, title);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
       setStep("upload");
@@ -120,19 +124,15 @@ export default function UploadContractPage() {
     }
   };
 
-  // Extract content after upload (always full mode)
-  const handleExtractAfterUpload = async (filePath: string, fileType: string, title: string) => {
+  // Extract text (for both modes - needed for risk analysis)
+  const handleExtractText = async (filePath: string, fileType: string, title: string) => {
     setProcessingStep("extracting");
 
     try {
-      // Extract text
       const extractRes = await fetch("/api/contracts/upload/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          filePath,
-          fileType,
-        }),
+        body: JSON.stringify({ filePath, fileType }),
       });
 
       const extractData = await safeParseJson(extractRes, "extract");
@@ -151,10 +151,7 @@ export default function UploadContractPage() {
         const ocrRes = await fetch("/api/contracts/upload/ocr", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filePath,
-            fileType,
-          }),
+          body: JSON.stringify({ filePath, fileType }),
         });
 
         const ocrData = await safeParseJson(ocrRes, "ocr");
@@ -181,36 +178,62 @@ export default function UploadContractPage() {
         confidence: extractData.confidence || prev.confidence,
       }));
 
-      // Always parse content (full mode)
-      setProcessingStep("parsing");
-
-      const parseRes = await fetch("/api/contracts/upload/parse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-
-      const parseData = await safeParseJson(parseRes, "parse");
-
-      if (!parseRes.ok) {
-        throw new Error(parseData.error || "Parsing failed");
-      }
-
-      setState((prev) => ({
-        ...prev,
-        parsedContent: parseData.content,
-        title: parseData.suggestedTitle || prev.title,
-        type: parseData.suggestedType || prev.type,
-        jurisdiction: parseData.suggestedJurisdiction || prev.jurisdiction,
-        confidence: parseData.confidence,
-      }));
-
-      setStep("details");
+      // Go to mode selection
+      setStep("mode");
       setIsProcessing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Processing failed");
       setStep("upload");
       setIsProcessing(false);
+    }
+  };
+
+  // Handle mode selection and continue
+  const handleModeSelect = (mode: ProcessingMode) => {
+    setState((prev) => ({ ...prev, processingMode: mode }));
+  };
+
+  const handleContinueFromMode = async () => {
+    if (!state.processingMode || !state.extractedText) return;
+
+    if (state.processingMode === "edit_and_sign") {
+      // Parse content for Edit & Sign mode
+      setIsProcessing(true);
+      setStep("processing");
+      setProcessingStep("parsing");
+
+      try {
+        const parseRes = await fetch("/api/contracts/upload/parse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: state.extractedText }),
+        });
+
+        const parseData = await safeParseJson(parseRes, "parse");
+
+        if (!parseRes.ok) {
+          throw new Error(parseData.error || "Parsing failed");
+        }
+
+        setState((prev) => ({
+          ...prev,
+          parsedContent: parseData.content,
+          title: parseData.suggestedTitle || prev.title,
+          type: parseData.suggestedType || prev.type,
+          jurisdiction: parseData.suggestedJurisdiction || prev.jurisdiction,
+          confidence: parseData.confidence,
+        }));
+
+        setStep("details");
+        setIsProcessing(false);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Parsing failed");
+        setStep("mode");
+        setIsProcessing(false);
+      }
+    } else {
+      // Sign Only mode - go directly to details
+      setStep("details");
     }
   };
 
@@ -220,7 +243,6 @@ export default function UploadContractPage() {
     try {
       return JSON.parse(text);
     } catch {
-      // If response is HTML (like a 404 page), provide a clear error
       if (text.startsWith("<!DOCTYPE") || text.startsWith("<html")) {
         throw new Error(`Server returned an error page for ${endpoint}. The endpoint may not exist or crashed.`);
       }
@@ -228,9 +250,9 @@ export default function UploadContractPage() {
     }
   };
 
-  // Step 2: Review details and create
+  // Step 3: Review details and create
   const handleCreateContract = async () => {
-    if (!state.filePath) return;
+    if (!state.filePath || !state.processingMode) return;
 
     setIsProcessing(true);
     setStep("processing");
@@ -245,11 +267,11 @@ export default function UploadContractPage() {
           title: state.title,
           type: state.type,
           jurisdiction: state.jurisdiction,
-          processingMode: "full",
+          processingMode: state.processingMode,
           extractedText: state.extractedText,
-          sourceFileUrl: state.filePath, // Store file path, not signed URL (which expires)
+          sourceFileUrl: state.filePath,
           sourceFileType: state.fileType,
-          content: state.parsedContent,
+          content: state.parsedContent, // null for sign_only mode
         }),
       });
 
@@ -271,6 +293,15 @@ export default function UploadContractPage() {
       setIsProcessing(false);
     }
   };
+
+  const progressSteps = [
+    { key: "upload", label: "Upload", icon: Upload },
+    { key: "mode", label: "Mode", icon: Settings2 },
+    { key: "details", label: "Review", icon: FileText },
+    { key: "processing", label: "Complete", icon: CheckCircle },
+  ];
+
+  const getStepIndex = (stepKey: string) => progressSteps.findIndex(s => s.key === stepKey);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -300,33 +331,30 @@ export default function UploadContractPage() {
       <div className="bg-white border-b border-slate-200">
         <div className="max-w-4xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
-            {[
-              { key: "upload", label: "Upload", icon: Upload },
-              { key: "details", label: "Review", icon: FileText },
-              { key: "processing", label: "Complete", icon: CheckCircle },
-            ].map((s, index) => {
+            {progressSteps.map((s, index) => {
               const Icon = s.icon;
               const isActive = s.key === step;
-              const isComplete =
-                ["upload", "details", "processing"].indexOf(step) > index;
+              const isComplete = getStepIndex(step) > index;
 
               return (
                 <div key={s.key} className="flex items-center">
                   <div
-                    className={`flex items-center gap-2 ${isActive
-                      ? "text-[#529ec6]"
-                      : isComplete
-                        ? "text-emerald-600"
-                        : "text-slate-400"
-                      }`}
+                    className={`flex items-center gap-2 ${
+                      isActive
+                        ? "text-[#529ec6]"
+                        : isComplete
+                          ? "text-emerald-600"
+                          : "text-slate-400"
+                    }`}
                   >
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center ${isActive
-                        ? "bg-[#529ec6]/10"
-                        : isComplete
-                          ? "bg-emerald-100"
-                          : "bg-slate-100"
-                        }`}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        isActive
+                          ? "bg-[#529ec6]/10"
+                          : isComplete
+                            ? "bg-emerald-100"
+                            : "bg-slate-100"
+                      }`}
                     >
                       <Icon className="w-4 h-4" />
                     </div>
@@ -334,10 +362,11 @@ export default function UploadContractPage() {
                       {s.label}
                     </span>
                   </div>
-                  {index < 2 && (
+                  {index < progressSteps.length - 1 && (
                     <div
-                      className={`w-16 sm:w-32 h-0.5 mx-2 ${isComplete ? "bg-emerald-500" : "bg-slate-200"
-                        }`}
+                      className={`w-12 sm:w-24 h-0.5 mx-2 ${
+                        isComplete ? "bg-emerald-500" : "bg-slate-200"
+                      }`}
                     />
                   )}
                 </div>
@@ -395,6 +424,58 @@ export default function UploadContractPage() {
             </motion.div>
           )}
 
+          {step === "mode" && (
+            <motion.div
+              key="mode"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                  How do you want to process this contract?
+                </h2>
+                <p className="text-slate-500">
+                  Choose how to handle your uploaded document
+                </p>
+              </div>
+
+              <ModeSelector
+                selectedMode={state.processingMode}
+                onModeSelect={handleModeSelect}
+                disabled={isProcessing}
+              />
+
+              <div className="flex justify-between pt-4">
+                <button
+                  onClick={() => setStep("upload")}
+                  className="flex items-center gap-2 px-6 py-3 text-slate-600 hover:text-slate-800 transition-colors"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                  Back
+                </button>
+                <button
+                  onClick={handleContinueFromMode}
+                  disabled={!state.processingMode || isProcessing}
+                  className="flex items-center gap-2 px-6 py-3 bg-[#529ec6] text-white rounded-xl font-medium hover:bg-[#4189b1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      Continue
+                      <ArrowRight className="w-5 h-5" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          )}
+
           {step === "processing" && (
             <motion.div
               key="processing"
@@ -405,7 +486,6 @@ export default function UploadContractPage() {
             >
               <ProcessingStatus
                 currentStep={processingStep}
-                mode="full"
                 ocrRequired={state.needsOCR}
                 error={error || undefined}
               />
@@ -425,18 +505,44 @@ export default function UploadContractPage() {
                   Review contract details
                 </h2>
                 <p className="text-slate-500">
-                  Verify the extracted information before creating your contract
+                  {state.processingMode === "sign_only"
+                    ? "Confirm the details before creating your contract"
+                    : "Verify the extracted information before creating your contract"}
                 </p>
               </div>
 
-              {/* Preview */}
-              <ContentPreview
-                text={state.extractedText || undefined}
-                content={state.parsedContent || undefined}
-                mode="full"
-                wordCount={state.wordCount}
-                confidence={state.confidence || undefined}
-              />
+              {/* Preview - only for Edit & Sign mode */}
+              {state.processingMode === "edit_and_sign" && state.parsedContent && (
+                <ContentPreview
+                  content={state.parsedContent}
+                  confidence={state.confidence || undefined}
+                />
+              )}
+
+              {/* Sign Only mode info */}
+              {state.processingMode === "sign_only" && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-blue-900 mb-1">
+                        Sign Only Mode
+                      </h3>
+                      <p className="text-sm text-blue-700">
+                        Your original PDF layout will be preserved. After creating the contract,
+                        you&apos;ll be able to place signature fields visually on the document.
+                      </p>
+                      {state.wordCount > 0 && (
+                        <p className="text-sm text-blue-600 mt-2">
+                          Extracted {state.wordCount.toLocaleString()} words for risk analysis.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Contract details form */}
               <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
@@ -501,7 +607,7 @@ export default function UploadContractPage() {
 
               <div className="flex justify-between pt-4">
                 <button
-                  onClick={() => setStep("upload")}
+                  onClick={() => setStep("mode")}
                   className="flex items-center gap-2 px-6 py-3 text-slate-600 hover:text-slate-800 transition-colors"
                 >
                   <ArrowLeft className="w-5 h-5" />

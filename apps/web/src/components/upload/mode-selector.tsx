@@ -1,11 +1,13 @@
 "use client";
 
-import { FileText, Sparkles, Check } from "lucide-react";
+import { Sparkles, Check, FileSignature } from "lucide-react";
 import { motion } from "framer-motion";
 
+export type ProcessingMode = "sign_only" | "edit_and_sign";
+
 interface ModeSelectorProps {
-  selectedMode: "quick" | "full" | null;
-  onModeSelect: (mode: "quick" | "full") => void;
+  selectedMode: ProcessingMode | null;
+  onModeSelect: (mode: ProcessingMode) => void;
   disabled?: boolean;
 }
 
@@ -14,135 +16,99 @@ export function ModeSelector({
   onModeSelect,
   disabled = false,
 }: ModeSelectorProps) {
+  const modes = [
+    {
+      id: "sign_only" as const,
+      title: "Sign Only",
+      description:
+        "Keep your original PDF layout. Place signature fields visually on top of your document.",
+      icon: FileSignature,
+      features: [
+        "Preserve original formatting",
+        "Visual signature field placement",
+        "AI risk analysis",
+        "E-signatures on original PDF",
+      ],
+    },
+    {
+      id: "edit_and_sign" as const,
+      title: "Edit & Sign",
+      description:
+        "AI parses your contract into editable clauses. Modify content before sending for signatures.",
+      icon: Sparkles,
+      features: [
+        "Edit individual clauses",
+        "AI-powered modifications",
+        "AI risk analysis",
+        "E-signatures embedded in PDF",
+      ],
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {/* Quick Mode */}
-      <button
-        onClick={() => onModeSelect("quick")}
-        disabled={disabled}
-        className={`
-          relative flex flex-col items-start p-6 rounded-2xl border-2 text-left
-          transition-all duration-200
-          ${
-            selectedMode === "quick"
-              ? "border-[#529ec6] bg-[#529ec6]/5"
-              : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-          }
-          ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
-        `}
-      >
-        {selectedMode === "quick" && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute top-4 right-4 w-6 h-6 rounded-full bg-[#529ec6] flex items-center justify-center"
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
+      {modes.map((mode) => {
+        const Icon = mode.icon;
+        const isSelected = selectedMode === mode.id;
+
+        return (
+          <button
+            key={mode.id}
+            onClick={() => onModeSelect(mode.id)}
+            disabled={disabled}
+            className={`
+              relative flex flex-col items-start p-6 rounded-2xl border-2 text-left
+              transition-all duration-200
+              ${
+                isSelected
+                  ? "border-[#529ec6] bg-[#529ec6]/5"
+                  : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+              }
+              ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+            `}
           >
-            <Check className="w-4 h-4 text-white" />
-          </motion.div>
-        )}
+            {isSelected && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="absolute top-4 right-4 w-6 h-6 rounded-full bg-[#529ec6] flex items-center justify-center"
+              >
+                <Check className="w-4 h-4 text-white" />
+              </motion.div>
+            )}
 
-        <div
-          className={`
-            w-12 h-12 rounded-xl flex items-center justify-center mb-4
-            ${selectedMode === "quick" ? "bg-[#529ec6]/20" : "bg-slate-100"}
-          `}
-        >
-          <FileText
-            className={`w-6 h-6 ${
-              selectedMode === "quick" ? "text-[#529ec6]" : "text-slate-500"
-            }`}
-          />
-        </div>
+            <div
+              className={`
+                w-12 h-12 rounded-xl flex items-center justify-center mb-4
+                ${isSelected ? "bg-[#529ec6]/20" : "bg-slate-100"}
+              `}
+            >
+              <Icon
+                className={`w-6 h-6 ${
+                  isSelected ? "text-[#529ec6]" : "text-slate-500"
+                }`}
+              />
+            </div>
 
-        <h3 className="text-lg font-semibold text-slate-900 mb-2">Quick Mode</h3>
-        <p className="text-sm text-slate-500 mb-4">
-          Keep your original document layout intact. Perfect for when you want to
-          add signature fields while preserving the exact formatting.
-        </p>
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">
+              {mode.title}
+            </h3>
+            <p className="text-sm text-slate-500 mb-4">{mode.description}</p>
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <Check className="w-4 h-4 text-emerald-500" />
-            <span>Preserve original PDF layout</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <Check className="w-4 h-4 text-emerald-500" />
-            <span>Visual signature field placement</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <Check className="w-4 h-4 text-emerald-500" />
-            <span>AI risk analysis included</span>
-          </div>
-        </div>
-
-        <div className="mt-4 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full">
-          Recommended for most contracts
-        </div>
-      </button>
-
-      {/* Full Mode */}
-      <button
-        onClick={() => onModeSelect("full")}
-        disabled={disabled}
-        className={`
-          relative flex flex-col items-start p-6 rounded-2xl border-2 text-left
-          transition-all duration-200
-          ${
-            selectedMode === "full"
-              ? "border-[#529ec6] bg-[#529ec6]/5"
-              : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-          }
-          ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
-        `}
-      >
-        {selectedMode === "full" && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute top-4 right-4 w-6 h-6 rounded-full bg-[#529ec6] flex items-center justify-center"
-          >
-            <Check className="w-4 h-4 text-white" />
-          </motion.div>
-        )}
-
-        <div
-          className={`
-            w-12 h-12 rounded-xl flex items-center justify-center mb-4
-            ${selectedMode === "full" ? "bg-[#529ec6]/20" : "bg-slate-100"}
-          `}
-        >
-          <Sparkles
-            className={`w-6 h-6 ${
-              selectedMode === "full" ? "text-[#529ec6]" : "text-slate-500"
-            }`}
-          />
-        </div>
-
-        <h3 className="text-lg font-semibold text-slate-900 mb-2">Full Mode</h3>
-        <p className="text-sm text-slate-500 mb-4">
-          AI parses your contract into editable clauses. Best when you want to
-          modify, reorganize, or enhance the contract content.
-        </p>
-
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <Check className="w-4 h-4 text-emerald-500" />
-            <span>Edit individual clauses</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <Check className="w-4 h-4 text-emerald-500" />
-            <span>AI-powered restructuring</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <Check className="w-4 h-4 text-emerald-500" />
-            <span>All Quick Mode features</span>
-          </div>
-        </div>
-
-        <div className="mt-4 px-3 py-1.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-full">
-          Best for editing contracts
-        </div>
-      </button>
+            <div className="space-y-2">
+              {mode.features.map((feature, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-2 text-sm text-slate-600"
+                >
+                  <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                  <span>{feature}</span>
+                </div>
+              ))}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }

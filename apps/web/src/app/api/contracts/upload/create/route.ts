@@ -2,17 +2,17 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import type { ContractContent } from "@/db/types";
 
+type ProcessingMode = "sign_only" | "edit_and_sign";
+
 interface CreateUploadedContractRequest {
   title: string;
   type: string;
   jurisdiction: string;
-  processingMode: "quick" | "full";
-  // For quick mode
+  processingMode: ProcessingMode;
   extractedText?: string;
   sourceFileUrl: string;
   sourceFileType: "pdf" | "docx" | "jpg" | "png";
-  // For full mode
-  content?: ContractContent;
+  content?: ContractContent | null; // Required for edit_and_sign, null for sign_only
 }
 
 export async function POST(request: Request) {
@@ -29,27 +29,35 @@ export async function POST(request: Request) {
     const body: CreateUploadedContractRequest = await request.json();
 
     // Validate required fields
-    if (!body.title || !body.processingMode || !body.sourceFileUrl) {
+    if (!body.title || !body.sourceFileUrl || !body.processingMode) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: "Missing required fields: title, sourceFileUrl, and processingMode are required" },
         { status: 400 }
       );
     }
 
-    // Prepare content based on mode
+    // Validate mode-specific requirements
+    if (body.processingMode === "edit_and_sign" && !body.content) {
+      return NextResponse.json(
+        { error: "Content is required for Edit & Sign mode" },
+        { status: 400 }
+      );
+    }
+
+    // For sign_only mode, create minimal content structure
     let contractContent: ContractContent;
 
-    if (body.processingMode === "full" && body.content) {
-      // Full mode: use parsed content
-      contractContent = body.content;
-    } else {
-      // Quick mode: create minimal content structure
+    if (body.processingMode === "sign_only") {
+      // Minimal content for sign_only - the original PDF is the source of truth
       contractContent = {
         preamble: "",
         recitals: "",
         clauses: [],
         signatureBlock: "",
       };
+    } else {
+      // Use AI-parsed content for edit_and_sign
+      contractContent = body.content as ContractContent;
     }
 
     // Create the contract record
@@ -94,7 +102,7 @@ export async function POST(request: Request) {
       contract_id: contract.id,
       version_number: 1,
       content: contractContent,
-      change_summary: "Initial upload",
+      change_summary: `Initial upload (${body.processingMode === "sign_only" ? "Sign Only" : "Edit & Sign"})`,
       change_type: "create",
       created_by: user.id,
     });

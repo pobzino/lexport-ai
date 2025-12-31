@@ -17,6 +17,9 @@ import {
   ArrowLeft,
   Shield,
   Lock,
+  FileText,
+  Calendar,
+  Clock,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -38,6 +41,20 @@ interface PaymentInfo {
   balanceRemaining?: number;
 }
 
+interface InvoiceInfo {
+  id: string;
+  invoice_number: string;
+  amount: number;
+  currency: string;
+  status: string;
+  due_date: string;
+  line_items: { description: string; quantity: number; amount: number }[];
+  sender_name?: string;
+  sender_email?: string;
+  recipient_name?: string;
+  recipient_email?: string;
+}
+
 function CheckoutForm({
   paymentInfo,
   returnUrl,
@@ -47,11 +64,24 @@ function CheckoutForm({
   returnUrl: string;
   alreadySigned: boolean;
 }) {
+  // Determine payment method order based on currency - bank payments first
+  const getPaymentMethodOrder = () => {
+    const currency = paymentInfo.currency.toLowerCase();
+    if (currency === "usd") {
+      return ["us_bank_account", "card", "link"];
+    } else if (currency === "gbp") {
+      return ["bacs_debit", "card", "link"];
+    } else if (currency === "eur") {
+      return ["sepa_debit", "card", "link"];
+    }
+    return ["card", "link"]; // Default for other currencies
+  };
   const stripe = useStripe();
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [succeeded, setSucceeded] = useState(false);
+  const [isAchProcessing, setIsAchProcessing] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +121,10 @@ function CheckoutForm({
           window.location.href = returnUrl;
         }, 2000);
       }
+    } else if (paymentIntent?.status === "processing") {
+      // ACH payments take 4 business days to process
+      setSucceeded(true); // Show success state - payment is in progress
+      setIsAchProcessing(true);
     } else {
       setProcessing(false);
     }
@@ -99,6 +133,28 @@ function CheckoutForm({
   if (succeeded) {
     const isDeposit = paymentInfo.paymentType === "deposit";
     const isBalance = paymentInfo.paymentType === "balance";
+
+    // ACH bank payments are processing (takes 4 business days)
+    if (isAchProcessing) {
+      return (
+        <div className="text-center py-8">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock className="w-8 h-8 text-blue-600" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">
+            Bank Payment Processing
+          </h2>
+          <p className="text-slate-600 mb-4">
+            Your bank payment has been initiated and is being processed. ACH bank transfers typically take <strong>3-4 business days</strong> to complete.
+          </p>
+          <div className="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <p className="text-sm text-blue-800">
+              You&apos;ll receive an email confirmation once the payment clears. You can close this page.
+            </p>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="text-center py-8">
@@ -138,6 +194,13 @@ function CheckoutForm({
       <PaymentElement
         options={{
           layout: "tabs",
+          paymentMethodOrder: getPaymentMethodOrder(),
+          fields: {
+            billingDetails: {
+              name: "auto",
+              email: "auto",
+            },
+          },
         }}
       />
 
@@ -185,15 +248,26 @@ export default function PaymentPage() {
   const contractId = params.contractId as string;
   const returnToken = searchParams.get("token");
   const alreadySigned = searchParams.get("signed") === "true";
+  const invoiceId = searchParams.get("invoice");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
+  const [invoiceInfo, setInvoiceInfo] = useState<InvoiceInfo | null>(null);
   const [contractTitle, setContractTitle] = useState<string>("");
 
   useEffect(() => {
     async function initializePayment() {
       try {
+        // Fetch invoice if ID is provided
+        if (invoiceId) {
+          const invoiceResponse = await fetch(`/api/invoices/${invoiceId}`);
+          if (invoiceResponse.ok) {
+            const invoiceData = await invoiceResponse.json();
+            setInvoiceInfo(invoiceData.invoice);
+          }
+        }
+
         // Create or retrieve payment intent
         const response = await fetch(`/api/contracts/${contractId}/payment`, {
           method: "POST",
@@ -222,6 +296,9 @@ export default function PaymentPage() {
           depositPaid: data.depositPaid,
           balanceRemaining: data.balanceRemaining,
         });
+        if (data.contractTitle) {
+          setContractTitle(data.contractTitle);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load payment");
       } finally {
@@ -230,7 +307,7 @@ export default function PaymentPage() {
     }
 
     initializePayment();
-  }, [contractId, returnToken, router]);
+  }, [contractId, returnToken, router, invoiceId]);
 
   if (loading) {
     return (
@@ -305,6 +382,78 @@ export default function PaymentPage() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-8">
+        {/* Invoice Summary (if invoice is available) */}
+        {invoiceInfo && (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-4">
+            <div className="px-6 py-4 border-b border-slate-100 bg-[#202e46]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-white/10">
+                  <FileText className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">
+                    Invoice {invoiceInfo.invoice_number}
+                  </h2>
+                  <p className="text-sm text-white/70">
+                    {invoiceInfo.sender_name ? `From ${invoiceInfo.sender_name}` : "Payment due"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Line Items */}
+            <div className="px-6 py-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    <th className="text-left py-2 font-medium text-slate-600">Description</th>
+                    <th className="text-center py-2 font-medium text-slate-600 w-16">Qty</th>
+                    <th className="text-right py-2 font-medium text-slate-600 w-24">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoiceInfo.line_items.map((item, index) => (
+                    <tr key={index} className="border-b border-slate-50">
+                      <td className="py-3 text-slate-700">{item.description}</td>
+                      <td className="py-3 text-center text-slate-600">{item.quantity}</td>
+                      <td className="py-3 text-right font-medium text-slate-900">
+                        {new Intl.NumberFormat("en-US", {
+                          style: "currency",
+                          currency: invoiceInfo.currency,
+                        }).format(item.amount / 100)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={2} className="py-3 text-right font-semibold text-slate-700">Total Due</td>
+                    <td className="py-3 text-right text-lg font-bold text-[#202e46]">
+                      {new Intl.NumberFormat("en-US", {
+                        style: "currency",
+                        currency: invoiceInfo.currency,
+                      }).format(invoiceInfo.amount / 100)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Due Date */}
+            <div className="px-6 py-3 bg-amber-50 border-t border-amber-100 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-amber-600" />
+              <span className="text-sm text-amber-800">
+                Due by {new Date(invoiceInfo.due_date).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </span>
+            </div>
+          </div>
+        )}
+
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           {/* Payment Header */}
           <div className="px-6 py-5 border-b border-slate-100 bg-slate-50">

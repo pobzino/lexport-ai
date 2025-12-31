@@ -72,8 +72,27 @@ export async function GET(
       context
     );
 
+    // For uploaded contracts, generate a fresh signed URL for the source file
+    let sourceFileSignedUrl = null;
+    if (contract.source_type === "uploaded" && contract.source_file_url) {
+      // Check if it's already a full URL or just a file path
+      const isFullUrl = contract.source_file_url.startsWith("http");
+      if (!isFullUrl) {
+        // Generate signed URL from file path
+        const { data: signedUrlData } = await supabase.storage
+          .from("contract-uploads")
+          .createSignedUrl(contract.source_file_url, 3600); // 1 hour
+        sourceFileSignedUrl = signedUrlData?.signedUrl || null;
+      } else {
+        sourceFileSignedUrl = contract.source_file_url;
+      }
+    }
+
     return NextResponse.json({
-      contract,
+      contract: {
+        ...contract,
+        source_file_url: sourceFileSignedUrl || contract.source_file_url,
+      },
       signatureFields: signatureFields || [],
       signatureRequests: signatureRequests || [],
       signatures: signatures || [],

@@ -23,6 +23,7 @@ export interface SignatureField {
   positionY: number;
   width: number;
   height: number;
+  page: number;
   order: number;
 }
 
@@ -147,6 +148,7 @@ export function SignatureFieldEditor({
             positionY: position.y,
             width: position.width,
             height: position.height,
+            page: 1, // Default to first page for list-based editor
             order: fields.filter((f) => f.signerRole === role).length + 1,
           });
         }

@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { ContractGeneratingOverlay } from "@/components/contract-generating-overlay";
+import { useOnboarding } from "@/components/onboarding";
 
 // Placeholder type for system templates
 interface Placeholder {
@@ -83,6 +84,7 @@ const CONTRACT_ICONS: Record<string, typeof Shield> = {
 
 export default function NewContractPage() {
   const router = useRouter();
+  const { completeStep } = useOnboarding();
   const [step, setStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -274,6 +276,8 @@ export default function NewContractPage() {
       }
 
       const data = await response.json();
+      // Mark onboarding step complete
+      completeStep("first_contract");
       router.push(`/contracts/${data.contract.id}/edit`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -362,6 +366,8 @@ export default function NewContractPage() {
 
       const data = await response.json();
       setShowPlaceholderModal(false);
+      // Mark onboarding step complete
+      completeStep("first_contract");
       router.push(`/contracts/${data.contract.id}/edit`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -397,6 +403,8 @@ export default function NewContractPage() {
       }
 
       const data = await response.json();
+      // Mark onboarding step complete
+      completeStep("first_contract");
       router.push(`/contracts/${data.contract.id}/edit`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -645,7 +653,7 @@ export default function NewContractPage() {
                       </div>
                     </div>
                   </div>
-                  <p className="text-slate-600 mb-4">{intakeAnalysis.reasoning}</p>
+                  <p className="text-slate-600 mb-4">{intakeAnalysis.contractTypeDescription}</p>
 
                   {/* Jurisdiction */}
                   <div className="flex items-center gap-2 text-sm text-slate-500 mb-4">

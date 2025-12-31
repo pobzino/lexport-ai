@@ -32,9 +32,9 @@ export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 
 // Platform fee percentages by subscription tier
 export const PLATFORM_FEES = {
-  free: 1.0,        // 1% for free/pay-per-contract users
-  pro: 0.75,        // 0.75% for Pro subscribers
-  team: 0.5,        // 0.5% for Team subscribers
+  free: 0.5,        // 0.5% for free/pay-per-contract users
+  pro: 0.25,        // 0.25% for Pro subscribers
+  team: 0.0,        // 0% for Team subscribers
 } as const;
 
 export type SubscriptionTier = keyof typeof PLATFORM_FEES;

@@ -427,6 +427,74 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      // ===== Checkout Events =====
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const type = session.metadata?.type;
+        const userId = session.metadata?.user_id;
+        const templateId = session.metadata?.template_id;
+
+        if (type === "template_purchase" && userId && templateId) {
+          console.log(`Processing template purchase for user ${userId}, template ${templateId}`);
+
+          // Update purchase record to succeeded
+          const { error: updateError } = await supabase
+            .from("template_purchases")
+            .update({
+              status: "succeeded",
+              stripe_payment_intent_id: session.payment_intent as string,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("user_id", userId)
+            .eq("template_id", templateId)
+            // We match pending or failed, or just update by user/template to be sure
+            // But ideally we match the pending record.
+            // Since we might not have the ID, user/template combo is unique per purchase usually?
+            // Or maybe we should allow re-purchasing if failed?
+            // Let's assume user+template is unique for "ownership".
+            ;
+
+          if (updateError) {
+            // If record doesn't exist (maybe created via webhook?), insert it
+            // But the POST endpoint creates it as pending.
+            console.error("Error updating template purchase:", updateError);
+
+            // Fallback: upsert check
+            const { error: upsertError } = await supabase
+              .from("template_purchases")
+              .upsert({
+                user_id: userId,
+                template_id: templateId,
+                stripe_payment_intent_id: session.payment_intent as string,
+                amount: session.amount_total || 0,
+                status: "succeeded",
+                purchased_at: new Date().toISOString(),
+              }, { onConflict: "user_id,template_id" });
+
+            if (upsertError) {
+              console.error("CRITICAL: Failed to fulfill template purchase:", upsertError);
+            }
+          } else {
+            console.log(`Template ${templateId} purchased successfully by user ${userId}`);
+          }
+
+          // Create audit log
+          await supabase.from("audit_logs").insert({
+            user_id: userId,
+            event_type: "template_purchased" as unknown as string,
+            ip_address: "webhook",
+            user_agent: "stripe-webhook",
+            metadata: {
+              template_id: templateId,
+              amount: session.amount_total,
+              currency: session.currency,
+              payment_intent_id: session.payment_intent,
+            },
+          });
+        }
+        break;
+      }
+
       // ===== Connect Account Events =====
       case "account.updated": {
         const account = event.data.object as Stripe.Account;

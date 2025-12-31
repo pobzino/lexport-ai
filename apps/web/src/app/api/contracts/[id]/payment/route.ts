@@ -163,6 +163,18 @@ export async function POST(
     const subscriptionTier: SubscriptionTier =
       (contractOwner?.subscription_status as SubscriptionTier) || "free";
 
+    // Determine payment methods based on currency
+    let paymentMethodTypes: string[] = ["card", "link"];
+
+    // Add region-specific bank payment methods
+    if (currency === "usd") {
+      paymentMethodTypes.push("us_bank_account");
+    } else if (currency === "gbp") {
+      paymentMethodTypes.push("bacs_debit");
+    } else if (currency === "eur") {
+      paymentMethodTypes.push("sepa_debit");
+    }
+
     // Build payment intent options
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const paymentIntentOptions: any = {
@@ -176,9 +188,29 @@ export async function POST(
         deposit_percentage: depositPercentage.toString(),
       },
       description: paymentDescription,
-      // Enable all automatic payment methods (cards, wallets, bank debits, BNPL)
-      automatic_payment_methods: {
-        enabled: true,
+      // Explicitly specify payment methods by currency
+      payment_method_types: paymentMethodTypes,
+      // Bank payment options
+      payment_method_options: {
+        // US: ACH Direct Debit
+        us_bank_account: {
+          financial_connections: {
+            permissions: ["payment_method", "balances"],
+          },
+          verification_method: "automatic",
+        },
+        // UK: Bacs Direct Debit
+        bacs_debit: {
+          mandate_options: {
+            reference_prefix: "LEX",
+          },
+        },
+        // EU: SEPA Direct Debit
+        sepa_debit: {
+          mandate_options: {
+            reference_prefix: "LEX",
+          },
+        },
       },
     };
 

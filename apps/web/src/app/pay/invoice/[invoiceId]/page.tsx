@@ -20,6 +20,7 @@ import {
   Building2,
   User,
   Download,
+  Clock,
 } from "lucide-react";
 import Image from "next/image";
 
@@ -77,6 +78,20 @@ function CheckoutForm({ paymentInfo, invoiceId }: { paymentInfo: PaymentInfo; in
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [succeeded, setSucceeded] = useState(false);
+  const [isAchProcessing, setIsAchProcessing] = useState(false);
+
+  // Determine payment method order based on currency - bank payments first
+  const getPaymentMethodOrder = () => {
+    const currency = paymentInfo.currency.toLowerCase();
+    if (currency === "usd") {
+      return ["us_bank_account", "card", "link"];
+    } else if (currency === "gbp") {
+      return ["bacs_debit", "card", "link"];
+    } else if (currency === "eur") {
+      return ["sepa_debit", "card", "link"];
+    }
+    return ["card", "link"]; // Default for other currencies
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,12 +126,38 @@ function CheckoutForm({ paymentInfo, invoiceId }: { paymentInfo: PaymentInfo; in
       setProcessing(false);
     } else if (paymentIntent?.status === "succeeded") {
       setSucceeded(true);
+    } else if (paymentIntent?.status === "processing") {
+      // ACH payments take 3-4 business days to process
+      setSucceeded(true);
+      setIsAchProcessing(true);
     } else {
       setProcessing(false);
     }
   };
 
   if (succeeded) {
+    // ACH bank payments are processing (takes 3-4 business days)
+    if (isAchProcessing) {
+      return (
+        <div className="text-center py-8">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock className="w-8 h-8 text-blue-600" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">
+            Bank Payment Processing
+          </h2>
+          <p className="text-slate-600 mb-4">
+            Your bank payment for invoice {paymentInfo.invoiceNumber} has been initiated. ACH bank transfers typically take <strong>3-4 business days</strong> to complete.
+          </p>
+          <div className="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <p className="text-sm text-blue-800">
+              You&apos;ll receive an email at {paymentInfo.recipientEmail} once the payment clears.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="text-center py-8">
         <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -143,6 +184,13 @@ function CheckoutForm({ paymentInfo, invoiceId }: { paymentInfo: PaymentInfo; in
       <PaymentElement
         options={{
           layout: "tabs",
+          paymentMethodOrder: getPaymentMethodOrder(),
+          fields: {
+            billingDetails: {
+              name: "auto",
+              email: "auto",
+            },
+          },
         }}
       />
 

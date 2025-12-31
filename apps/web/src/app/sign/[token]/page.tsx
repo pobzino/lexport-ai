@@ -33,7 +33,10 @@ import {
   Eye,
   Play,
   CheckCircle2,
+  Mail,
+  RefreshCw,
 } from "lucide-react";
+import { PDFSigningView } from "@/components/pdf-signing-view";
 
 // Signature font styles for "Select Style" mode
 const SIGNATURE_FONTS = [
@@ -85,6 +88,9 @@ interface Contract {
   depositPercentage?: number;
   depositPaid?: boolean;
   paymentSufficientForSigning?: boolean;
+  // Sign-only contract fields
+  processingMode?: "sign_only" | "edit_and_sign" | null;
+  sourceFileUrl?: string | null;
 }
 
 // Signature field types
@@ -101,6 +107,7 @@ interface SignatureField {
   position_y: number;
   width: number;
   height: number;
+  page?: number;
   order: number;
   options?: {
     choices?: string[];
@@ -161,6 +168,15 @@ export default function SignContractPage() {
   const [paymentCompleted, setPaymentCompleted] = useState(false);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // Email verification state
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [verificationLoading, setVerificationLoading] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [verificationExpiry, setVerificationExpiry] = useState<number>(10);
+  const [maskedEmail, setMaskedEmail] = useState<string>("");
 
   // Signature fields state
   const [signatureFields, setSignatureFields] = useState<SignatureField[]>([]);
@@ -238,6 +254,11 @@ export default function SignContractPage() {
         // Set identity confirmation text from API
         if (data.identityConfirmationText) {
           setIdentityConfirmationText(data.identityConfirmationText);
+        }
+
+        // Check if email is already verified
+        if (data.signatureRequest?.emailVerified) {
+          setEmailVerified(true);
         }
 
         // Store signature fields and filter by signer role
@@ -410,6 +431,80 @@ export default function SignContractPage() {
     reader.readAsDataURL(file);
   };
 
+  // Send email verification code
+  const sendVerificationCode = async () => {
+    setVerificationLoading(true);
+    setVerificationError(null);
+
+    try {
+      const response = await fetch(`/api/sign/${token}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send" }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to send verification code");
+      }
+
+      // Check if already verified
+      if (data.verified) {
+        setEmailVerified(true);
+        return;
+      }
+
+      setVerificationSent(true);
+      setMaskedEmail(data.email || "");
+      setVerificationExpiry(data.expiresInMinutes || 10);
+    } catch (err) {
+      setVerificationError(err instanceof Error ? err.message : "Failed to send code");
+    } finally {
+      setVerificationLoading(false);
+    }
+  };
+
+  // Verify the entered code
+  const verifyCode = async () => {
+    if (verificationCode.length !== 6) {
+      setVerificationError("Please enter a 6-digit code");
+      return;
+    }
+
+    setVerificationLoading(true);
+    setVerificationError(null);
+
+    try {
+      const response = await fetch(`/api/sign/${token}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "verify", code: verificationCode }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Invalid verification code");
+      }
+
+      if (data.verified) {
+        setEmailVerified(true);
+      }
+    } catch (err) {
+      setVerificationError(err instanceof Error ? err.message : "Verification failed");
+      setVerificationCode("");
+    } finally {
+      setVerificationLoading(false);
+    }
+  };
+
+  // Resend verification code
+  const resendVerificationCode = async () => {
+    setVerificationCode("");
+    await sendVerificationCode();
+  };
+
   // Check if current mode has a valid signature
   const hasValidSignature = (): boolean => {
     switch (signatureMode) {
@@ -519,7 +614,6 @@ export default function SignContractPage() {
 
   // Start signing flow
   const handleStartSigning = () => {
-    setHasReadContract(true);
     if (myFields.length > 0) {
       setCurrentFieldIndex(0);
       setShowAdoptModal(true);
@@ -660,10 +754,24 @@ export default function SignContractPage() {
       const data = await response.json();
 
       // Check if payment is required and not yet complete
+      // Only redirect the PAYING party (Client/Company/Hiring Party), not the service provider
       if (paymentRequired && !paymentCompleted) {
-        // Redirect to payment page after successful signature
-        window.location.href = `/pay/${contract?.id}?token=${token}&signed=true`;
-        return;
+        const signerRole = signatureRequest?.signerRole?.toLowerCase() || "";
+        // These roles are typically the paying party
+        const payingRoles = ["client", "company", "hiring party", "disclosing party", "investor"];
+        // These roles are service providers who receive payment, not pay
+        const nonPayingRoles = ["freelancer", "contractor", "consultant", "receiving party"];
+
+        const isPayingRole = payingRoles.some(role => signerRole.includes(role));
+        const isNonPayingRole = nonPayingRoles.some(role => signerRole.includes(role));
+
+        // Only redirect to payment if this is a paying role
+        if (isPayingRole && !isNonPayingRole) {
+          // Include invoice ID if one was auto-generated
+          const invoiceParam = data.invoiceId ? `&invoice=${data.invoiceId}` : "";
+          window.location.href = `/pay/${contract?.id}?token=${token}&signed=true${invoiceParam}`;
+          return;
+        }
       }
 
       setSigned(true);
@@ -926,6 +1034,106 @@ export default function SignContractPage() {
                 </div>
               </div>
 
+              {/* Email Verification Section */}
+              {!emailVerified && (
+                <div className="px-8 py-6 border-t border-slate-100">
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Mail className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-blue-900 mb-1">Verify Your Email</h3>
+                        <p className="text-sm text-blue-700 mb-4">
+                          Before signing, we need to verify your email address for security.
+                        </p>
+
+                        {!verificationSent ? (
+                          <button
+                            onClick={sendVerificationCode}
+                            disabled={verificationLoading}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                          >
+                            {verificationLoading ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Mail className="w-4 h-4" />
+                            )}
+                            Send Verification Code
+                          </button>
+                        ) : (
+                          <div className="space-y-4">
+                            <p className="text-sm text-blue-700">
+                              We sent a 6-digit code to <span className="font-medium">{maskedEmail}</span>.
+                              Enter it below to continue.
+                            </p>
+
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                maxLength={6}
+                                value={verificationCode}
+                                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ""))}
+                                placeholder="000000"
+                                className="flex-1 px-4 py-3 text-center text-xl font-mono tracking-widest border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                              <button
+                                onClick={verifyCode}
+                                disabled={verificationLoading || verificationCode.length !== 6}
+                                className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                              >
+                                {verificationLoading ? (
+                                  <Loader2 className="w-5 h-5 animate-spin" />
+                                ) : (
+                                  "Verify"
+                                )}
+                              </button>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs text-blue-600">
+                                Code expires in {verificationExpiry} minutes
+                              </p>
+                              <button
+                                onClick={resendVerificationCode}
+                                disabled={verificationLoading}
+                                className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                Resend Code
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {verificationError && (
+                          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-sm text-red-700">{verificationError}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Email Verified Success */}
+              {emailVerified && (
+                <div className="px-8 py-4 border-t border-slate-100">
+                  <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                    <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+                      <Check className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-emerald-900">Email Verified</p>
+                      <p className="text-sm text-emerald-700">You can now proceed to sign the document.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Actions */}
               <div className="px-8 py-6 bg-slate-50 border-t border-slate-100">
                 <div className="flex flex-col sm:flex-row gap-3">
@@ -941,10 +1149,11 @@ export default function SignContractPage() {
                   </button>
                   <button
                     onClick={handleStartSigning}
-                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-[#202e46] text-white font-medium rounded-xl hover:bg-[#1a2539] transition-colors"
+                    disabled={!emailVerified}
+                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-[#202e46] text-white font-medium rounded-xl hover:bg-[#1a2539] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <Play className="w-4 h-4" />
-                    Start Signing
+                    {emailVerified ? "Start Signing" : "Verify Email First"}
                   </button>
                 </div>
               </div>
@@ -1011,59 +1220,83 @@ export default function SignContractPage() {
                 </h1>
               </div>
 
-              {/* Preamble */}
-              <div className="px-8 py-6 border-b border-slate-100">
-                <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-                  {contract.content.preamble}
-                </p>
-              </div>
-
-              {/* Recitals */}
-              {contract.content.recitals && (
-                <div className="px-8 py-6 border-b border-slate-100 bg-slate-50">
-                  <h3 className="text-sm font-semibold text-slate-500 uppercase mb-3">
-                    Recitals
-                  </h3>
-                  <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-                    {contract.content.recitals}
-                  </p>
+              {/* Sign-only mode: Show PDF with signature field overlays */}
+              {contract.processingMode === "sign_only" && contract.sourceFileUrl ? (
+                <div className="p-4">
+                  <PDFSigningView
+                    pdfUrl={contract.sourceFileUrl}
+                    signatureFields={signatureFields}
+                    currentSignerRole={signatureRequest?.signerRole || ""}
+                    fieldValues={fieldValues}
+                    onFieldClick={(field) => {
+                      // Find this field in myFields and navigate to it
+                      const fieldIndex = myFields.findIndex((f) => f.id === field.id);
+                      if (fieldIndex !== -1) {
+                        setCurrentFieldIndex(fieldIndex);
+                      }
+                      // Scroll to signing panel
+                      document.getElementById("signing-panel")?.scrollIntoView({ behavior: "smooth" });
+                    }}
+                  />
                 </div>
+              ) : (
+                <>
+                  {/* Preamble */}
+                  <div className="px-8 py-6 border-b border-slate-100">
+                    <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+                      {contract.content.preamble}
+                    </p>
+                  </div>
+
+                  {/* Recitals */}
+                  {contract.content.recitals && (
+                    <div className="px-8 py-6 border-b border-slate-100 bg-slate-50">
+                      <h3 className="text-sm font-semibold text-slate-500 uppercase mb-3">
+                        Recitals
+                      </h3>
+                      <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+                        {contract.content.recitals}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Clauses */}
+                  <div className="divide-y divide-slate-100">
+                    {contract.content.clauses.map((clause) => (
+                      <div key={clause.id}>
+                        <button
+                          onClick={() => toggleClause(clause.id)}
+                          className="w-full px-8 py-4 flex items-center justify-between hover:bg-slate-50"
+                        >
+                          <div className="flex items-center gap-3">
+                            {expandedClauses.has(clause.id) ? (
+                              <ChevronDown className="w-5 h-5 text-slate-400" />
+                            ) : (
+                              <ChevronRight className="w-5 h-5 text-slate-400" />
+                            )}
+                            <span className="font-semibold text-slate-900">
+                              {clause.title}
+                            </span>
+                          </div>
+                        </button>
+
+                        {expandedClauses.has(clause.id) && (
+                          <div className="px-8 pb-6">
+                            <div className="pl-8">
+                              <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+                                {clause.content}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
 
-              {/* Clauses */}
-              <div className="divide-y divide-slate-100">
-                {contract.content.clauses.map((clause) => (
-                  <div key={clause.id}>
-                    <button
-                      onClick={() => toggleClause(clause.id)}
-                      className="w-full px-8 py-4 flex items-center justify-between hover:bg-slate-50"
-                    >
-                      <div className="flex items-center gap-3">
-                        {expandedClauses.has(clause.id) ? (
-                          <ChevronDown className="w-5 h-5 text-slate-400" />
-                        ) : (
-                          <ChevronRight className="w-5 h-5 text-slate-400" />
-                        )}
-                        <span className="font-semibold text-slate-900">
-                          {clause.title}
-                        </span>
-                      </div>
-                    </button>
-
-                    {expandedClauses.has(clause.id) && (
-                      <div className="px-8 pb-6">
-                        <div className="pl-8">
-                          <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-                            {clause.content}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Signature Block - Document Style */}
+              {/* Signature Block - Document Style (hidden for sign_only since fields are on PDF) */}
+              {contract.processingMode !== "sign_only" && (
               <div className="px-8 py-6 border-t border-slate-200">
                 <h3 className="text-sm font-semibold text-slate-500 uppercase mb-6">
                   Signatures
@@ -1353,11 +1586,12 @@ export default function SignContractPage() {
                   </div>
                 )}
               </div>
+              )}
             </div>
           </div>
 
           {/* Signing Panel */}
-          <div className="lg:col-span-1">
+          <div id="signing-panel" className="lg:col-span-1">
             <div className="bg-white rounded-xl border border-slate-200 p-6 sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto">
               <h2 className="text-lg font-semibold text-slate-900 mb-4">
                 Sign Document
@@ -1777,7 +2011,7 @@ export default function SignContractPage() {
             {/* Modal Body */}
             <div className="p-6">
               <p className="text-slate-600 mb-6">
-                Confirm your name, initials, and signature. Once adopted, your signature will be applied to all required fields.
+                <span className="font-medium">Step 1 of 2:</span> Create your signature below. After adopting, you&apos;ll review the contract and confirm to sign.
               </p>
 
               {/* Full Name Input */}
@@ -1980,9 +2214,9 @@ export default function SignContractPage() {
 
               {/* Legal Agreement */}
               <p className="text-xs text-slate-500 mt-6 leading-relaxed">
-                By selecting Adopt and Sign, I agree that the signature and initials will be the electronic
-                representation of my signature and initials for all purposes when I (or my agent) use them on documents,
-                including legally binding contracts.
+                By adopting this signature, I agree that it will be the electronic representation of my
+                signature and initials for all purposes when I (or my agent) use them on documents.
+                You will review the contract before signing.
               </p>
             </div>
 
@@ -2000,7 +2234,7 @@ export default function SignContractPage() {
                 className="px-6 py-2.5 bg-amber-500 text-white font-medium rounded-lg hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               >
                 <Check className="w-4 h-4" />
-                Adopt and Sign
+                Adopt Signature
               </button>
             </div>
           </div>

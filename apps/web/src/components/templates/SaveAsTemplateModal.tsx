@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X, FileStack, Globe, Lock, Loader2, Info, CheckCircle } from "lucide-react";
+import { useOnboarding } from "@/components/onboarding";
 
 interface ContractContent {
   preamble?: string;
@@ -46,6 +47,7 @@ export function SaveAsTemplateModal({
   content,
   defaultName = "",
 }: SaveAsTemplateModalProps) {
+  const { completeStep } = useOnboarding();
   const [name, setName] = useState(defaultName || "");
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(false);
@@ -68,6 +70,8 @@ export function SaveAsTemplateModal({
     try {
       await onSave({ name: name.trim(), description: description.trim(), is_public: isPublic });
       setSaved(true);
+      // Mark onboarding step complete
+      completeStep("save_template");
       // Auto-close after showing success
       setTimeout(() => {
         onClose();

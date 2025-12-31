@@ -993,6 +993,174 @@ Powered by Lexport
   }
 }
 
+export interface InvoiceEmailParams {
+  to: string;
+  recipientName: string;
+  contractTitle: string;
+  invoiceNumber: string;
+  amount: number; // in cents
+  currency: string;
+  dueDate: string;
+  paymentUrl: string;
+  lineItems: { description: string; quantity: number; amount: number }[];
+  senderName?: string;
+  senderEmail?: string;
+  notes?: string;
+}
+
+/**
+ * Send an invoice email to the paying party
+ */
+export async function sendInvoiceEmail({
+  to,
+  recipientName,
+  contractTitle,
+  invoiceNumber,
+  amount,
+  currency,
+  dueDate,
+  paymentUrl,
+  lineItems,
+  senderName,
+  senderEmail,
+  notes,
+}: InvoiceEmailParams) {
+  const formattedAmount = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+  }).format(amount / 100);
+
+  const formattedDueDate = new Date(dueDate).toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const lineItemsHtml = lineItems
+    .map(
+      (item) => `
+      <tr>
+        <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; color: #475569;">${item.description}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #475569;">${item.quantity}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: right; color: ${BRAND.navy}; font-weight: 600;">
+          ${new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(item.amount / 100)}
+        </td>
+      </tr>`
+    )
+    .join("");
+
+  const content = `
+    <div style="text-align: center; margin-bottom: 24px;">
+      <span style="display: inline-block; background-color: ${BRAND.blue}15; color: ${BRAND.blue}; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;">📄 Invoice</span>
+    </div>
+
+    <h2 style="color: ${BRAND.navy}; font-size: 22px; margin: 0 0 8px; text-align: center;">Invoice ${invoiceNumber}</h2>
+    <p style="margin: 0 0 24px; text-align: center; color: ${BRAND.slate};">for ${contractTitle}</p>
+
+    <p style="margin: 16px 0; color: #475569;">Hi ${recipientName},</p>
+
+    <p style="margin: 16px 0; color: #475569;">
+      ${senderName ? `${senderName} has` : "You have"} sent you the following invoice for payment:
+    </p>
+
+    <!-- Invoice Summary -->
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; margin: 24px 0;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <thead>
+          <tr style="background-color: ${BRAND.navy}; color: white;">
+            <th style="padding: 12px; text-align: left; font-weight: 600;">Description</th>
+            <th style="padding: 12px; text-align: center; font-weight: 600;">Qty</th>
+            <th style="padding: 12px; text-align: right; font-weight: 600;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lineItemsHtml}
+        </tbody>
+        <tfoot>
+          <tr style="background-color: ${BRAND.emerald}10;">
+            <td colspan="2" style="padding: 16px; font-size: 16px; font-weight: 600; color: ${BRAND.navy};">Total Due</td>
+            <td style="padding: 16px; text-align: right; font-size: 20px; font-weight: 700; color: ${BRAND.emerald};">${formattedAmount}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- Due Date -->
+    <div style="background-color: #fffbeb; border: 1px solid #fcd34d; border-radius: 10px; padding: 16px; margin: 24px 0; text-align: center;">
+      <p style="margin: 0; font-size: 14px; color: #92400e;">
+        <strong>📅 Payment Due:</strong> ${formattedDueDate}
+      </p>
+    </div>
+
+    ${notes ? `
+    <div style="background-color: ${BRAND.lightSlate}; border-radius: 10px; padding: 16px; margin: 24px 0;">
+      <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: ${BRAND.navy};">Notes:</p>
+      <p style="margin: 0; font-size: 14px; color: #475569;">${notes}</p>
+    </div>
+    ` : ""}
+
+    ${primaryButton(paymentUrl, "Pay Now")}
+
+    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0;">
+
+    <p style="margin: 0; font-size: 12px; color: #94a3b8; text-align: center;">
+      ${senderName ? `This invoice is from ${senderName}${senderEmail ? ` (${senderEmail})` : ""}.` : ""}
+      Questions about this invoice? Reply to this email or contact the sender directly.
+    </p>
+  `;
+
+  const html = emailWrapper(content);
+
+  const lineItemsText = lineItems
+    .map((item) => `  - ${item.description}: ${new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(item.amount / 100)}`)
+    .join("\n");
+
+  const text = `
+Invoice ${invoiceNumber}
+for ${contractTitle}
+
+Hi ${recipientName},
+
+${senderName ? `${senderName} has` : "You have"} sent you the following invoice for payment:
+
+${lineItemsText}
+
+Total Due: ${formattedAmount}
+Due Date: ${formattedDueDate}
+
+${notes ? `Notes: ${notes}` : ""}
+
+Pay now: ${paymentUrl}
+
+${senderName ? `This invoice is from ${senderName}${senderEmail ? ` (${senderEmail})` : ""}.` : ""}
+
+---
+Powered by Lexport
+`;
+
+  try {
+    const { data, error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to: [to],
+      subject: `📄 Invoice ${invoiceNumber}: ${formattedAmount} due for ${contractTitle}`,
+      html,
+      text,
+    });
+
+    if (error) {
+      console.error("Failed to send invoice email:", error);
+      throw error;
+    }
+
+    console.log(`Invoice email sent to ${to}:`, data?.id);
+    return { success: true, id: data?.id };
+  } catch (error) {
+    console.error("Error sending invoice email:", error);
+    throw error;
+  }
+}
+
 export interface TeamInviteEmailParams {
   to: string;
   inviterName: string;

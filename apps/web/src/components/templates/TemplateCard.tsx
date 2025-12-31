@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText,
@@ -16,6 +16,8 @@ import {
   Globe,
   Lock,
   Loader2,
+  Crown,
+  ShoppingCart,
 } from "lucide-react";
 import type { Template } from "@/db/types";
 
@@ -75,10 +77,57 @@ export function TemplateCard({
   const router = useRouter();
   const [showMenu, setShowMenu] = useState(false);
   const [isUsing, setIsUsing] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [ownershipStatus, setOwnershipStatus] = useState<{
+    owned: boolean;
+    reason: string | null;
+  } | null>(null);
 
   const Icon = CONTRACT_TYPE_ICONS[template.type] || FileText;
   const typeName = CONTRACT_TYPE_NAMES[template.type] || template.type;
   const jurisdictionName = JURISDICTION_NAMES[template.jurisdiction] || template.jurisdiction;
+  const isPremium = template.is_premium;
+  const price = template.price || 1000; // Default $10.00
+
+  // Check ownership for premium templates
+  useEffect(() => {
+    if (!isPremium) return;
+
+    const checkOwnership = async () => {
+      try {
+        const response = await fetch(`/api/templates/${template.id}/purchase`);
+        const data = await response.json();
+        setOwnershipStatus(data);
+      } catch (error) {
+        console.error("Failed to check template ownership:", error);
+        setOwnershipStatus({ owned: false, reason: null });
+      }
+    };
+
+    checkOwnership();
+  }, [template.id, isPremium]);
+
+  const handlePurchase = async () => {
+    setIsPurchasing(true);
+    try {
+      const response = await fetch(`/api/templates/${template.id}/purchase`, {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (data.url) {
+        // Redirect to Stripe checkout
+        window.location.href = data.url;
+      } else if (data.success) {
+        // Pro/Team user - template was granted for free
+        setOwnershipStatus({ owned: true, reason: "subscription" });
+      }
+    } catch (error) {
+      console.error("Failed to purchase template:", error);
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
 
   const handleUse = async () => {
     if (onUse) {
@@ -116,6 +165,12 @@ export function TemplateCard({
                 {typeName}
               </span>
               <span className="text-xs text-slate-500">{jurisdictionName}</span>
+              {isPremium && (
+                <span className="flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+                  <Crown className="w-3 h-3" />
+                  Premium
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -194,18 +249,34 @@ export function TemplateCard({
           <span>{template.usage_count || 0} uses</span>
         </div>
 
-        <button
-          onClick={handleUse}
-          disabled={isUsing}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#529ec6] bg-[#529ec6]/5 rounded-lg hover:bg-[#529ec6]/10 transition-colors disabled:opacity-50"
-        >
-          {isUsing ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Play className="w-4 h-4" />
-          )}
-          Use
-        </button>
+        {/* Show purchase button for premium templates user doesn't own */}
+        {isPremium && ownershipStatus && !ownershipStatus.owned ? (
+          <button
+            onClick={handlePurchase}
+            disabled={isPurchasing}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg hover:from-amber-600 hover:to-orange-600 transition-colors disabled:opacity-50 shadow-sm"
+          >
+            {isPurchasing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <ShoppingCart className="w-4 h-4" />
+            )}
+            ${(price / 100).toFixed(0)}
+          </button>
+        ) : (
+          <button
+            onClick={handleUse}
+            disabled={isUsing || (isPremium && ownershipStatus === null)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#529ec6] bg-[#529ec6]/5 rounded-lg hover:bg-[#529ec6]/10 transition-colors disabled:opacity-50"
+          >
+            {isUsing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Play className="w-4 h-4" />
+            )}
+            Use
+          </button>
+        )}
       </div>
     </div>
   );

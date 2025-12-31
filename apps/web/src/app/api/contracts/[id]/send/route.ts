@@ -38,6 +38,17 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Check subscription limits for signatures
+    const { data: userData } = await supabase
+      .from("users")
+      .select("subscription_tier, signatures_used, signatures_limit")
+      .eq("id", user.id)
+      .single();
+
+    const tier = userData?.subscription_tier || "free";
+    const signaturesUsed = userData?.signatures_used || 0;
+    const signaturesLimit = userData?.signatures_limit || 3;
+
     // Parse request
     const body = await request.json();
     const parseResult = SendRequestSchema.safeParse(body);
@@ -57,6 +68,25 @@ export async function POST(
       reminderEnabled,
       reminderIntervalDays,
     } = parseResult.data;
+
+    // Check if user has enough signatures remaining (free tier only)
+    if (tier === "free" && signaturesLimit !== -1) {
+      const signaturesNeeded = signers.length;
+      const signaturesRemaining = signaturesLimit - signaturesUsed;
+
+      if (signaturesNeeded > signaturesRemaining) {
+        return NextResponse.json(
+          {
+            error: "Signature limit reached",
+            message: `You have ${signaturesRemaining} signature${signaturesRemaining !== 1 ? "s" : ""} remaining on the free plan. Upgrade to Pro for unlimited signatures.`,
+            upgradeUrl: "/settings/billing",
+            signaturesRemaining,
+            signaturesNeeded,
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     // Fetch and verify contract ownership
     const { data: contract, error: contractError } = await supabase
@@ -98,6 +128,15 @@ export async function POST(
         { error: "Failed to create signature requests" },
         { status: 500 }
       );
+    }
+
+    // Increment signatures used counter (by the number of signers)
+    for (let i = 0; i < signers.length; i++) {
+      try {
+        await supabase.rpc("increment_signatures_used", { user_uuid: user.id });
+      } catch (err) {
+        console.error("Failed to increment signature usage:", err);
+      }
     }
 
     // Calculate next reminder time

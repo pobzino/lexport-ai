@@ -59,11 +59,14 @@ import { ReviewPanel } from "@/components/review-panel";
 import { SectionExplainer } from "@/components/contracts/SectionExplainer";
 import { SaveAsTemplateModal } from "@/components/templates/SaveAsTemplateModal";
 import { FieldTemplateEditor } from "@/components/templates/FieldTemplateEditor";
-import { PDFPreviewModal } from "@/components/pdf-preview-modal";
 import { EmbeddedPDFViewer } from "@/components/embedded-pdf-viewer";
 import { DefineSignersModal, type SignerDefinition } from "@/components/define-signers-modal";
 import type { ContractVersion, ContractContent as ContractContentType } from "@/db/types";
 import type { RiskAnalysisResult } from "@/types/risk-analysis";
+import { ContractChat } from "@/components/contract-chat";
+import { useOnboarding } from "@/components/onboarding";
+import { useSubscription } from "@/lib/hooks/useSubscription";
+import { ContractPaywall } from "@/components/paywall/ContractPaywall";
 
 interface ContractContent {
   preamble: string;
@@ -93,7 +96,7 @@ interface Contract {
   source_type?: "generated" | "uploaded";
   source_file_url?: string | null;
   source_file_type?: "pdf" | "docx" | "jpg" | "png" | null;
-  processing_mode?: "quick" | "full" | null;
+  processing_mode?: "sign_only" | "edit_and_sign" | "full" | null;
   extracted_text?: string | null;
 }
 
@@ -109,6 +112,7 @@ interface DBSignatureField {
   position_y: number;
   width: number;
   height: number;
+  page?: number;
   order: number;
 }
 
@@ -166,7 +170,14 @@ interface ClauseExplanation {
 export default function ContractEditorPage() {
   const params = useParams();
   const router = useRouter();
+  const { completeStep } = useOnboarding();
   const contractId = params.id as string;
+  const subscription = useSubscription();
+
+  // Check if paywall should be shown (free tier, exceeded limit)
+  const showPaywall = !subscription.isLoading &&
+    subscription.tier === "free" &&
+    subscription.aiContractsUsed > subscription.aiContractsLimit;
 
   const [contract, setContract] = useState<Contract | null>(null);
   const [loading, setLoading] = useState(true);
@@ -206,12 +217,8 @@ export default function ContractEditorPage() {
   const [depositPercentage, setDepositPercentage] = useState<string>("30");
   const [balanceDueDate, setBalanceDueDate] = useState<string>("");
 
-  // Chat state
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
+  // Chat context state (for text selection)
   const [chatContext, setChatContext] = useState<{ text: string; action?: string } | null>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Explanation state
   const [explanation, setExplanation] = useState<ClauseExplanation | null>(null);
@@ -271,9 +278,6 @@ export default function ContractEditorPage() {
 
   // Section Explainer state
   const [showSectionExplainer, setShowSectionExplainer] = useState(false);
-
-  // PDF Preview state
-  const [showPDFPreview, setShowPDFPreview] = useState(false);
 
   // Track open panels for limiting to max 2
   type PanelName = 'chat' | 'signerPanel' | 'fillBlanksPanel' | 'paymentSettings' |
@@ -445,7 +449,7 @@ export default function ContractEditorPage() {
     setTextSelection(null);
   };
 
-  // Handle AI quick action - execute immediately
+  // Handle AI quick action - set context and open chat
   const handleQuickAction = async (action: string, prompt: string) => {
     // Clear the text selection popup first
     setTextSelection(null);
@@ -453,40 +457,9 @@ export default function ContractEditorPage() {
     // Open AI chat
     openPanel('chat');
 
-    // Add user message with the action label
-    setChatMessages((prev) => [...prev, { role: "user", content: `[${action}]\n\n${prompt.split('\n\n')[1] || prompt}` }]);
-    setChatLoading(true);
-
-    try {
-      const response = await fetch(`/api/contracts/${contractId}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...chatMessages, { role: "user", content: prompt }],
-        }),
-      });
-
-      if (!response.ok) throw new Error("Chat failed");
-      const data = await response.json();
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.response },
-      ]);
-
-      if (data.contractUpdated && data.contract) {
-        setContract(data.contract);
-      }
-    } catch (err) {
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Sorry, I encountered an error. Please try again.",
-        },
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
+    // Set the context with the selected text and action
+    const selectedText = prompt.split('\n\n')[1] || prompt;
+    setChatContext({ text: selectedText, action });
   };
 
   // Handle adding selected text to chat for custom question
@@ -497,9 +470,8 @@ export default function ContractEditorPage() {
     // Open AI chat
     openPanel('chat');
 
-    // Set the context and focus input
+    // Set the context for the chat component
     setChatContext({ text });
-    setChatInput("");
   };
 
   // Handle text selection from HighlightedClauseContent
@@ -753,6 +725,7 @@ export default function ContractEditorPage() {
     positionY: dbField.position_y,
     width: dbField.width,
     height: dbField.height,
+    page: dbField.page || 1,
     order: dbField.order,
   });
 
@@ -778,6 +751,57 @@ export default function ContractEditorPage() {
     }
   };
 
+  // Extract signer info from contract metadata (party_a/party_b data)
+  const extractSignersFromMetadata = (contractData: Contract): SignerDefinition[] => {
+    const meta = contractData.metadata || {};
+    const contractType = contractData.type;
+    const SIGNER_COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899"];
+
+    // Map contract type to metadata keys and role labels
+    const roleMap: Record<string, { primary: string; secondary: string }> = {
+      nda_mutual: { primary: "disclosingParty", secondary: "receivingParty" },
+      nda_one_way: { primary: "disclosingParty", secondary: "receivingParty" },
+      independent_contractor: { primary: "client", secondary: "contractor" },
+      consulting_agreement: { primary: "client", secondary: "consultant" },
+      safe_note: { primary: "company", secondary: "investor" },
+      freelance_service: { primary: "client", secondary: "freelancer" },
+    };
+
+    const roleLabelMap: Record<string, { primary: string; secondary: string }> = {
+      nda_mutual: { primary: "Disclosing Party", secondary: "Receiving Party" },
+      nda_one_way: { primary: "Disclosing Party", secondary: "Receiving Party" },
+      independent_contractor: { primary: "Company", secondary: "Contractor" },
+      consulting_agreement: { primary: "Client", secondary: "Consultant" },
+      safe_note: { primary: "Company", secondary: "Investor" },
+      freelance_service: { primary: "Client", secondary: "Freelancer" },
+    };
+
+    const mapping = roleMap[contractType] || { primary: "party1", secondary: "party2" };
+    const labels = roleLabelMap[contractType] || { primary: "Party 1", secondary: "Party 2" };
+
+    const primary = meta[mapping.primary] as { name?: string; email?: string } | undefined;
+    const secondary = meta[mapping.secondary] as { name?: string; email?: string } | undefined;
+
+    return [
+      {
+        id: "signer-0",
+        role: labels.primary,
+        name: primary?.name || "",
+        email: primary?.email || "",
+        company: "",
+        color: SIGNER_COLORS[0],
+      },
+      {
+        id: "signer-1",
+        role: labels.secondary,
+        name: secondary?.name || "",
+        email: secondary?.email || "",
+        company: "",
+        color: SIGNER_COLORS[1],
+      },
+    ];
+  };
+
   // Fetch contract
   useEffect(() => {
     async function fetchContract() {
@@ -786,6 +810,9 @@ export default function ContractEditorPage() {
         if (!response.ok) throw new Error("Contract not found");
         const data = await response.json();
         setContract(data.contract);
+
+        // Mark onboarding step complete
+        completeStep("preview_contract");
 
         // Store signature-related data
         if (data.signatureFields) {
@@ -822,9 +849,17 @@ export default function ContractEditorPage() {
             setBalanceDueDate(dueDate.toISOString().split("T")[0]);
           }
 
-          // Load saved defined signers from metadata
+          // Load saved defined signers from metadata, or extract from party info
           if (data.contract.metadata?.defined_signers) {
             setDefinedSigners(data.contract.metadata.defined_signers);
+          } else {
+            // Pre-fill from contract metadata (party_a/party_b data from generation)
+            const extractedSigners = extractSignersFromMetadata(data.contract);
+            // Only set if we have actual data (at least one email or name)
+            const hasData = extractedSigners.some(s => s.name || s.email);
+            if (hasData) {
+              setDefinedSigners(extractedSigners);
+            }
           }
         }
       } catch (err) {
@@ -835,7 +870,7 @@ export default function ContractEditorPage() {
     }
 
     fetchContract();
-  }, [contractId]);
+  }, [contractId, completeStep]);
 
   // Fetch current user ID for comments
   useEffect(() => {
@@ -881,11 +916,6 @@ export default function ContractEditorPage() {
       fetchAllComments();
     }
   }, [showComments, contract, fetchAllComments]);
-
-  // Scroll chat to bottom
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
 
   // Toggle clause expansion
   const toggleClause = (clauseId: string) => {
@@ -1094,90 +1124,14 @@ export default function ContractEditorPage() {
     }
   };
 
-  // Modify clause with AI
+  // Modify clause with AI (now handled through ContractChat component)
   const modifyClauseWithAI = async (clauseId: string, instruction: string) => {
-    setChatLoading(true);
-
-    try {
-      const response = await fetch(`/api/contracts/${contractId}/clause`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "modify",
-          clauseId,
-          instruction,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to modify clause");
-      const data = await response.json();
-
-      // Update local contract state
-      if (data.contract) {
-        setContract(data.contract);
-      }
-
-      // Add AI response to chat
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `I've updated the "${data.modification.title}" clause. ${data.modification.explanation}`,
-        },
-      ]);
-    } catch (err) {
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Sorry, I couldn't modify that clause. Please try again.",
-        },
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  // Chat with AI
-  const sendChatMessage = async () => {
-    if (!chatInput.trim() || chatLoading) return;
-
-    const userMessage = chatInput.trim();
-    setChatInput("");
-    setChatMessages((prev) => [...prev, { role: "user", content: userMessage }]);
-    setChatLoading(true);
-
-    try {
-      // Send all messages to the chat API - it handles both questions and modifications
-      const response = await fetch(`/api/contracts/${contractId}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...chatMessages, { role: "user", content: userMessage }],
-        }),
-      });
-
-      if (!response.ok) throw new Error("Chat failed");
-      const data = await response.json();
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.response },
-      ]);
-
-      // If contract was updated by AI, refresh the local state
-      if (data.contractUpdated && data.contract) {
-        setContract(data.contract);
-      }
-    } catch (err) {
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Sorry, I encountered an error. Please try again.",
-        },
-      ]);
-    } finally {
-      setChatLoading(false);
+    if (!contract) return;
+    // Open chat panel with context for the modification
+    openPanel('chat');
+    const clause = contract.content.clauses.find(c => c.id === clauseId);
+    if (clause) {
+      setChatContext({ text: clause.content, action: instruction });
     }
   };
 
@@ -1412,17 +1366,30 @@ export default function ContractEditorPage() {
                 <span className="hidden sm:inline">Risk</span>
               </button>
 
-              {/* Review Panel */}
-              <button
-                onClick={() => togglePanel('reviewPanel')}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showReviewPanel
-                  ? "bg-[#202e46] text-white"
-                  : "text-slate-600 hover:bg-slate-100"
-                  }`}
-              >
-                <Users className="w-4 h-4" />
-                <span className="hidden sm:inline">Review</span>
-              </button>
+              {/* Review Panel - hide for sign_only contracts */}
+              {contract.processing_mode !== "sign_only" && (
+                <button
+                  onClick={() => togglePanel('reviewPanel')}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showReviewPanel
+                    ? "bg-[#202e46] text-white"
+                    : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                >
+                  <Users className="w-4 h-4" />
+                  <span className="hidden sm:inline">Review</span>
+                </button>
+              )}
+
+              {/* Signature Fields - prominent button for sign_only contracts */}
+              {contract.processing_mode === "sign_only" && !isLocked && (
+                <button
+                  onClick={() => setShowDefineSigners(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all bg-[#529ec6] text-white hover:bg-[#4a8db3]"
+                >
+                  <PenTool className="w-4 h-4" />
+                  <span className="hidden sm:inline">Place Fields</span>
+                </button>
+              )}
 
               {/* Fill Blanks - only show if there are blanks and not locked */}
               {blankCounts.total > 0 && !isLocked && (
@@ -1448,9 +1415,8 @@ export default function ContractEditorPage() {
                 </button>
               )}
 
-              {/* Section Guide - only for contracts with parsed clauses */}
-              {!(contract?.source_type === "uploaded" && contract?.processing_mode === "quick") && (
-                <button
+              {/* Section Guide */}
+              <button
                   onClick={() => togglePanel('sectionExplainer')}
                   className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showSectionExplainer
                     ? "bg-[#529ec6] text-white"
@@ -1461,7 +1427,6 @@ export default function ContractEditorPage() {
                   <BookOpen className="w-4 h-4" />
                   <span className="hidden sm:inline">Guide</span>
                 </button>
-              )}
 
               {/* Divider */}
               <div className="w-px h-6 bg-slate-200 mx-1" />
@@ -1479,7 +1444,7 @@ export default function ContractEditorPage() {
                 </button>
 
                 {showToolsMenu && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-[60] animate-in fade-in zoom-in-95 duration-100">
+                  <div className="absolute right-0 lg:right-[420px] top-full mt-1 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-[100] animate-in fade-in zoom-in-95 duration-100">
                     {/* Save action - hidden when locked */}
                     {!isLocked && (
                       <button
@@ -1532,7 +1497,12 @@ export default function ContractEditorPage() {
                     {!isLocked && (
                       <button
                         onClick={() => {
-                          setIsEditingFields(!isEditingFields);
+                          // For sign_only contracts, use visual PDF field editor
+                          if (contract.processing_mode === "sign_only") {
+                            setShowDefineSigners(true);
+                          } else {
+                            setIsEditingFields(!isEditingFields);
+                          }
                           setShowToolsMenu(false);
                         }}
                         className="w-full flex items-center justify-between px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
@@ -1651,17 +1621,6 @@ export default function ContractEditorPage() {
                       <History className="w-4 h-4 text-slate-400" />
                       Audit Trail
                     </Link>
-
-                    <button
-                      onClick={() => {
-                        setShowPDFPreview(true);
-                        setShowToolsMenu(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      <Eye className="w-4 h-4 text-[#529ec6]" />
-                      Preview PDF
-                    </button>
 
                     <button
                       onClick={() => {
@@ -1921,42 +1880,21 @@ export default function ContractEditorPage() {
                 )}
               </div>
 
-              {/* Quick Mode Uploaded Contract - Show PDF preview instead of editable clauses */}
-              {contract.source_type === "uploaded" && contract.processing_mode === "quick" ? (
-                <div className="flex flex-col h-[calc(100vh-280px)] min-h-[500px]">
-                  {/* Header with actions */}
-                  <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-slate-50">
-                    <div className="flex items-center gap-2">
-                      <Upload className="w-4 h-4 text-[#529ec6]" />
-                      <span className="text-sm font-medium text-slate-700">Uploaded Document</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setShowDefineSigners(true)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[#529ec6] text-white rounded-lg font-medium hover:bg-[#4189b1] transition-colors"
-                      >
-                        <PenTool className="w-4 h-4" />
-                        Add Signatures
-                      </button>
+              {/* Sign Only Mode: Show original PDF */}
+              {contract.processing_mode === "sign_only" && contract.source_file_url ? (
+                <div className="p-4">
+                  <div className="mb-4 flex items-start gap-3 p-4 bg-blue-50 rounded-lg">
+                    <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-blue-800">
+                      <p className="font-medium">Sign Only Mode</p>
+                      <p className="mt-1">
+                        This is your original document. Click the &quot;Place Fields&quot; button above to visually place signature fields on the PDF, then send for signatures.
+                      </p>
                     </div>
                   </div>
-
-                  {/* Embedded PDF Viewer */}
-                  <div className="flex-1 min-h-0 overflow-hidden">
-                    <EmbeddedPDFViewer
-                      pdfUrl={contract.source_file_url || null}
-                    />
-                  </div>
-
-                  {/* Footer info */}
-                  {contract.extracted_text && (
-                    <div className="px-6 py-2 border-t border-slate-200 bg-slate-50">
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <Info className="w-3 h-3" />
-                        <span>Extracted text available for AI analysis — use the AI Assistant on the right</span>
-                      </div>
-                    </div>
-                  )}
+                  <EmbeddedPDFViewer
+                    pdfUrl={contract.source_file_url}
+                  />
                 </div>
               ) : (
                 <>
@@ -1980,8 +1918,18 @@ export default function ContractEditorPage() {
                   )}
 
                   {/* Clauses */}
-                  <div className="divide-y divide-slate-100">
-                    {contract.content.clauses.map((clause) => (
+                  <div className="divide-y divide-slate-100 relative">
+                    {/* Calculate which clauses to show fully vs blur */}
+                    {(() => {
+                      const clauses = contract.content.clauses;
+                      const midpoint = Math.ceil(clauses.length / 2);
+                      const visibleClauses = showPaywall ? clauses.slice(0, midpoint) : clauses;
+                      const blurredClauses = showPaywall ? clauses.slice(midpoint) : [];
+
+                      return (
+                        <>
+                          {/* Visible clauses */}
+                          {visibleClauses.map((clause) => (
                       <div
                         key={clause.id}
                         id={`clause-${clause.id}`}
@@ -2173,8 +2121,40 @@ export default function ContractEditorPage() {
                       </div>
                     ))}
 
-                    {/* Add Clause Button - hidden when locked */}
-                    {!isLocked && (
+                          {/* Blurred clauses with paywall */}
+                          {blurredClauses.length > 0 && (
+                            <div className="relative min-h-[400px]">
+                              {/* Blurred content preview */}
+                              <div className="blur-sm pointer-events-none select-none opacity-50">
+                                {blurredClauses.map((clause) => (
+                                  <div key={clause.id} className="px-8 py-4 border-t border-slate-100">
+                                    <div className="flex items-center gap-3 mb-2">
+                                      <ChevronRight className="w-5 h-5 text-slate-400" />
+                                      <span className="font-semibold text-slate-900">{clause.title}</span>
+                                      <span className="px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-600">
+                                        {clause.type}
+                                      </span>
+                                    </div>
+                                    <div className="pl-8 text-slate-700 leading-relaxed line-clamp-3">
+                                      {clause.content.substring(0, 200)}...
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              {/* Paywall overlay */}
+                              <ContractPaywall
+                                type="contract_limit"
+                                currentUsage={subscription.aiContractsUsed}
+                                limit={subscription.aiContractsLimit}
+                              />
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+
+                    {/* Add Clause Button - hidden when locked or paywalled */}
+                    {!isLocked && !showPaywall && (
                       <button
                         onClick={addClause}
                         className="w-full py-4 border-2 border-dashed border-slate-300 hover:border-[#529ec6] hover:bg-[#529ec6]/5 rounded-lg transition-colors flex items-center justify-center gap-2 text-slate-500 hover:text-[#529ec6]"
@@ -2230,223 +2210,37 @@ export default function ContractEditorPage() {
         {/* AI Chat Sidebar */}
         {showChat && (
           <aside className="fixed inset-0 z-50 lg:relative lg:inset-auto w-full lg:w-96 flex-shrink-0 bg-white lg:border-l border-slate-200 flex flex-col">
-            {/* Chat Header */}
-            <div className="px-4 py-3 border-b border-slate-200 flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-[#529ec6]" />
-                  <span className="font-semibold text-slate-900">
-                    AI Assistant
-                  </span>
-                </div>
-                <button
-                  onClick={() => setShowChat(false)}
-                  className="p-1 hover:bg-slate-100 rounded"
-                >
-                  <X className="w-4 h-4 text-slate-500" />
-                </button>
-              </div>
-              {activeClause && (
-                <p className="text-sm text-slate-500 mt-1">
-                  Focused on:{" "}
-                  {contract.content.clauses.find((c) => c.id === activeClause)
-                    ?.title || "Contract"}
-                </p>
-              )}
+            {/* Close button for mobile */}
+            <div className="absolute top-2 right-2 lg:hidden z-10">
+              <button
+                onClick={() => setShowChat(false)}
+                className="p-1 bg-white rounded-full shadow hover:bg-slate-100"
+              >
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
             </div>
-
-            {/* Explanation Panel */}
-            {(explaining || explanation) && (
-              <div className="p-4 border-b border-slate-200 bg-[#529ec6]/5 flex-shrink-0">
-                {explaining ? (
-                  <div className="flex items-center gap-2 text-[#202e46]">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Analyzing clause...</span>
-                  </div>
-                ) : explanation ? (
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-slate-900">
-                      {explanation.summary}
-                    </h4>
-                    <p className="text-sm text-slate-600">
-                      {explanation.explanation}
-                    </p>
-                    {explanation.keyPoints && explanation.keyPoints.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-slate-500 uppercase mb-1">
-                          Key Points
-                        </p>
-                        <ul className="text-sm text-slate-600 space-y-1">
-                          {explanation.keyPoints.map((point, i) => (
-                            <li key={i} className="flex items-start gap-2">
-                              <span className="text-[#529ec6]">•</span>
-                              {point}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    <button
-                      onClick={() => setExplanation(null)}
-                      className="text-xs text-[#529ec6] hover:underline"
-                    >
-                      Dismiss
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            {/* Chat Messages */}
-            <div className="flex-1 overflow-auto p-4 space-y-4 min-h-0">
-              {chatMessages.length === 0 && (
-                <div className="text-center text-slate-500 py-8">
-                  <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">
-                    Ask me anything about this contract.
-                  </p>
-                  <p className="text-xs mt-1">
-                    Click on a clause to focus our conversation.
-                  </p>
-                  {/* Suggested prompts for empty state */}
-                  <div className="mt-4 space-y-2">
-                    <p className="text-xs text-slate-400 uppercase font-medium">Try asking:</p>
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      {[
-                        "Summarize this contract",
-                        "What are the key terms?",
-                        "Are there any red flags?",
-                        "What obligations do I have?",
-                      ].map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          onClick={() => {
-                            setChatInput(suggestion);
-                          }}
-                          className="px-3 py-1.5 text-xs bg-[#529ec6]/5 text-[#202e46] rounded-full hover:bg-[#529ec6]/10 border border-[#529ec6]/20"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {chatMessages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[85%] px-4 py-2 rounded-xl ${msg.role === "user"
-                      ? "bg-[#202e46] text-white"
-                      : "bg-slate-100 text-slate-900"
-                      }`}
-                  >
-                    {msg.role === "user" ? (
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                    ) : (
-                      <div className="text-sm prose prose-sm prose-slate max-w-none">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {chatLoading && (
-                <div className="flex items-center gap-2 text-slate-500">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="text-sm">Thinking...</span>
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-
-            {/* Chat Input */}
-            <div className="p-4 border-t border-slate-200 flex-shrink-0">
-              {/* Context display when text is selected */}
-              {chatContext && (
-                <div className="mb-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Selected text</span>
-                    <button
-                      onClick={() => setChatContext(null)}
-                      className="text-xs text-slate-400 hover:text-slate-600"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  <p className="text-sm text-slate-700 line-clamp-3 italic">"{chatContext.text}"</p>
-                </div>
-              )}
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      // Include context in the message if present
-                      if (chatContext) {
-                        const fullMessage = `Regarding this text:\n"${chatContext.text}"\n\n${chatInput}`;
-                        setChatInput(fullMessage);
-                        setChatContext(null);
-                        // Let the state update then send
-                        setTimeout(() => sendChatMessage(), 0);
-                      } else {
-                        sendChatMessage();
-                      }
-                    }
-                  }}
-                  placeholder={chatContext ? "Ask a question about this text..." : "Ask about this contract..."}
-                  className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent"
-                  autoFocus={!!chatContext}
-                />
-                <button
-                  onClick={() => {
-                    if (chatContext) {
-                      const fullMessage = `Regarding this text:\n"${chatContext.text}"\n\n${chatInput}`;
-                      setChatInput(fullMessage);
-                      setChatContext(null);
-                      setTimeout(() => sendChatMessage(), 0);
-                    } else {
-                      sendChatMessage();
-                    }
-                  }}
-                  disabled={chatLoading || (!chatInput.trim() && !chatContext)}
-                  className="p-2 bg-[#202e46] text-white rounded-lg hover:bg-[#1a2539] disabled:opacity-50"
-                >
-                  <Send className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {(activeClause
-                  ? [
-                    "Explain this clause",
-                    "Make it simpler",
-                    "What are the risks?",
-                    "Rewrite to favor me",
-                    "Add more protection",
-                  ]
-                  : [
-                    "Review the whole contract",
-                    "Suggest improvements",
-                    "Find potential issues",
-                    "What should I negotiate?",
-                  ]
-                ).map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    onClick={() => {
-                      setChatInput(suggestion);
-                    }}
-                    className="px-3 py-1 text-xs bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <ContractChat
+              contractId={contractId}
+              onContractUpdated={async () => {
+                // Refresh contract data after AI modification
+                try {
+                  const response = await fetch(`/api/contracts/${contractId}`);
+                  if (response.ok) {
+                    const data = await response.json();
+                    setContract(data.contract);
+                  }
+                } catch (err) {
+                  console.error("Failed to refresh contract:", err);
+                }
+              }}
+              onJumpToClause={(clauseId) => {
+                setActiveClause(clauseId);
+                const element = document.getElementById(`clause-${clauseId}`);
+                element?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }}
+              contextText={chatContext?.text}
+              onClearContext={() => setChatContext(null)}
+            />
           </aside>
         )}
 
@@ -2847,16 +2641,6 @@ export default function ContractEditorPage() {
         />
       )}
 
-      {/* PDF Preview Modal */}
-      {contract && (
-        <PDFPreviewModal
-          isOpen={showPDFPreview}
-          onClose={() => setShowPDFPreview(false)}
-          contractId={contractId}
-          contractTitle={contract.title}
-        />
-      )}
-
       {/* Define Signers Modal (pre-step before visual field editor) */}
       {showDefineSigners && contract && (
         <DefineSignersModal
@@ -2891,7 +2675,7 @@ export default function ContractEditorPage() {
       {showVisualEditor && contract && (
         <SignatureFieldEditorVisual
           contractId={contractId}
-          pdfUrl={contract.source_type === "uploaded" && contract.processing_mode === "quick" && contract.source_file_url
+          pdfUrl={contract.processing_mode === "sign_only" && contract.source_file_url
             ? contract.source_file_url
             : `/api/contracts/${contractId}/pdf`}
           signers={definedSigners.length > 0
@@ -2907,7 +2691,7 @@ export default function ContractEditorPage() {
             type: f.type,
             signerId: `signer-${getSignerRoles().indexOf(f.signerRole)}`,
             signerRole: f.signerRole,
-            page: 1,
+            page: f.page || 1,
             x: f.positionX,
             y: f.positionY,
             width: f.width,
@@ -2926,6 +2710,7 @@ export default function ContractEditorPage() {
                   positionY: field.y,
                   width: field.width,
                   height: field.height,
+                  page: field.page,
                 });
               } else {
                 await handleFieldCreate({
@@ -2937,6 +2722,7 @@ export default function ContractEditorPage() {
                   positionY: field.y,
                   width: field.width,
                   height: field.height,
+                  page: field.page,
                   order: signatureFields.length + 1,
                 });
               }
