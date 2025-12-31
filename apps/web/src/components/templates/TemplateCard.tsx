@@ -32,6 +32,10 @@ const CONTRACT_TYPE_ICONS: Record<string, typeof FileText> = {
   safe_note: DollarSign,
   freelance_service: FileCheck,
   service_agreement: FileCheck,
+  ip_assignment: FileCheck,
+  advisor_agreement: Users,
+  employment_offer: Briefcase,
+  sow: FileText,
 };
 
 // Contract type display names
@@ -45,7 +49,18 @@ const CONTRACT_TYPE_NAMES: Record<string, string> = {
   safe_note: "SAFE Note",
   freelance_service: "Freelance",
   service_agreement: "Service",
+  ip_assignment: "IP Assignment",
+  advisor_agreement: "Advisor",
+  employment_offer: "Employment",
+  sow: "SOW",
 };
+
+// Format contract type code to display name (fallback for unlisted types)
+function formatContractType(code: string): string {
+  if (CONTRACT_TYPE_NAMES[code]) return CONTRACT_TYPE_NAMES[code];
+  // Handle snake_case format -> "Title Case"
+  return code.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
 
 // Jurisdiction display names
 const JURISDICTION_NAMES: Record<string, string> = {
@@ -103,7 +118,7 @@ export function TemplateCard({
   } | null>(null);
 
   const Icon = CONTRACT_TYPE_ICONS[template.type] || FileText;
-  const typeName = CONTRACT_TYPE_NAMES[template.type] || template.type;
+  const typeName = formatContractType(template.type);
   const jurisdictionName = formatJurisdiction(template.jurisdiction);
   const isPremium = template.is_premium;
   const price = template.price || 1000; // Default $10.00
