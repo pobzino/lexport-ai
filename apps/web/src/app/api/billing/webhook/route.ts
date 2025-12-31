@@ -229,10 +229,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-// Disable body parsing for webhooks (Stripe requires raw body)
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};

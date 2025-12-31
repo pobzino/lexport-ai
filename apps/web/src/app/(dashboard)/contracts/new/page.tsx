@@ -400,6 +400,93 @@ export default function NewContractPage() {
         }
         break;
       }
+
+      case "letter_of_intent": {
+        // Validate signers
+        if (signerGroups) {
+          signerGroups.forEach((group, groupIndex) => {
+            group.signers.forEach((signer, signerIndex) => {
+              if (!signer.name?.trim()) {
+                errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
+              }
+              if (!signer.email?.trim()) {
+                errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
+              } else if (!isValidEmail(signer.email)) {
+                errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
+              }
+            });
+          });
+        }
+
+        // Transaction description is required
+        if (!formData.transactionDescription || !(formData.transactionDescription as string).trim()) {
+          errors.transactionDescription = "Transaction description is required";
+        }
+        break;
+      }
+
+      case "cofounder_agreement": {
+        // Company name is required
+        if (!formData.companyName || !(formData.companyName as string).trim()) {
+          errors.companyName = "Company name is required";
+        }
+
+        // Validate co-founders (at least 2 required)
+        const cofounders = formData.cofounders as Array<{ name?: string; email?: string; equityPercentage?: number; role?: string }> | undefined;
+        if (!cofounders || cofounders.length < 2) {
+          errors.cofounders = "At least 2 co-founders are required";
+        } else {
+          cofounders.forEach((cofounder, index) => {
+            if (!cofounder.name?.trim()) {
+              errors[`cofounder_${index}_name`] = `Co-founder ${index + 1} name is required`;
+            }
+            if (!cofounder.email?.trim()) {
+              errors[`cofounder_${index}_email`] = `Co-founder ${index + 1} email is required`;
+            } else if (!isValidEmail(cofounder.email)) {
+              errors[`cofounder_${index}_email`] = "Invalid email address";
+            }
+            if (cofounder.equityPercentage === undefined || cofounder.equityPercentage < 0) {
+              errors[`cofounder_${index}_equity`] = `Co-founder ${index + 1} equity percentage is required`;
+            }
+          });
+
+          // Validate equity percentages sum to 100
+          const totalEquity = cofounders.reduce((sum, c) => sum + (c.equityPercentage || 0), 0);
+          if (totalEquity !== 100) {
+            errors.totalEquity = `Equity percentages must sum to 100% (currently ${totalEquity}%)`;
+          }
+        }
+        break;
+      }
+
+      case "sales_contract": {
+        // Validate signers
+        if (signerGroups) {
+          signerGroups.forEach((group, groupIndex) => {
+            group.signers.forEach((signer, signerIndex) => {
+              if (!signer.name?.trim()) {
+                errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
+              }
+              if (!signer.email?.trim()) {
+                errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
+              } else if (!isValidEmail(signer.email)) {
+                errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
+              }
+            });
+          });
+        }
+
+        // Product description is required
+        if (!formData.productDescription || !(formData.productDescription as string).trim()) {
+          errors.productDescription = "Product description is required";
+        }
+
+        // Total amount is required
+        if (!formData.totalAmount || (formData.totalAmount as number) <= 0) {
+          errors.totalAmount = "Total amount is required";
+        }
+        break;
+      }
     }
 
     setFormErrors(errors);
