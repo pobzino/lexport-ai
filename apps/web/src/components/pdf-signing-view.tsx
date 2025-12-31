@@ -193,8 +193,9 @@ export function PDFSigningView({
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage <= 1}
             className="p-1.5 rounded hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Previous page"
           >
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="w-5 h-5" aria-hidden="true" />
           </button>
           <span className="text-sm text-slate-600">
             Page {currentPage} of {numPages || "..."}
@@ -203,8 +204,9 @@ export function PDFSigningView({
             onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
             disabled={currentPage >= numPages}
             className="p-1.5 rounded hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Next page"
           >
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -212,8 +214,9 @@ export function PDFSigningView({
           <button
             onClick={() => setScale((s) => Math.max(0.5, s - 0.25))}
             className="p-1.5 rounded hover:bg-slate-100"
+            aria-label="Zoom out"
           >
-            <ZoomOut className="w-5 h-5" />
+            <ZoomOut className="w-5 h-5" aria-hidden="true" />
           </button>
           <span className="text-sm text-slate-600 w-12 text-center">
             {Math.round(scale * 100)}%
@@ -221,8 +224,9 @@ export function PDFSigningView({
           <button
             onClick={() => setScale((s) => Math.min(2, s + 0.25))}
             className="p-1.5 rounded hover:bg-slate-100"
+            aria-label="Zoom in"
           >
-            <ZoomIn className="w-5 h-5" />
+            <ZoomIn className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
       </div>

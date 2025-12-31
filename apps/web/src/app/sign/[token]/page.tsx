@@ -1882,8 +1882,9 @@ export default function SignContractPage() {
                               if (fileInputRef.current) fileInputRef.current.value = "";
                             }}
                             className="absolute top-2 right-2 p-1 bg-white rounded-full shadow-sm border border-slate-200 hover:bg-slate-50"
+                            aria-label="Remove uploaded signature"
                           >
-                            <Eraser className="w-4 h-4 text-slate-500" />
+                            <Eraser className="w-4 h-4 text-slate-500" aria-hidden="true" />
                           </button>
                         </div>
                       )}
@@ -2003,8 +2004,9 @@ export default function SignContractPage() {
               <button
                 onClick={() => setShowAdoptModal(false)}
                 className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                aria-label="Close signature modal"
               >
-                <X className="w-5 h-5 text-slate-500" />
+                <X className="w-5 h-5 text-slate-500" aria-hidden="true" />
               </button>
             </div>
 
@@ -2177,8 +2179,9 @@ export default function SignContractPage() {
                           if (fileInputRef.current) fileInputRef.current.value = "";
                         }}
                         className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md border border-slate-200 hover:bg-slate-50"
+                        aria-label="Remove uploaded signature"
                       >
-                        <X className="w-4 h-4 text-slate-500" />
+                        <X className="w-4 h-4 text-slate-500" aria-hidden="true" />
                       </button>
                     </div>
                   )}

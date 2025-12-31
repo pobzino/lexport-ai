@@ -21,10 +21,29 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch contract
+    // Fetch contract with all related data in a single query using nested selects
+    // This eliminates N+1 queries by leveraging Supabase's join capabilities
     const { data: contract, error } = await supabase
       .from("contracts")
-      .select("*")
+      .select(`
+        *,
+        signature_fields!signature_fields_contract_id_fkey (
+          id, contract_id, type, label, signer_role, required,
+          position_x, position_y, width, height, "order", page,
+          options, placeholder, validation, created_at
+        ),
+        signature_requests!signature_requests_contract_id_fkey (
+          id, contract_id, signer_email, signer_name, signer_role,
+          "order", status, signed_at, declined_at, decline_reason,
+          token, expires_at, created_at, updated_at, message,
+          viewed_at, last_reminder_sent_at
+        ),
+        signatures!signatures_contract_id_fkey (
+          id, contract_id, signature_request_id, type, image_url,
+          image_hash, created_at, signature_data, signature_type,
+          ip_address, user_agent, signed_at
+        )
+      `)
       .eq("id", id)
       .eq("user_id", user.id)
       .single();
@@ -33,34 +52,31 @@ export async function GET(
       return NextResponse.json({ error: "Contract not found" }, { status: 404 });
     }
 
-    // Fetch signature fields
-    const { data: signatureFields } = await supabase
-      .from("signature_fields")
-      .select("*")
-      .eq("contract_id", id)
-      .order("order", { ascending: true });
+    // Extract nested data from the joined query
+    const signatureFields = (contract.signature_fields || []).sort(
+      (a: { order: number }, b: { order: number }) => a.order - b.order
+    );
+    const signatureRequests = (contract.signature_requests || []).sort(
+      (a: { order: number }, b: { order: number }) => a.order - b.order
+    );
+    const signatures = contract.signatures || [];
 
-    // Fetch signature requests with their status
-    const { data: signatureRequests } = await supabase
-      .from("signature_requests")
-      .select("*")
-      .eq("contract_id", id)
-      .order("order", { ascending: true });
+    // Field values still need a separate query as they reference field IDs
+    // but now we only make this query if there are fields
+    let fieldValues: unknown[] = [];
+    if (signatureFields.length > 0) {
+      const { data } = await supabase
+        .from("field_values")
+        .select("*")
+        .in(
+          "field_id",
+          signatureFields.map((f: { id: string }) => f.id)
+        );
+      fieldValues = data || [];
+    }
 
-    // Fetch actual signatures
-    const { data: signatures } = await supabase
-      .from("signatures")
-      .select("*")
-      .eq("contract_id", id);
-
-    // Fetch field values (completed fields)
-    const { data: fieldValues } = await supabase
-      .from("field_values")
-      .select("*")
-      .in(
-        "field_id",
-        (signatureFields || []).map((f) => f.id)
-      );
+    // Clean up the contract object by removing nested relations
+    const { signature_fields, signature_requests, signatures: sigs, ...contractData } = contract;
 
     // Log contract view
     const context = getRequestContextFromRequest(request);
@@ -74,29 +90,29 @@ export async function GET(
 
     // For uploaded contracts, generate a fresh signed URL for the source file
     let sourceFileSignedUrl = null;
-    if (contract.source_type === "uploaded" && contract.source_file_url) {
+    if (contractData.source_type === "uploaded" && contractData.source_file_url) {
       // Check if it's already a full URL or just a file path
-      const isFullUrl = contract.source_file_url.startsWith("http");
+      const isFullUrl = contractData.source_file_url.startsWith("http");
       if (!isFullUrl) {
         // Generate signed URL from file path
         const { data: signedUrlData } = await supabase.storage
           .from("contract-uploads")
-          .createSignedUrl(contract.source_file_url, 3600); // 1 hour
+          .createSignedUrl(contractData.source_file_url, 3600); // 1 hour
         sourceFileSignedUrl = signedUrlData?.signedUrl || null;
       } else {
-        sourceFileSignedUrl = contract.source_file_url;
+        sourceFileSignedUrl = contractData.source_file_url;
       }
     }
 
     return NextResponse.json({
       contract: {
-        ...contract,
-        source_file_url: sourceFileSignedUrl || contract.source_file_url,
+        ...contractData,
+        source_file_url: sourceFileSignedUrl || contractData.source_file_url,
       },
-      signatureFields: signatureFields || [],
-      signatureRequests: signatureRequests || [],
-      signatures: signatures || [],
-      fieldValues: fieldValues || [],
+      signatureFields,
+      signatureRequests,
+      signatures,
+      fieldValues,
     });
   } catch (error) {
     console.error("Error fetching contract:", error);

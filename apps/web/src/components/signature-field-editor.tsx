@@ -10,6 +10,7 @@ import {
   User,
   Building2,
 } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export type FieldType = "signature" | "initials" | "date" | "text" | "checkbox";
 
@@ -103,6 +104,7 @@ export function SignatureFieldEditor({
   disabled = false,
 }: SignatureFieldEditorProps) {
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Check if a field type exists for a given role
   const hasField = useCallback(
@@ -170,15 +172,15 @@ export function SignatureFieldEditor({
     return User;
   };
 
-  // Clear all fields
-  const clearAllFields = useCallback(async () => {
+  // Clear all fields - opens confirmation dialog
+  const handleClearAllClick = useCallback(() => {
     if (disabled || fields.length === 0) return;
+    setShowClearConfirm(true);
+  }, [disabled, fields.length]);
 
-    const confirmed = window.confirm(
-      `This will remove all ${fields.length} signature field(s). Are you sure?`
-    );
-    if (!confirmed) return;
-
+  // Actually perform the clear after confirmation
+  const clearAllFields = useCallback(async () => {
+    setShowClearConfirm(false);
     setIsUpdating("clearing");
     try {
       // Delete all fields one by one
@@ -190,7 +192,7 @@ export function SignatureFieldEditor({
     } finally {
       setIsUpdating(null);
     }
-  }, [disabled, fields, onFieldDelete]);
+  }, [fields, onFieldDelete]);
 
   if (signerRoles.length === 0) {
     return (
@@ -210,7 +212,7 @@ export function SignatureFieldEditor({
         </p>
         {fields.length > 0 && (
           <button
-            onClick={clearAllFields}
+            onClick={handleClearAllClick}
             disabled={disabled || isUpdating === "clearing"}
             className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded transition-colors disabled:opacity-50"
           >
@@ -311,6 +313,19 @@ export function SignatureFieldEditor({
           );
         })}
       </div>
+
+      {/* Clear All Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showClearConfirm}
+        onClose={() => setShowClearConfirm(false)}
+        onConfirm={clearAllFields}
+        title="Clear All Fields"
+        message={`This will remove all ${fields.length} signature field(s). This action cannot be undone.`}
+        confirmText="Clear All"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isUpdating === "clearing"}
+      />
     </div>
   );
 }
