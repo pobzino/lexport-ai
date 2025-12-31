@@ -1922,6 +1922,39 @@ function ContractDetailsForm({
         />
       );
 
+    case "letter_of_intent":
+      return (
+        <LOIForm
+          formData={formData}
+          updateField={updateField}
+          updateNestedField={updateNestedField}
+          onChange={onChange}
+          errors={errors}
+        />
+      );
+
+    case "cofounder_agreement":
+      return (
+        <CofounderForm
+          formData={formData}
+          updateField={updateField}
+          updateNestedField={updateNestedField}
+          onChange={onChange}
+          errors={errors}
+        />
+      );
+
+    case "sales_contract":
+      return (
+        <SalesContractForm
+          formData={formData}
+          updateField={updateField}
+          updateNestedField={updateNestedField}
+          onChange={onChange}
+          errors={errors}
+        />
+      );
+
     default:
       return <div>Form not available for this contract type</div>;
   }
@@ -2586,6 +2619,697 @@ function FreelanceForm({
   );
 }
 
+function LOIForm({
+  formData,
+  updateField,
+  updateNestedField,
+  onChange,
+  errors = {},
+}: {
+  formData: Record<string, unknown>;
+  updateField: (field: string, value: unknown) => void;
+  updateNestedField: (parent: string, field: string, value: unknown) => void;
+  onChange: (data: Record<string, unknown>) => void;
+  errors?: Record<string, string>;
+}) {
+  // Initialize signer groups from form data or create defaults
+  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+    {
+      role: "proposingParty",
+      roleLabel: "Proposing Party",
+      name: (formData.proposingParty as Record<string, string>)?.name || "",
+      email: (formData.proposingParty as Record<string, string>)?.email || "",
+    },
+    {
+      role: "receivingParty",
+      roleLabel: "Receiving Party",
+      name: (formData.receivingParty as Record<string, string>)?.name || "",
+      email: (formData.receivingParty as Record<string, string>)?.email || "",
+    },
+  ]);
+
+  const handleSignerGroupsChange = (groups: SignerGroup[]) => {
+    const proposing = groups.find(g => g.role === "proposingParty");
+    const receiving = groups.find(g => g.role === "receivingParty");
+
+    const updates: Record<string, unknown> = {
+      ...formData,
+      signerGroups: groups,
+    };
+
+    if (proposing?.signers[0]) {
+      updates.proposingParty = {
+        name: proposing.signers[0].name,
+        email: proposing.signers[0].email,
+        company: proposing.signers[0].title || "",
+        role: "proposing_party",
+      };
+    }
+    if (receiving?.signers[0]) {
+      updates.receivingParty = {
+        name: receiving.signers[0].name,
+        email: receiving.signers[0].email,
+        company: receiving.signers[0].title || "",
+        role: "receiving_party",
+      };
+    }
+
+    onChange(updates);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-bold text-slate-900">Letter of Intent Details</h2>
+        <p className="text-slate-600 mt-2">
+          Non-binding agreement outlining terms for a future deal.
+        </p>
+      </div>
+
+      {/* Dynamic Signers Section */}
+      <DynamicSignersSection
+        signerGroups={signerGroups}
+        onChange={handleSignerGroupsChange}
+      />
+
+      {/* Transaction Details */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <h3 className="font-semibold text-slate-900 mb-4">Transaction Details</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Transaction Type
+            </label>
+            <select
+              value={(formData.transactionType as string) || "acquisition"}
+              onChange={(e) => updateField("transactionType", e.target.value)}
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6]"
+            >
+              <option value="acquisition">Acquisition</option>
+              <option value="investment">Investment</option>
+              <option value="partnership">Partnership</option>
+              <option value="real_estate">Real Estate</option>
+              <option value="employment">Employment</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <FormTextarea
+            label="Transaction Description"
+            value={(formData.transactionDescription as string) || ""}
+            onChange={(v) => updateField("transactionDescription", v)}
+            placeholder="Describe the proposed transaction in detail..."
+            required
+            error={errors.transactionDescription}
+          />
+          <div className="grid md:grid-cols-2 gap-4">
+            <FormInput
+              label="Proposed Price/Value ($)"
+              type="number"
+              value={(formData.proposedPrice as string) || ""}
+              onChange={(v) => updateField("proposedPrice", parseFloat(v) || 0)}
+            />
+            <FormInput
+              label="Effective Date"
+              type="date"
+              value={(formData.effectiveDate as string) || ""}
+              onChange={(v) => updateField("effectiveDate", v)}
+            />
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <FormInput
+              label="Exclusivity Period (days)"
+              type="number"
+              value={(formData.exclusivityPeriod as string) || "60"}
+              onChange={(v) => updateField("exclusivityPeriod", parseInt(v) || 60)}
+            />
+            <FormInput
+              label="Due Diligence Period (days)"
+              type="number"
+              value={(formData.dueDiligencePeriod as string) || "45"}
+              onChange={(v) => updateField("dueDiligencePeriod", parseInt(v) || 45)}
+            />
+          </div>
+          <FormInput
+            label="Expiration Date"
+            type="date"
+            value={(formData.expirationDate as string) || ""}
+            onChange={(v) => updateField("expirationDate", v)}
+          />
+        </div>
+      </div>
+
+      {/* Binding Terms */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <h3 className="font-semibold text-slate-900 mb-4">Binding Provisions</h3>
+        <p className="text-sm text-slate-500 mb-4">Select which provisions should be legally binding:</p>
+        <div className="space-y-3">
+          <FormCheckbox
+            label="Confidentiality"
+            description="Both parties agree to keep deal discussions private"
+            checked={((formData.bindingTerms as string[]) || ["confidentiality", "exclusivity"]).includes("confidentiality")}
+            onChange={(checked) => {
+              const current = (formData.bindingTerms as string[]) || ["confidentiality", "exclusivity"];
+              updateField("bindingTerms", checked ? [...current, "confidentiality"] : current.filter(t => t !== "confidentiality"));
+            }}
+          />
+          <FormCheckbox
+            label="Exclusivity"
+            description="Neither party will negotiate with others during exclusivity period"
+            checked={((formData.bindingTerms as string[]) || ["confidentiality", "exclusivity"]).includes("exclusivity")}
+            onChange={(checked) => {
+              const current = (formData.bindingTerms as string[]) || ["confidentiality", "exclusivity"];
+              updateField("bindingTerms", checked ? [...current, "exclusivity"] : current.filter(t => t !== "exclusivity"));
+            }}
+          />
+          <FormCheckbox
+            label="Expenses"
+            description="Each party bears their own costs"
+            checked={((formData.bindingTerms as string[]) || []).includes("expenses")}
+            onChange={(checked) => {
+              const current = (formData.bindingTerms as string[]) || [];
+              updateField("bindingTerms", checked ? [...current, "expenses"] : current.filter(t => t !== "expenses"));
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CofounderForm({
+  formData,
+  updateField,
+  onChange,
+  errors = {},
+}: {
+  formData: Record<string, unknown>;
+  updateField: (field: string, value: unknown) => void;
+  updateNestedField: (parent: string, field: string, value: unknown) => void;
+  onChange: (data: Record<string, unknown>) => void;
+  errors?: Record<string, string>;
+}) {
+  // Initialize co-founders array
+  const cofounders = (formData.cofounders as Array<{
+    name: string;
+    email: string;
+    equityPercentage: number;
+    role: string;
+    vestingMonths: number;
+    cliffMonths: number;
+  }>) || [
+    { name: "", email: "", equityPercentage: 50, role: "CEO", vestingMonths: 48, cliffMonths: 12 },
+    { name: "", email: "", equityPercentage: 50, role: "CTO", vestingMonths: 48, cliffMonths: 12 },
+  ];
+
+  const updateCofounder = (index: number, field: string, value: unknown) => {
+    const updated = [...cofounders];
+    updated[index] = { ...updated[index], [field]: value };
+    updateField("cofounders", updated);
+  };
+
+  const addCofounder = () => {
+    const totalEquity = cofounders.reduce((sum, c) => sum + (c.equityPercentage || 0), 0);
+    const remainingEquity = Math.max(0, 100 - totalEquity);
+    updateField("cofounders", [
+      ...cofounders,
+      { name: "", email: "", equityPercentage: remainingEquity, role: "", vestingMonths: 48, cliffMonths: 12 },
+    ]);
+  };
+
+  const removeCofounder = (index: number) => {
+    if (cofounders.length > 2) {
+      updateField("cofounders", cofounders.filter((_, i) => i !== index));
+    }
+  };
+
+  const totalEquity = cofounders.reduce((sum, c) => sum + (c.equityPercentage || 0), 0);
+
+  return (
+    <div className="space-y-6">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-bold text-slate-900">Co-Founder Agreement Details</h2>
+        <p className="text-slate-600 mt-2">
+          Define equity splits, roles, vesting, and exit terms.
+        </p>
+      </div>
+
+      {/* Company Details */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <h3 className="font-semibold text-slate-900 mb-4">Company Details</h3>
+        <div className="grid md:grid-cols-2 gap-4">
+          <FormInput
+            label="Company Name"
+            value={(formData.companyName as string) || ""}
+            onChange={(v) => updateField("companyName", v)}
+            placeholder="Acme Inc"
+            required
+            error={errors.companyName}
+          />
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Company Type
+            </label>
+            <select
+              value={(formData.companyType as string) || "corporation"}
+              onChange={(e) => updateField("companyType", e.target.value)}
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6]"
+            >
+              <option value="corporation">Corporation (C-Corp/S-Corp)</option>
+              <option value="llc">LLC</option>
+              <option value="partnership">Partnership</option>
+              <option value="not_yet_formed">Not Yet Formed</option>
+            </select>
+          </div>
+        </div>
+        <div className="mt-4">
+          <FormInput
+            label="Effective Date"
+            type="date"
+            value={(formData.effectiveDate as string) || ""}
+            onChange={(v) => updateField("effectiveDate", v)}
+          />
+        </div>
+      </div>
+
+      {/* Co-Founders */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-slate-900">Co-Founders</h3>
+          <div className={`text-sm font-medium ${totalEquity === 100 ? "text-green-600" : "text-amber-600"}`}>
+            Total Equity: {totalEquity}%
+            {totalEquity !== 100 && " (must equal 100%)"}
+          </div>
+        </div>
+        {errors.cofounders && <p className="text-sm text-red-600 mb-4">{errors.cofounders}</p>}
+        {errors.totalEquity && <p className="text-sm text-red-600 mb-4">{errors.totalEquity}</p>}
+
+        <div className="space-y-6">
+          {cofounders.map((cofounder, index) => (
+            <div key={index} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-medium text-slate-900">Co-Founder {index + 1}</h4>
+                {cofounders.length > 2 && (
+                  <button
+                    type="button"
+                    onClick={() => removeCofounder(index)}
+                    className="text-sm text-red-600 hover:text-red-700"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                <FormInput
+                  label="Name"
+                  value={cofounder.name || ""}
+                  onChange={(v) => updateCofounder(index, "name", v)}
+                  placeholder="Jane Doe"
+                  required
+                  error={errors[`cofounder_${index}_name`]}
+                />
+                <FormInput
+                  label="Email"
+                  type="email"
+                  value={cofounder.email || ""}
+                  onChange={(v) => updateCofounder(index, "email", v)}
+                  placeholder="jane@company.com"
+                  required
+                  error={errors[`cofounder_${index}_email`]}
+                />
+                <FormInput
+                  label="Role/Title"
+                  value={cofounder.role || ""}
+                  onChange={(v) => updateCofounder(index, "role", v)}
+                  placeholder="CEO, CTO, etc."
+                />
+                <FormInput
+                  label="Equity %"
+                  type="number"
+                  value={String(cofounder.equityPercentage || "")}
+                  onChange={(v) => updateCofounder(index, "equityPercentage", parseFloat(v) || 0)}
+                  required
+                  error={errors[`cofounder_${index}_equity`]}
+                />
+                <FormInput
+                  label="Vesting Period (months)"
+                  type="number"
+                  value={String(cofounder.vestingMonths || 48)}
+                  onChange={(v) => updateCofounder(index, "vestingMonths", parseInt(v) || 48)}
+                />
+                <FormInput
+                  label="Cliff Period (months)"
+                  type="number"
+                  value={String(cofounder.cliffMonths || 12)}
+                  onChange={(v) => updateCofounder(index, "cliffMonths", parseInt(v) || 12)}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={addCofounder}
+          className="mt-4 w-full py-2 text-sm font-medium text-[#529ec6] border border-dashed border-[#529ec6]/30 rounded-lg hover:bg-[#529ec6]/5 transition-colors"
+        >
+          + Add Another Co-Founder
+        </button>
+      </div>
+
+      {/* Decision Making */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <h3 className="font-semibold text-slate-900 mb-4">Decision Making</h3>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Major Decision Threshold (%)
+            </label>
+            <input
+              type="number"
+              min="50"
+              max="100"
+              value={(formData.majorDecisionThreshold as number) || 66}
+              onChange={(e) => updateField("majorDecisionThreshold", parseInt(e.target.value) || 66)}
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6]"
+            />
+            <p className="text-xs text-slate-500 mt-1">% of equity required to approve major decisions</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Deadlock Resolution
+            </label>
+            <select
+              value={(formData.deadlockResolution as string) || "mediation"}
+              onChange={(e) => updateField("deadlockResolution", e.target.value)}
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6]"
+            >
+              <option value="mediation">Mediation</option>
+              <option value="buyout">Buyout Right</option>
+              <option value="dissolution">Dissolution</option>
+              <option value="third_party">Third Party Arbitration</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Exit Provisions */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <h3 className="font-semibold text-slate-900 mb-4">Exit Provisions</h3>
+        <div className="space-y-3">
+          <FormCheckbox
+            label="Right of First Refusal (ROFR)"
+            description="Other founders get first right to buy departing founder's shares"
+            checked={(formData.rightOfFirstRefusal as boolean) ?? true}
+            onChange={(v) => updateField("rightOfFirstRefusal", v)}
+          />
+          <FormCheckbox
+            label="Drag-Along Rights"
+            description="Majority can force minority to join in a company sale"
+            checked={(formData.dragAlong as boolean) ?? true}
+            onChange={(v) => updateField("dragAlong", v)}
+          />
+          <FormCheckbox
+            label="Tag-Along Rights"
+            description="Minority can join in if majority sells their shares"
+            checked={(formData.tagAlong as boolean) ?? true}
+            onChange={(v) => updateField("tagAlong", v)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SalesContractForm({
+  formData,
+  updateField,
+  updateNestedField,
+  onChange,
+  errors = {},
+}: {
+  formData: Record<string, unknown>;
+  updateField: (field: string, value: unknown) => void;
+  updateNestedField: (parent: string, field: string, value: unknown) => void;
+  onChange: (data: Record<string, unknown>) => void;
+  errors?: Record<string, string>;
+}) {
+  // Initialize signer groups from form data or create defaults
+  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+    {
+      role: "seller",
+      roleLabel: "Seller",
+      name: (formData.seller as Record<string, string>)?.name || "",
+      email: (formData.seller as Record<string, string>)?.email || "",
+    },
+    {
+      role: "buyer",
+      roleLabel: "Buyer",
+      name: (formData.buyer as Record<string, string>)?.name || "",
+      email: (formData.buyer as Record<string, string>)?.email || "",
+    },
+  ]);
+
+  const handleSignerGroupsChange = (groups: SignerGroup[]) => {
+    const sellerGroup = groups.find(g => g.role === "seller");
+    const buyerGroup = groups.find(g => g.role === "buyer");
+
+    const updates: Record<string, unknown> = {
+      ...formData,
+      signerGroups: groups,
+    };
+
+    if (sellerGroup?.signers[0]) {
+      updates.seller = {
+        name: sellerGroup.signers[0].name,
+        email: sellerGroup.signers[0].email,
+        company: sellerGroup.signers[0].title || "",
+        role: "seller",
+      };
+    }
+    if (buyerGroup?.signers[0]) {
+      updates.buyer = {
+        name: buyerGroup.signers[0].name,
+        email: buyerGroup.signers[0].email,
+        company: buyerGroup.signers[0].title || "",
+        role: "buyer",
+      };
+    }
+
+    onChange(updates);
+  };
+
+  // Product items
+  const products = (formData.products as Array<{
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    description?: string;
+  }>) || [{ name: "", quantity: 1, unitPrice: 0, description: "" }];
+
+  const updateProduct = (index: number, field: string, value: unknown) => {
+    const updated = [...products];
+    updated[index] = { ...updated[index], [field]: value };
+    updateField("products", updated);
+    // Auto-calculate total
+    const total = updated.reduce((sum, p) => sum + (p.quantity || 0) * (p.unitPrice || 0), 0);
+    updateField("totalAmount", total);
+  };
+
+  const addProduct = () => {
+    updateField("products", [...products, { name: "", quantity: 1, unitPrice: 0, description: "" }]);
+  };
+
+  const removeProduct = (index: number) => {
+    if (products.length > 1) {
+      const updated = products.filter((_, i) => i !== index);
+      updateField("products", updated);
+      const total = updated.reduce((sum, p) => sum + (p.quantity || 0) * (p.unitPrice || 0), 0);
+      updateField("totalAmount", total);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-bold text-slate-900">Sales Contract Details</h2>
+        <p className="text-slate-600 mt-2">
+          Agreement for the sale of goods or products.
+        </p>
+      </div>
+
+      {/* Dynamic Signers Section */}
+      <DynamicSignersSection
+        signerGroups={signerGroups}
+        onChange={handleSignerGroupsChange}
+      />
+
+      {/* Product Details */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <h3 className="font-semibold text-slate-900 mb-4">Products/Goods</h3>
+        <FormTextarea
+          label="General Product Description"
+          value={(formData.productDescription as string) || ""}
+          onChange={(v) => updateField("productDescription", v)}
+          placeholder="Describe the products being sold..."
+          required
+          error={errors.productDescription}
+        />
+
+        <div className="mt-6 space-y-4">
+          {products.map((product, index) => (
+            <div key={index} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-medium text-slate-900">Item {index + 1}</h4>
+                {products.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeProduct(index)}
+                    className="text-sm text-red-600 hover:text-red-700"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <div className="grid md:grid-cols-4 gap-4">
+                <div className="md:col-span-2">
+                  <FormInput
+                    label="Product Name"
+                    value={product.name || ""}
+                    onChange={(v) => updateProduct(index, "name", v)}
+                    placeholder="Widget Pro 2000"
+                  />
+                </div>
+                <FormInput
+                  label="Quantity"
+                  type="number"
+                  value={String(product.quantity || 1)}
+                  onChange={(v) => updateProduct(index, "quantity", parseInt(v) || 1)}
+                />
+                <FormInput
+                  label="Unit Price ($)"
+                  type="number"
+                  value={String(product.unitPrice || "")}
+                  onChange={(v) => updateProduct(index, "unitPrice", parseFloat(v) || 0)}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={addProduct}
+          className="mt-4 w-full py-2 text-sm font-medium text-[#529ec6] border border-dashed border-[#529ec6]/30 rounded-lg hover:bg-[#529ec6]/5 transition-colors"
+        >
+          + Add Another Product
+        </button>
+
+        <div className="mt-4 p-4 bg-[#529ec6]/5 rounded-lg">
+          <div className="flex items-center justify-between">
+            <span className="font-medium text-slate-900">Total Amount</span>
+            <span className="text-xl font-bold text-[#529ec6]">
+              ${((formData.totalAmount as number) || 0).toLocaleString()}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Payment Terms */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <h3 className="font-semibold text-slate-900 mb-4">Payment Terms</h3>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Payment Method
+            </label>
+            <select
+              value={(formData.paymentMethod as string) || "net_30"}
+              onChange={(e) => updateField("paymentMethod", e.target.value)}
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6]"
+            >
+              <option value="full_upfront">Full Payment Upfront</option>
+              <option value="net_30">Net 30</option>
+              <option value="net_60">Net 60</option>
+              <option value="installments">Installments</option>
+              <option value="on_delivery">Payment on Delivery</option>
+            </select>
+          </div>
+          <FormInput
+            label="Deposit Amount ($)"
+            type="number"
+            value={(formData.depositAmount as string) || ""}
+            onChange={(v) => updateField("depositAmount", parseFloat(v) || 0)}
+          />
+        </div>
+      </div>
+
+      {/* Delivery Terms */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <h3 className="font-semibold text-slate-900 mb-4">Delivery Terms</h3>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Delivery Method
+            </label>
+            <select
+              value={(formData.deliveryMethod as string) || "shipping"}
+              onChange={(e) => updateField("deliveryMethod", e.target.value)}
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6]"
+            >
+              <option value="pickup">Buyer Pickup</option>
+              <option value="delivery">Seller Delivery</option>
+              <option value="shipping">Shipping</option>
+            </select>
+          </div>
+          <FormInput
+            label="Estimated Delivery Date"
+            type="date"
+            value={(formData.deliveryDate as string) || ""}
+            onChange={(v) => updateField("deliveryDate", v)}
+          />
+          <div className="md:col-span-2">
+            <FormInput
+              label="Delivery Location"
+              value={(formData.deliveryLocation as string) || ""}
+              onChange={(v) => updateField("deliveryLocation", v)}
+              placeholder="Address for delivery"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Warranty */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <h3 className="font-semibold text-slate-900 mb-4">Warranty</h3>
+        <div className="space-y-4">
+          <FormCheckbox
+            label="Include Warranty"
+            description="Seller provides warranty on the goods"
+            checked={(formData.includeWarranty as boolean) ?? true}
+            onChange={(v) => updateField("includeWarranty", v)}
+          />
+          {(formData.includeWarranty as boolean) !== false && (
+            <div className="grid md:grid-cols-2 gap-4">
+              <FormInput
+                label="Warranty Period (months)"
+                type="number"
+                value={(formData.warrantyMonths as string) || "12"}
+                onChange={(v) => updateField("warrantyMonths", parseInt(v) || 12)}
+              />
+              <FormInput
+                label="Effective Date"
+                type="date"
+                value={(formData.effectiveDate as string) || ""}
+                onChange={(v) => updateField("effectiveDate", v)}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ============================================================================
 // Smart Templates Banner Component
 // ============================================================================
@@ -2918,6 +3642,155 @@ function buildMetadata(
         ],
         includeIPAssignment: true,
       };
+
+    case "letter_of_intent":
+      return {
+        ...base,
+        proposingParty: {
+          name: (formData.proposingParty as Record<string, string>)?.name || "Proposing Party",
+          email: (formData.proposingParty as Record<string, string>)?.email || "proposer@example.com",
+          company: (formData.proposingParty as Record<string, string>)?.company || "",
+          title: (formData.proposingParty as Record<string, string>)?.title || "",
+          role: "proposing_party",
+        },
+        receivingParty: {
+          name: (formData.receivingParty as Record<string, string>)?.name || "Receiving Party",
+          email: (formData.receivingParty as Record<string, string>)?.email || "receiver@example.com",
+          company: (formData.receivingParty as Record<string, string>)?.company || "",
+          title: (formData.receivingParty as Record<string, string>)?.title || "",
+          role: "receiving_party",
+        },
+        transactionType: (formData.transactionType as string) || "acquisition",
+        transactionDescription: (formData.transactionDescription as string) || "Proposed business transaction",
+        proposedTerms: {
+          purchasePrice: (formData.proposedPrice as number) || undefined,
+          keyConditions: (formData.keyConditions as string[]) || [],
+        },
+        exclusivityPeriod: (formData.exclusivityPeriod as number) || 60,
+        dueDiligencePeriod: (formData.dueDiligencePeriod as number) || 45,
+        expirationDate: (formData.expirationDate as string) || undefined,
+        isBindingTerms: (formData.bindingProvisions as string[]) || ["confidentiality"],
+      };
+
+    case "cofounder_agreement": {
+      // Build cofounders array from form data
+      const cofoundersData = formData.cofounders as Array<{
+        name?: string;
+        email?: string;
+        role?: string;
+        equityPercentage?: number;
+        vestingMonths?: number;
+        cliffMonths?: number;
+        responsibilities?: string;
+        initialContribution?: { cash?: number; ipDescription?: string };
+      }> | undefined;
+
+      const cofounders = (cofoundersData || []).map((cf, index) => ({
+        party: {
+          name: cf.name || `Co-Founder ${index + 1}`,
+          email: cf.email || `cofounder${index + 1}@example.com`,
+          role: "cofounder",
+          title: cf.role || "",
+        },
+        equityPercentage: cf.equityPercentage || 0,
+        vestingSchedule: {
+          totalMonths: cf.vestingMonths || 48,
+          cliffMonths: cf.cliffMonths || 12,
+          accelerationOnChange: true,
+        },
+        role: cf.role || "",
+        responsibilities: cf.responsibilities || "",
+        initialContribution: cf.initialContribution || {},
+      }));
+
+      return {
+        ...base,
+        companyName: (formData.companyName as string) || "NewCo Inc",
+        companyType: (formData.companyType as string) || "corporation",
+        cofounders,
+        decisionMaking: {
+          majorDecisionThreshold: (formData.majorDecisionThreshold as number) || 66,
+          deadlockResolution: (formData.deadlockResolution as string) || "mediation",
+        },
+        salaryProvisions: {
+          initialSalaries: (formData.initialSalaries as boolean) || false,
+          salaryDetails: (formData.salaryDetails as string) || "",
+        },
+        ipAssignment: true,
+        nonCompetePeriod: 24,
+        exitProvisions: {
+          rightOfFirstRefusal: (formData.rightOfFirstRefusal as boolean) ?? true,
+          dragAlong: (formData.dragAlong as boolean) ?? true,
+          tagAlong: (formData.tagAlong as boolean) ?? true,
+        },
+      };
+    }
+
+    case "sales_contract": {
+      // Build products array from form data
+      const productsData = formData.products as Array<{
+        name?: string;
+        description?: string;
+        quantity?: number;
+        unitPrice?: number;
+        specifications?: string;
+      }> | undefined;
+
+      const products = (productsData || []).map((p, index) => ({
+        name: p.name || `Product ${index + 1}`,
+        description: p.description || "",
+        quantity: p.quantity || 1,
+        unitPrice: p.unitPrice || 0,
+        specifications: p.specifications || "",
+      }));
+
+      // Calculate total if not provided
+      const totalAmount = (formData.totalAmount as number) ||
+        products.reduce((sum, p) => sum + (p.quantity * p.unitPrice), 0);
+
+      return {
+        ...base,
+        seller: {
+          name: (formData.seller as Record<string, string>)?.name || "Seller",
+          email: (formData.seller as Record<string, string>)?.email || "seller@example.com",
+          company: (formData.seller as Record<string, string>)?.company || "",
+          address: (formData.seller as Record<string, string>)?.address || "",
+          role: "seller",
+        },
+        buyer: {
+          name: (formData.buyer as Record<string, string>)?.name || "Buyer",
+          email: (formData.buyer as Record<string, string>)?.email || "buyer@example.com",
+          company: (formData.buyer as Record<string, string>)?.company || "",
+          address: (formData.buyer as Record<string, string>)?.address || "",
+          role: "buyer",
+        },
+        productDescription: (formData.productDescription as string) || "Goods and services as described",
+        products,
+        totalAmount,
+        currency: "usd",
+        paymentTerms: {
+          method: (formData.paymentMethod as string) || "full_upfront",
+          depositPercentage: (formData.depositAmount as number) ?
+            Math.round(((formData.depositAmount as number) / totalAmount) * 100) : undefined,
+          installmentSchedule: (formData.installmentSchedule as string) || "",
+        },
+        deliveryTerms: {
+          method: (formData.deliveryMethod as string) || "delivery",
+          location: (formData.deliveryLocation as string) || "",
+          estimatedDate: (formData.deliveryDate as string) || "",
+          shippingTerms: "fob_destination",
+          riskOfLoss: "on_delivery",
+        },
+        warranty: {
+          included: (formData.includeWarranty as boolean) ?? true,
+          periodMonths: (formData.warrantyPeriod as number) || 12,
+          scope: "Standard manufacturer warranty",
+        },
+        returnPolicy: {
+          allowed: false,
+        },
+      };
+    }
 
     default:
       return base;

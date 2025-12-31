@@ -241,7 +241,7 @@ function ReviewDemo() {
     );
 }
 
-const tabContent: Record<TabId, { title: string; subtitle: string; description: string; cta: string; Demo: () => JSX.Element }> = {
+const tabContent: Record<TabId, { title: string; subtitle: string; description: string; cta: string; Demo: () => React.ReactNode }> = {
     generate: {
         title: "Generate",
         subtitle: "Create contracts in seconds, not hours",
