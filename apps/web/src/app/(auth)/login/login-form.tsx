@@ -11,8 +11,8 @@ import { required, email, minLength, all } from "@/lib/validation";
 
 type LoginMode = "default" | "magic-link" | "forgot-password";
 
-// Google OAuth is currently disabled in Supabase - set to true when enabled
-const GOOGLE_OAUTH_ENABLED = false;
+// Google OAuth is enabled in Supabase
+const GOOGLE_OAUTH_ENABLED = true;
 
 // Validators
 const emailValidator = all(required("Email is required"), email());

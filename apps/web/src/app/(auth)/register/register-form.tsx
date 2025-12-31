@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RefreshCw } from "lucide-react";
 
-// Google OAuth is currently disabled in Supabase - set to true when enabled
-const GOOGLE_OAUTH_ENABLED = false;
+// Google OAuth is enabled in Supabase
+const GOOGLE_OAUTH_ENABLED = true;
 
 export function RegisterForm() {
   const router = useRouter();
