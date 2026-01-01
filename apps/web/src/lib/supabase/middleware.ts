@@ -1,11 +1,18 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { applySecurityHeaders } from "@/lib/security";
+import { generateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/logging";
 
 export async function updateSession(request: NextRequest) {
+  // Generate or use existing correlation ID
+  const correlationId = request.headers.get(CORRELATION_ID_HEADER) || generateCorrelationId();
+
   let supabaseResponse = NextResponse.next({
     request,
   });
+
+  // Add correlation ID to response headers for tracing
+  supabaseResponse.headers.set(CORRELATION_ID_HEADER, correlationId);
 
   // Skip auth check for public routes that don't need it
   const isPublicRoute =
@@ -71,14 +78,18 @@ export async function updateSession(request: NextRequest) {
   if (!session && isProtectedRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return applySecurityHeaders(NextResponse.redirect(url));
+    const redirectResponse = NextResponse.redirect(url);
+    redirectResponse.headers.set(CORRELATION_ID_HEADER, correlationId);
+    return applySecurityHeaders(redirectResponse);
   }
 
   // For auth routes with session, redirect to dashboard
   if (session && isAuthRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    return applySecurityHeaders(NextResponse.redirect(url));
+    const redirectResponse = NextResponse.redirect(url);
+    redirectResponse.headers.set(CORRELATION_ID_HEADER, correlationId);
+    return applySecurityHeaders(redirectResponse);
   }
 
   // Only call getUser() to refresh token if session exists and might be stale
