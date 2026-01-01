@@ -11,19 +11,24 @@ import {
   LOIMetadataSchema,
   CofounderMetadataSchema,
   SalesContractMetadataSchema,
+  CustomMetadataSchema,
   PaymentConfigSchema,
   type ContractMetadata,
   type ContractType,
 } from "@/lib/contracts/schemas";
 import { z } from "zod";
 import { auditLogger, getRequestContextFromRequest } from "@/lib/audit";
+import { checkContractLimit } from "@/lib/usage-tracking";
+import { TIER_LIMITS } from "@/lib/rate-limits";
 
 // Signer info for creating signature fields
 interface SignerInfo {
   role: string;
-  name: string;
+  name: string;        // Individual's name (person signing)
   email: string;
-  title?: string;
+  title?: string;      // Job title (e.g., "CEO", "Managing Director")
+  company?: string;    // Company/entity name if signing on behalf of company
+  isEntity?: boolean;  // True if this is a company/entity (needs Title field)
 }
 
 // Helper to extract all signers from contract metadata
@@ -41,21 +46,28 @@ function getAllSigners(contractType: string, metadata: ContractMetadata): Signer
   if (signerGroups && signerGroups.length > 0) {
     // Flatten all signers from all groups
     for (const group of signerGroups) {
+      // Detect if this role represents an entity (company)
+      // by checking if roleLabel contains "Company" or similar keywords
+      const isEntityRole = /company|corporation|corp|llc|ltd|inc/i.test(group.roleLabel);
+
       // Ensure at least one signer per role group (use role label as fallback name)
       if (group.signers.length === 0) {
         signers.push({
           role: group.roleLabel,
           name: group.roleLabel,
           email: "",
+          isEntity: isEntityRole,
         });
       } else {
         for (const signer of group.signers) {
-          // Always include signers, using role label as fallback for empty names
+          // A signer is for an entity if the role is for entities OR they have a title
+          const hasTitle = !!(signer.title && signer.title.trim());
           signers.push({
             role: group.roleLabel,
             name: signer.name || group.roleLabel,
             email: signer.email || "",
             title: signer.title,
+            isEntity: isEntityRole || hasTitle,
           });
         }
       }
@@ -91,27 +103,60 @@ function getAllSigners(contractType: string, metadata: ContractMetadata): Signer
   const mapping = roleMap[contractType] || { primary: "party1", secondary: "party2" };
   const labels = roleLabelMap[contractType] || { primary: "Party 1", secondary: "Party 2" };
 
-  const primary = meta[mapping.primary] as { name?: string; email?: string } | undefined;
-  const secondary = meta[mapping.secondary] as { name?: string; email?: string } | undefined;
+  // Contract types where parties are typically entities/companies (not individuals)
+  const entityRoles: Record<string, { primary: boolean; secondary: boolean }> = {
+    nda_mutual: { primary: true, secondary: true },      // Both parties usually companies
+    nda_one_way: { primary: true, secondary: true },     // Both parties usually companies
+    independent_contractor: { primary: true, secondary: false }, // Company hires individual
+    consulting_agreement: { primary: true, secondary: false },   // Company hires consultant
+    safe_note: { primary: true, secondary: true },       // Company and investor (both entities)
+    freelance_service: { primary: true, secondary: false },      // Client (company) hires freelancer
+    letter_of_intent: { primary: true, secondary: true },        // Both usually companies
+    cofounder_agreement: { primary: false, secondary: false },   // Individuals as cofounders
+    sales_contract: { primary: true, secondary: true },          // Both usually companies
+  };
+
+  const entityConfig = entityRoles[contractType] || { primary: false, secondary: false };
+
+  const primary = meta[mapping.primary] as { name?: string; email?: string; company?: string; title?: string } | undefined;
+  const secondary = meta[mapping.secondary] as { name?: string; email?: string; company?: string; title?: string } | undefined;
 
   if (primary) {
+    const hasCompany = !!primary.company;
     signers.push({
       role: labels.primary,
       name: primary.name || labels.primary,
       email: primary.email || "",
+      company: primary.company,
+      title: primary.title,
+      isEntity: hasCompany || entityConfig.primary,
     });
   } else {
-    signers.push({ role: labels.primary, name: labels.primary, email: "" });
+    signers.push({
+      role: labels.primary,
+      name: labels.primary,
+      email: "",
+      isEntity: entityConfig.primary,
+    });
   }
 
   if (secondary) {
+    const hasCompany = !!secondary.company;
     signers.push({
       role: labels.secondary,
       name: secondary.name || labels.secondary,
       email: secondary.email || "",
+      company: secondary.company,
+      title: secondary.title,
+      isEntity: hasCompany || entityConfig.secondary,
     });
   } else {
-    signers.push({ role: labels.secondary, name: labels.secondary, email: "" });
+    signers.push({
+      role: labels.secondary,
+      name: labels.secondary,
+      email: "",
+      isEntity: entityConfig.secondary,
+    });
   }
 
   return signers;
@@ -137,6 +182,7 @@ const GenerateRequestSchema = z.object({
     LOIMetadataSchema,
     CofounderMetadataSchema,
     SalesContractMetadataSchema,
+    CustomMetadataSchema,
   ]),
   paymentConfig: PaymentConfigSchema.optional(),
 });
@@ -154,24 +200,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check subscription limits for AI contract generation
-    const { data: userData } = await supabase
-      .from("users")
-      .select("subscription_tier, ai_contracts_used, ai_contracts_limit")
-      .eq("id", user.id)
-      .single();
+    // Check contract generation limits
+    const limitCheck = await checkContractLimit(user.id);
 
-    const tier = userData?.subscription_tier || "free";
-    const used = userData?.ai_contracts_used || 0;
-    const limit = userData?.ai_contracts_limit || 1;
-
-    // Free tier users are limited (limit -1 means unlimited for paid tiers)
-    if (tier === "free" && limit !== -1 && used >= limit) {
+    if (!limitCheck.allowed) {
+      const tierLimits = TIER_LIMITS[limitCheck.tier];
       return NextResponse.json(
         {
           error: "Contract limit reached",
-          message: "You've used your free AI-generated contract. Upgrade to Pro for unlimited contracts.",
-          upgradeUrl: "/settings/billing"
+          message: limitCheck.tier === "free"
+            ? `You've used your ${tierLimits.contractsPerMonth} free contract${tierLimits.contractsPerMonth > 1 ? "s" : ""} this month. Upgrade to Pro for 50 contracts/month.`
+            : `You've reached your ${tierLimits.contractsPerMonth} contract limit for this month. Your limit resets at the start of next month.`,
+          upgradeUrl: "/settings/billing",
+          current: limitCheck.current,
+          limit: limitCheck.limit,
+          tier: limitCheck.tier,
         },
         { status: 403 }
       );
@@ -246,6 +289,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Auto-generate signature fields for each signer (supports multi-signatory)
+    // Fields vary based on whether the signer is an entity (company) or individual
     const allSigners = getAllSigners(contractType, metadata as ContractMetadata);
     const signatureFields = allSigners.flatMap((signer, signerIndex) => {
       // Create a unique label that includes the signer's name if multiple signers per role
@@ -253,7 +297,8 @@ export async function POST(request: NextRequest) {
       const isMultiplePerRole = signersInSameRole.length > 1;
       const signerLabel = isMultiplePerRole ? `${signer.role} - ${signer.name || `Signer ${signerIndex + 1}`}` : signer.role;
 
-      return [
+      // Base fields for all signers
+      const baseFields = [
         // Signature field for this signer
         {
           contract_id: savedContract.id,
@@ -265,7 +310,7 @@ export async function POST(request: NextRequest) {
           position_y: 10,
           width: 200,
           height: 60,
-          order: signerIndex * 3 + 1,
+          order: signerIndex * 5 + 1,
         },
         // Date field for this signer
         {
@@ -278,9 +323,9 @@ export async function POST(request: NextRequest) {
           position_y: 10,
           width: 120,
           height: 30,
-          order: signerIndex * 3 + 2,
+          order: signerIndex * 5 + 2,
         },
-        // Printed Name field for this signer
+        // Printed Name field for this signer (individual's name)
         {
           contract_id: savedContract.id,
           type: "text",
@@ -291,9 +336,33 @@ export async function POST(request: NextRequest) {
           position_y: 50,
           width: 180,
           height: 30,
-          order: signerIndex * 3 + 3,
+          order: signerIndex * 5 + 3,
+          // Store default value hint for pre-fill
+          placeholder: signer.name || undefined,
         },
       ];
+
+      // Additional fields for entity/company signers
+      if (signer.isEntity) {
+        baseFields.push(
+          // Title field (CEO, Director, etc.)
+          {
+            contract_id: savedContract.id,
+            type: "text",
+            label: "Title",
+            signer_role: signerLabel,
+            required: true,
+            position_x: signerIndex * 50,
+            position_y: 80,
+            width: 180,
+            height: 30,
+            order: signerIndex * 5 + 4,
+            placeholder: signer.title || undefined,
+          }
+        );
+      }
+
+      return baseFields;
     });
 
     // Insert signature fields
