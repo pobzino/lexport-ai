@@ -109,7 +109,7 @@ export function Footer() {
 
                 <div className="border-t border-slate-100 pt-6 sm:pt-8 flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-4">
                     <p className="text-slate-400 text-xs text-center sm:text-left">
-                        &copy; {currentYear} Lexport AI Inc. All rights reserved.
+                        &copy; {currentYear} Lexport AI. All rights reserved.
                     </p>
                     <div className="flex gap-4 sm:gap-6">
                         <Link href="/privacy" className="text-slate-400 hover:text-slate-600 text-xs transition-colors">Privacy</Link>
