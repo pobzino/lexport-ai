@@ -43,12 +43,12 @@ const PLANS: Array<{
     period: "forever",
     description: "Try it out",
     features: [
-      { text: "1 AI contract/month", included: true },
-      { text: "3 signature requests/month", included: true },
+      { text: "3 AI contracts/month", included: true },
+      { text: "5 signature requests/month", included: true },
       { text: "Collect payments", included: true },
-      { text: "Template library", included: false },
+      { text: "Basic templates", included: true },
       { text: "AI contract chat", included: false },
-      { text: "Team collaboration", included: false },
+      { text: "Premium templates", included: false },
     ],
     cta: "Current Plan",
     highlighted: false,
@@ -60,30 +60,31 @@ const PLANS: Array<{
     period: "month",
     description: "For freelancers & professionals",
     features: [
-      { text: "Unlimited AI contracts", included: true },
+      { text: "50 AI contracts/month", included: true },
       { text: "Unlimited signatures", included: true },
       { text: "Full template library", included: true },
       { text: "AI contract chat & review", included: true },
       { text: "Priority support", included: true },
-      { text: "Team collaboration", included: false },
+      { text: "Premium templates", included: true },
     ],
     cta: "Upgrade to Pro",
     highlighted: true,
   },
   {
     id: "team",
-    name: "Team",
-    price: 49,
+    name: "Business",
+    price: 39.99,
     period: "month",
-    description: "For growing teams & businesses",
+    description: "For high-volume users",
     features: [
-      { text: "Everything in Pro", included: true },
-      { text: "Up to 10 team members", included: true },
-      { text: "Shared template library", included: true },
-      { text: "Admin controls", included: true },
-      { text: "Dedicated support", included: true },
+      { text: "200 AI contracts/month", included: true },
+      { text: "Unlimited signatures", included: true },
+      { text: "Full template library", included: true },
+      { text: "AI contract chat & review", included: true },
+      { text: "Priority support", included: true },
+      { text: "Dedicated account manager", included: true },
     ],
-    cta: "Contact Us",
+    cta: "Upgrade to Business",
     highlighted: false,
   },
 ];
@@ -153,8 +154,14 @@ export default function BillingPage() {
   }
 
   const currentPlan = PLANS.find((p) => p.id === subscription.tier) || PLANS[0];
-  const contractsPercent = getUsagePercentage(subscription.contractsUsed, subscription.contractsLimit);
-  const signaturesPercent = getUsagePercentage(subscription.signaturesUsed, subscription.signaturesLimit);
+
+  // Check if limits are effectively unlimited (999999 is the placeholder for unlimited)
+  const isContractsUnlimited = subscription.contractsLimit >= 999999;
+  const isSignaturesUnlimited = subscription.signaturesLimit >= 999999;
+  const isChatUnlimited = subscription.chatMessagesLimit >= 999999;
+
+  const contractsPercent = isContractsUnlimited ? 0 : getUsagePercentage(subscription.contractsUsed, subscription.contractsLimit);
+  const signaturesPercent = isSignaturesUnlimited ? 0 : getUsagePercentage(subscription.signaturesUsed, subscription.signaturesLimit);
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -267,7 +274,7 @@ export default function BillingPage() {
                 <FileText className="w-4 h-4" />
                 <span className="text-sm font-medium">AI Contracts</span>
               </div>
-              {!subscription.isUnlimited && subscription.daysUntilReset !== null && (
+              {!isContractsUnlimited && subscription.daysUntilReset !== null && (
                 <span className="text-xs text-slate-500 flex items-center gap-1">
                   <RefreshCw className="w-3 h-3" />
                   Resets in {subscription.daysUntilReset} day{subscription.daysUntilReset !== 1 ? "s" : ""}
@@ -276,13 +283,15 @@ export default function BillingPage() {
             </div>
             <div className="flex items-baseline gap-1 mb-2">
               <span className="text-2xl font-bold text-slate-900">
-                {subscription.contractsUsed}
+                {isContractsUnlimited ? "Unlimited" : subscription.contractsUsed}
               </span>
-              <span className="text-slate-500">
-                / {subscription.isUnlimited ? "∞" : subscription.contractsLimit}
-              </span>
+              {!isContractsUnlimited && (
+                <span className="text-slate-500">
+                  / {subscription.contractsLimit}
+                </span>
+              )}
             </div>
-            {!subscription.isUnlimited && (
+            {!isContractsUnlimited && (
               <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${
@@ -292,7 +301,7 @@ export default function BillingPage() {
                 />
               </div>
             )}
-            {!subscription.canCreateContract && (
+            {!subscription.canCreateContract && !isContractsUnlimited && (
               <p className="text-xs text-red-600 mt-2 font-medium">Limit reached - upgrade to create more</p>
             )}
           </div>
@@ -304,7 +313,7 @@ export default function BillingPage() {
                 <PenTool className="w-4 h-4" />
                 <span className="text-sm font-medium">Signature Requests</span>
               </div>
-              {!subscription.isUnlimited && subscription.daysUntilReset !== null && (
+              {!isSignaturesUnlimited && subscription.daysUntilReset !== null && (
                 <span className="text-xs text-slate-500 flex items-center gap-1">
                   <RefreshCw className="w-3 h-3" />
                   Resets in {subscription.daysUntilReset} day{subscription.daysUntilReset !== 1 ? "s" : ""}
@@ -313,13 +322,15 @@ export default function BillingPage() {
             </div>
             <div className="flex items-baseline gap-1 mb-2">
               <span className="text-2xl font-bold text-slate-900">
-                {subscription.signaturesUsed}
+                {isSignaturesUnlimited ? "Unlimited" : subscription.signaturesUsed}
               </span>
-              <span className="text-slate-500">
-                / {subscription.isUnlimited ? "∞" : subscription.signaturesLimit}
-              </span>
+              {!isSignaturesUnlimited && (
+                <span className="text-slate-500">
+                  / {subscription.signaturesLimit}
+                </span>
+              )}
             </div>
-            {!subscription.isUnlimited && (
+            {!isSignaturesUnlimited && (
               <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${
@@ -329,7 +340,7 @@ export default function BillingPage() {
                 />
               </div>
             )}
-            {!subscription.canSendSignature && (
+            {!subscription.canSendSignature && !isSignaturesUnlimited && (
               <p className="text-xs text-red-600 mt-2 font-medium">Limit reached - upgrade for more</p>
             )}
           </div>
@@ -345,7 +356,7 @@ export default function BillingPage() {
             const isUpgrade =
               (subscription.tier === "free" && plan.id === "pro") ||
               (subscription.tier === "pro" && plan.id === "team");
-            const isTeamPlan = plan.id === "team";
+            const isBusinessPlan = plan.id === "team";
             const isManagedByOrg = subscription.source === "organization" && isCurrent;
 
             return (
@@ -379,9 +390,9 @@ export default function BillingPage() {
                     <span className="text-slate-600">/{plan.period}</span>
                   </div>
 
-                  {isTeamPlan && !isCurrent ? (
+                  {isBusinessPlan && !isCurrent ? (
                     <a
-                      href="mailto:team@lexportai.com?subject=Lexport Team Plan Inquiry"
+                      href="mailto:team@lexportai.com?subject=Lexport Business Plan Inquiry"
                       className="w-full mt-6 py-3 px-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 bg-slate-100 text-slate-900 hover:bg-slate-200"
                     >
                       {plan.cta}

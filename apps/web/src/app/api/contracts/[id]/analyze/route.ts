@@ -33,6 +33,25 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Check subscription tier - Risk analysis is Pro+ only
+    const { data: userData } = await supabase
+      .from("users")
+      .select("subscription_tier")
+      .eq("id", user.id)
+      .single();
+
+    const tier = userData?.subscription_tier || "free";
+    if (tier === "free") {
+      return NextResponse.json(
+        {
+          error: "Risk Analysis is a Pro feature",
+          upgradeRequired: true,
+          message: "Upgrade to Pro to analyze your contracts for potential risks and issues."
+        },
+        { status: 403 }
+      );
+    }
+
     // Parse request
     const body = await request.json().catch(() => ({}));
     const parseResult = AnalyzeRequestSchema.safeParse(body);

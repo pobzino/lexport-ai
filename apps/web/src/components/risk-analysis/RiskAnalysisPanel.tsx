@@ -13,7 +13,9 @@ import {
   Shield,
   MapPin,
   FileWarning,
+  Lock,
 } from "lucide-react";
+import Link from "next/link";
 import { RiskCard, RiskCardSkeleton } from "./RiskCard";
 import type {
   RiskAnalysisResult,
@@ -178,14 +180,30 @@ export function RiskAnalysisPanel({
         {/* Error state */}
         {error && !loading && (
           <div className="text-center py-8">
-            <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-            <p className="text-sm text-slate-600 mb-3">{error}</p>
-            <button
-              onClick={onRefresh}
-              className="px-4 py-2 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-            >
-              Try Again
-            </button>
+            {error.toLowerCase().includes("pro feature") || error.toLowerCase().includes("upgrade") ? (
+              <>
+                <Lock className="w-10 h-10 text-amber-500 mx-auto mb-3" />
+                <p className="font-medium text-slate-900 mb-2">Pro Feature</p>
+                <p className="text-sm text-slate-600 mb-4">{error}</p>
+                <Link
+                  href="/settings/billing"
+                  className="inline-flex items-center px-4 py-2 text-sm bg-[#529ec6] text-white rounded-lg hover:bg-[#4589ad] transition-colors"
+                >
+                  Upgrade to Pro
+                </Link>
+              </>
+            ) : (
+              <>
+                <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+                <p className="text-sm text-slate-600 mb-3">{error}</p>
+                <button
+                  onClick={onRefresh}
+                  className="px-4 py-2 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+                >
+                  Try Again
+                </button>
+              </>
+            )}
           </div>
         )}
 

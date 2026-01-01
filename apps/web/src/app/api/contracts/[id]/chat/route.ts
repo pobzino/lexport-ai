@@ -107,6 +107,31 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Check subscription tier and usage limits
+    const { data: userData } = await supabase
+      .from("users")
+      .select("subscription_tier, ai_chat_messages_used")
+      .eq("id", user.id)
+      .single();
+
+    const tier = userData?.subscription_tier || "free";
+    const chatMessagesUsed = userData?.ai_chat_messages_used ?? 0;
+    const FREE_CHAT_LIMIT = 5; // 5 messages/month for free users
+
+    // Free users get 5 messages/month
+    if (tier === "free" && chatMessagesUsed >= FREE_CHAT_LIMIT) {
+      return NextResponse.json(
+        {
+          error: "AI Chat limit reached",
+          upgradeRequired: true,
+          messagesUsed: chatMessagesUsed,
+          messagesLimit: FREE_CHAT_LIMIT,
+          message: "You've used all 5 free AI chat messages this month. Upgrade to Pro for unlimited chat."
+        },
+        { status: 403 }
+      );
+    }
+
     // Parse request - expecting UIMessage format from AI SDK
     const { messages }: { messages: UIMessage[] } = await request.json();
 
@@ -401,6 +426,11 @@ export async function POST(
 
     // All contracts have full editing capabilities
     const availableTools = tools;
+
+    // Increment chat message count for free users (do this before streaming)
+    if (tier === "free") {
+      await supabase.rpc("increment_ai_chat_messages", { user_uuid: user.id });
+    }
 
     // Stream the response
     const result = streamText({

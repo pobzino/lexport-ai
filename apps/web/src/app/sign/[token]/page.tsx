@@ -188,6 +188,7 @@ export default function SignContractPage() {
   const [showAdoptModal, setShowAdoptModal] = useState(false);
   const [adoptedSignature, setAdoptedSignature] = useState<string | null>(null);
   const [adoptedInitials, setAdoptedInitials] = useState<string | null>(null);
+  const [pendingFieldId, setPendingFieldId] = useState<string | null>(null); // Track which field triggered the adopt modal
   const [fullName, setFullName] = useState("");
   const [selectedFontIndex, setSelectedFontIndex] = useState(0);
 
@@ -565,7 +566,65 @@ export default function SignContractPage() {
     }
   };
 
-  // "Adopt and Sign" - generate signature and auto-fill all fields
+  // Apply signature to a specific field
+  const applySignatureToField = (fieldId: string, signatureData: string, initialsData: string) => {
+    const field = myFields.find(f => f.id === fieldId);
+    if (!field) return;
+
+    const newFieldValues = new Map(fieldValues);
+
+    if (field.type === "signature") {
+      newFieldValues.set(field.id, {
+        fieldId: field.id,
+        signatureData: signatureData,
+      });
+    } else if (field.type === "initials") {
+      newFieldValues.set(field.id, {
+        fieldId: field.id,
+        signatureData: initialsData,
+      });
+    } else if (field.type === "date") {
+      newFieldValues.set(field.id, {
+        fieldId: field.id,
+        value: new Date().toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        }),
+      });
+    }
+
+    // Auto-fill date field for the same role when signature/initials is applied
+    if (field.type === "signature" || field.type === "initials") {
+      const dateField = myFields.find(f => f.type === "date" && f.signer_role === field.signer_role);
+      if (dateField && !newFieldValues.has(dateField.id)) {
+        newFieldValues.set(dateField.id, {
+          fieldId: dateField.id,
+          value: new Date().toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          }),
+        });
+      }
+    }
+
+    setFieldValues(newFieldValues);
+  };
+
+  // Handle clicking on a signature/initials field
+  const handleSignatureFieldClick = (fieldId: string, fieldType: string) => {
+    // If already adopted, apply immediately
+    if (adoptedSignature && adoptedInitials) {
+      applySignatureToField(fieldId, adoptedSignature, adoptedInitials);
+    } else {
+      // Need to adopt first - remember which field was clicked
+      setPendingFieldId(fieldId);
+      setShowAdoptModal(true);
+    }
+  };
+
+  // "Adopt and Sign" - generate signature and apply to pending field only
   const handleAdoptAndSign = () => {
     if (!fullName.trim()) return;
 
@@ -590,42 +649,12 @@ export default function SignContractPage() {
     setAdoptedSignature(signatureData);
     setAdoptedInitials(initialsData);
 
-    // Auto-fill ALL fields for this signer
-    const newFieldValues = new Map<string, FieldValue>();
-
-    for (const field of myFields) {
-      if (field.type === "signature") {
-        newFieldValues.set(field.id, {
-          fieldId: field.id,
-          signatureData: signatureData,
-        });
-      } else if (field.type === "initials") {
-        newFieldValues.set(field.id, {
-          fieldId: field.id,
-          signatureData: initialsData,
-        });
-      } else if (field.type === "date") {
-        newFieldValues.set(field.id, {
-          fieldId: field.id,
-          value: new Date().toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric",
-          }),
-        });
-      } else if (field.type === "text") {
-        // Text fields need manual input, leave empty
-        // Could auto-fill with name if label suggests it
-        if (field.label?.toLowerCase().includes("name")) {
-          newFieldValues.set(field.id, {
-            fieldId: field.id,
-            value: fullName,
-          });
-        }
-      }
+    // Apply to the pending field that triggered the modal (not all fields)
+    if (pendingFieldId) {
+      applySignatureToField(pendingFieldId, signatureData, initialsData);
+      setPendingFieldId(null);
     }
 
-    setFieldValues(newFieldValues);
     setShowAdoptModal(false);
   };
 
@@ -633,7 +662,21 @@ export default function SignContractPage() {
   const allRequiredFieldsCompleted = (): boolean => {
     if (myFields.length === 0) return true;
     const requiredFields = myFields.filter((f) => f.required);
-    return requiredFields.every((f) => fieldValues.has(f.id));
+    return requiredFields.every((f) => {
+      // Field has an explicit value
+      if (fieldValues.has(f.id)) return true;
+      // Text fields check for pre-filled values
+      if (f.type === "text") {
+        const isPrintedName = f.label?.toLowerCase().includes("printed name") ||
+                              f.label?.toLowerCase().includes("name");
+        const isTitle = f.label?.toLowerCase().includes("title");
+        // Printed Name can be pre-filled from placeholder or signer name
+        if (isPrintedName && (f.placeholder || signatureRequest?.signerName)) return true;
+        // Title can be pre-filled from placeholder
+        if (isTitle && f.placeholder) return true;
+      }
+      return false;
+    });
   };
 
   // Get current field being worked on
@@ -775,7 +818,31 @@ export default function SignContractPage() {
 
     try {
       // Convert field values map to array for API
+      // Include pre-filled text fields that weren't explicitly edited
       const fieldValuesArray = Array.from(fieldValues.values());
+
+      // Add any text fields with pre-filled values that aren't already in fieldValues
+      myFields.forEach((field) => {
+        if (field.type === "text" && !fieldValues.has(field.id)) {
+          const isPrintedName = field.label?.toLowerCase().includes("printed name") ||
+                                field.label?.toLowerCase().includes("name");
+          const isTitle = field.label?.toLowerCase().includes("title");
+
+          let defaultValue = "";
+          if (isPrintedName) {
+            defaultValue = field.placeholder || signatureRequest?.signerName || "";
+          } else if (isTitle) {
+            defaultValue = field.placeholder || "";
+          }
+
+          if (defaultValue) {
+            fieldValuesArray.push({
+              fieldId: field.id,
+              value: defaultValue,
+            });
+          }
+        }
+      });
 
       const response = await fetch(`/api/sign/${token}`, {
         method: "POST",
@@ -1392,8 +1459,8 @@ export default function SignContractPage() {
                                   ) : (
                                     <button
                                       onClick={() => {
-                                        if (isMyRole) {
-                                          setShowAdoptModal(true);
+                                        if (isMyRole && signatureField) {
+                                          handleSignatureFieldClick(signatureField.id, "signature");
                                         }
                                       }}
                                       disabled={!isMyRole}
@@ -1404,7 +1471,9 @@ export default function SignContractPage() {
                                     >
                                       <div className="h-10 flex items-center justify-center">
                                         {isMyRole ? (
-                                          <span className="text-sm text-amber-600 font-medium">Click to sign</span>
+                                          <span className="text-sm text-amber-600 font-medium">
+                                            {adoptedSignature ? "Click to apply signature" : "Click to sign"}
+                                          </span>
                                         ) : (
                                           <span className="text-sm text-slate-400">Awaiting signature</span>
                                         )}
@@ -1420,20 +1489,74 @@ export default function SignContractPage() {
                                 <div className="w-40">
                                   {dateValue?.value ? (
                                     <div>
-                                      <p className="text-sm font-medium text-slate-900 h-12 flex items-end pb-1">
-                                        {dateValue.value}
-                                      </p>
+                                      {isMyRole ? (
+                                        <input
+                                          type="date"
+                                          value={(() => {
+                                            // Convert display format to input format (YYYY-MM-DD)
+                                            try {
+                                              const date = new Date(dateValue.value);
+                                              return date.toISOString().split('T')[0];
+                                            } catch {
+                                              return new Date().toISOString().split('T')[0];
+                                            }
+                                          })()}
+                                          onChange={(e) => {
+                                            const newDate = new Date(e.target.value);
+                                            const formatted = newDate.toLocaleDateString("en-US", {
+                                              month: "long",
+                                              day: "numeric",
+                                              year: "numeric",
+                                            });
+                                            const newFieldValues = new Map(fieldValues);
+                                            newFieldValues.set(dateField.id, {
+                                              fieldId: dateField.id,
+                                              value: formatted,
+                                            });
+                                            setFieldValues(newFieldValues);
+                                          }}
+                                          className="w-full text-sm font-medium text-slate-900 h-12 pb-1 bg-transparent border-none focus:outline-none focus:ring-0 cursor-pointer"
+                                        />
+                                      ) : (
+                                        <p className="text-sm font-medium text-slate-900 h-12 flex items-end pb-1">
+                                          {dateValue.value}
+                                        </p>
+                                      )}
                                       <div className="border-t border-slate-400 pt-1">
                                         <p className="text-xs text-slate-500">{dateField.label || "Date"}</p>
                                       </div>
                                     </div>
                                   ) : (
-                                    <div className={`pb-1 border-b-2 ${isMyRole ? "border-amber-400 bg-amber-50" : "border-slate-300 bg-slate-50"}`}>
+                                    <button
+                                      onClick={() => {
+                                        if (isMyRole) {
+                                          const newFieldValues = new Map(fieldValues);
+                                          newFieldValues.set(dateField.id, {
+                                            fieldId: dateField.id,
+                                            value: new Date().toLocaleDateString("en-US", {
+                                              month: "long",
+                                              day: "numeric",
+                                              year: "numeric",
+                                            }),
+                                          });
+                                          setFieldValues(newFieldValues);
+                                        }
+                                      }}
+                                      disabled={!isMyRole}
+                                      className={`w-full pb-1 border-b-2 ${isMyRole
+                                        ? "border-amber-400 bg-amber-50 hover:bg-amber-100 cursor-pointer"
+                                        : "border-slate-300 bg-slate-50"
+                                        }`}
+                                    >
                                       <div className="h-10 flex items-center justify-center">
-                                        <span className="text-sm text-slate-400">-</span>
+                                        {isMyRole ? (
+                                          <span className="text-sm text-amber-600 font-medium">Click to date</span>
+                                        ) : (
+                                          <span className="text-sm text-slate-400">-</span>
+                                        )}
                                       </div>
                                       <p className="text-xs text-slate-500 mt-1">{dateField.label || "Date"}</p>
-                                    </div>
+                                    </button>
                                   )}
                                 </div>
                               )}
@@ -1453,36 +1576,88 @@ export default function SignContractPage() {
                                       </div>
                                     </div>
                                   ) : (
-                                    <div className={`pb-1 border-b-2 ${isMyRole ? "border-amber-400 bg-amber-50" : "border-slate-300 bg-slate-50"}`}>
+                                    <button
+                                      onClick={() => {
+                                        if (isMyRole && initialsField) {
+                                          handleSignatureFieldClick(initialsField.id, "initials");
+                                        }
+                                      }}
+                                      disabled={!isMyRole}
+                                      className={`w-full pb-1 border-b-2 ${isMyRole
+                                        ? "border-amber-400 bg-amber-50 hover:bg-amber-100 cursor-pointer"
+                                        : "border-slate-300 bg-slate-50"
+                                        }`}
+                                    >
                                       <div className="h-10 flex items-center justify-center">
-                                        <span className="text-sm text-slate-400">-</span>
+                                        {isMyRole ? (
+                                          <span className="text-sm text-amber-600 font-medium">
+                                            {adoptedInitials ? "Click to apply" : "Click to initial"}
+                                          </span>
+                                        ) : (
+                                          <span className="text-sm text-slate-400">Awaiting initials</span>
+                                        )}
                                       </div>
                                       <p className="text-xs text-slate-500 mt-1">{initialsField.label || "Initials"}</p>
-                                    </div>
+                                    </button>
                                   )}
                                 </div>
                               )}
 
-                              {/* Text Fields (e.g., Printed Name) */}
+                              {/* Text Fields (e.g., Printed Name, Title) */}
                               {textFields.map((textField) => {
                                 const textValue = fieldValues.get(textField.id);
+                                // Determine default value based on field type:
+                                // - "Printed Name" uses signer name or field placeholder
+                                // - "Title" uses field placeholder (job title) or empty
+                                // - Other text fields use placeholder or empty
+                                const isPrintedName = textField.label?.toLowerCase().includes("printed name") ||
+                                                      textField.label?.toLowerCase().includes("name");
+                                const isTitle = textField.label?.toLowerCase().includes("title");
+
+                                let defaultValue = "";
+                                if (isPrintedName) {
+                                  // For name fields: use stored placeholder (from contract metadata) or signer name
+                                  defaultValue = textField.placeholder || signatureRequest?.signerName || "";
+                                } else if (isTitle) {
+                                  // For title fields: use stored placeholder or leave empty for user to fill
+                                  defaultValue = textField.placeholder || "";
+                                }
+
+                                const displayValue = textValue?.value ?? defaultValue;
+                                const hasValue = !!displayValue;
+
                                 return (
                                   <div key={textField.id} className="w-48">
-                                    {textValue?.value ? (
+                                    {isMyRole ? (
+                                      <div>
+                                        <input
+                                          type="text"
+                                          value={displayValue}
+                                          onChange={(e) => {
+                                            const newFieldValues = new Map(fieldValues);
+                                            newFieldValues.set(textField.id, {
+                                              fieldId: textField.id,
+                                              value: e.target.value,
+                                            });
+                                            setFieldValues(newFieldValues);
+                                          }}
+                                          placeholder={isPrintedName ? "Your name" : isTitle ? "Your title" : "Enter value"}
+                                          className={`w-full text-sm font-medium text-slate-900 h-10 pb-1 bg-transparent border-b-2 focus:outline-none focus:ring-0 ${
+                                            hasValue
+                                              ? "border-slate-400"
+                                              : "border-amber-400 bg-amber-50 placeholder:text-amber-500"
+                                          }`}
+                                        />
+                                        <p className="text-xs text-slate-500 mt-1">{textField.label || "Text"}</p>
+                                      </div>
+                                    ) : (
                                       <div>
                                         <p className="text-sm font-medium text-slate-900 h-10 flex items-end pb-1">
-                                          {textValue.value}
+                                          {textValue?.value || "-"}
                                         </p>
                                         <div className="border-t border-slate-400 pt-1">
                                           <p className="text-xs text-slate-500">{textField.label || "Text"}</p>
                                         </div>
-                                      </div>
-                                    ) : (
-                                      <div className={`pb-1 border-b-2 ${isMyRole ? "border-amber-400 bg-amber-50" : "border-slate-300 bg-slate-50"}`}>
-                                        <div className="h-10 flex items-center justify-center">
-                                          <span className="text-sm text-slate-400">-</span>
-                                        </div>
-                                        <p className="text-xs text-slate-500 mt-1">{textField.label || "Text"}</p>
                                       </div>
                                     )}
                                   </div>

@@ -22,6 +22,11 @@ import {
   X,
   Eye,
   Star,
+  FileCheck,
+  UserCheck,
+  ClipboardList,
+  FileText,
+  ShoppingCart,
 } from "lucide-react";
 import { ContractGeneratingOverlay } from "@/components/contract-generating-overlay";
 import { ContractPreviewModal } from "@/components/contract-preview-modal";
@@ -91,6 +96,11 @@ const CONTRACT_ICONS: Record<string, typeof Shield> = {
   users: Users,
   "trending-up": TrendingUp,
   edit: Edit,
+  "file-check": FileCheck,
+  "user-check": UserCheck,
+  "clipboard-list": ClipboardList,
+  "file-text": FileText,
+  "shopping-cart": ShoppingCart,
 };
 
 export default function NewContractPage() {
@@ -188,23 +198,34 @@ export default function NewContractPage() {
         body: JSON.stringify({ description: intakeDescription }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const data = await response.json();
         throw new Error(data.error || "Failed to analyze your request");
       }
 
-      const data = await response.json();
       setIntakeAnalysis(data.analysis);
 
+      // Track if we have a solid recommendation (confidence > 50%)
+      const hasGoodMatch = data.hasRecommendation && data.analysis.confidence > 50;
+
       // Store matching template if found (for cost-free generation)
-      if (data.matchingTemplate) {
+      if (data.matchingTemplate && hasGoodMatch) {
         setMatchingTemplate(data.matchingTemplate);
       } else {
         setMatchingTemplate(null);
       }
 
-      // Pre-select the suggested type and jurisdiction
-      setSelectedType(data.analysis.suggestedType as ContractType);
+      // Only set the type if it's a valid type in our schema
+      // For custom contracts with invalid suggested types, we'll handle specially in generation
+      const suggestedType = data.analysis.suggestedType as ContractType;
+      if (CONTRACT_TYPES[suggestedType]) {
+        setSelectedType(suggestedType);
+      } else {
+        // For unsupported types, use a generic fallback that can still be generated
+        // We'll use the first available type as a technical fallback for the generation flow
+        setSelectedType("freelance_service"); // Generic fallback for custom contracts
+      }
       if (data.analysis.jurisdiction) {
         setJurisdiction(data.analysis.jurisdiction as Jurisdiction);
       }
@@ -255,6 +276,28 @@ export default function NewContractPage() {
 
     // Get signer groups from form data
     const signerGroups = formData.signerGroups as SignerGroup[] | undefined;
+
+    // For custom contracts (low confidence), only validate signers
+    const isCustomContract = intakeAnalysis && intakeAnalysis.confidence <= 50;
+    if (isCustomContract) {
+      // Only validate signers for custom contracts
+      if (signerGroups) {
+        signerGroups.forEach((group, groupIndex) => {
+          group.signers.forEach((signer, signerIndex) => {
+            if (!signer.name?.trim()) {
+              errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
+            }
+            if (!signer.email?.trim()) {
+              errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
+            } else if (!isValidEmail(signer.email)) {
+              errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
+            }
+          });
+        });
+      }
+      setFormErrors(errors);
+      return Object.keys(errors).length === 0;
+    }
 
     // Validate based on contract type
     switch (selectedType) {
@@ -517,8 +560,24 @@ export default function NewContractPage() {
     setError(null);
 
     try {
+      // Check if this is a custom contract (low confidence from intake)
+      const isCustomContract = intakeAnalysis && intakeAnalysis.confidence <= 50;
+
       // Build the metadata based on contract type
-      const metadata = buildMetadata(selectedType, jurisdiction, formData);
+      let metadata = buildMetadata(selectedType, jurisdiction, formData);
+
+      // For custom contracts, add the custom contract name and intake data
+      if (isCustomContract) {
+        metadata = {
+          ...metadata,
+          customContractName: intakeAnalysis.contractTypeName,
+          customContractDescription: intakeDescription,
+          // Include follow-up answers as nested object for AI prompt
+          followUpAnswers: Object.keys(followUpAnswers).length > 0 ? followUpAnswers : undefined,
+          // Also spread for backwards compatibility
+          ...followUpAnswers,
+        };
+      }
 
       // Build payment config if payment is required
       const paymentConfig = paymentRequired
@@ -536,7 +595,7 @@ export default function NewContractPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contractType: selectedType,
+          contractType: isCustomContract ? "custom" : selectedType,
           metadata,
           paymentConfig,
         }),
@@ -902,30 +961,42 @@ export default function NewContractPage() {
                 <div className="bg-white rounded-xl border-2 border-[#529ec6]/20 p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-[#529ec6]/10 rounded-xl flex items-center justify-center">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                        intakeAnalysis.confidence > 50 ? "bg-[#529ec6]/10" : "bg-amber-50"
+                      }`}>
                         {(() => {
-                          const Icon = CONTRACT_ICONS[intakeAnalysis.contractTypeIcon] || Shield;
-                          return <Icon className="w-6 h-6 text-[#529ec6]" />;
+                          const Icon = CONTRACT_ICONS[intakeAnalysis.contractTypeIcon] || FileText;
+                          return <Icon className={`w-6 h-6 ${intakeAnalysis.confidence > 50 ? "text-[#529ec6]" : "text-amber-600"}`} />;
                         })()}
                       </div>
                       <div>
-                        <p className="text-sm text-[#529ec6] font-medium">Recommended Contract</p>
-                        <h3 className="text-xl font-bold text-slate-900">{intakeAnalysis.contractTypeName}</h3>
+                        <p className={`text-sm font-medium ${intakeAnalysis.confidence > 50 ? "text-[#529ec6]" : "text-amber-600"}`}>
+                          {intakeAnalysis.confidence > 50 ? "Recommended Contract" : "Custom Contract"}
+                        </p>
+                        <h3 className="text-xl font-bold text-slate-900">
+                          {intakeAnalysis.contractTypeName}
+                        </h3>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        intakeAnalysis.confidence >= 80
-                          ? "bg-emerald-100 text-emerald-700"
-                          : intakeAnalysis.confidence >= 60
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-slate-100 text-slate-600"
-                      }`}>
-                        {intakeAnalysis.confidence}% match
+                    {intakeAnalysis.confidence > 50 && (
+                      <div className="flex items-center gap-2">
+                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          intakeAnalysis.confidence >= 80
+                            ? "bg-emerald-100 text-emerald-700"
+                            : intakeAnalysis.confidence >= 60
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-slate-100 text-slate-600"
+                        }`}>
+                          {intakeAnalysis.confidence}% match
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
-                  <p className="text-slate-600 mb-4">{intakeAnalysis.contractTypeDescription}</p>
+                  <p className="text-slate-600 mb-4">
+                    {intakeAnalysis.confidence > 50
+                      ? intakeAnalysis.contractTypeDescription
+                      : "Our AI will generate this contract tailored to your specific needs."}
+                  </p>
 
                   {/* Jurisdiction */}
                   <div className="flex items-center gap-2 text-sm text-slate-500 mb-4">
@@ -1434,6 +1505,7 @@ export default function NewContractPage() {
               formData={formData}
               onChange={setFormData}
               errors={formErrors}
+              customTitle={intakeAnalysis && intakeAnalysis.confidence <= 50 ? intakeAnalysis.contractTypeName : undefined}
             />
 
             {/* Payment Settings Section - Only for service/work contracts */}
@@ -1618,7 +1690,9 @@ export default function NewContractPage() {
                 <div>
                   <p className="text-sm text-slate-500">Contract Type</p>
                   <p className="font-medium text-slate-900">
-                    {CONTRACT_TYPES[selectedType].name}
+                    {(intakeAnalysis && intakeAnalysis.confidence <= 50)
+                      ? intakeAnalysis.contractTypeName
+                      : CONTRACT_TYPES[selectedType]?.name || "Custom Contract"}
                   </p>
                 </div>
                 <div>
@@ -1847,12 +1921,14 @@ function ContractDetailsForm({
   formData,
   onChange,
   errors = {},
+  customTitle,
 }: {
   contractType: ContractType;
   jurisdiction: Jurisdiction;
   formData: Record<string, unknown>;
   onChange: (data: Record<string, unknown>) => void;
   errors?: Record<string, string>;
+  customTitle?: string;
 }) {
   const updateField = (field: string, value: unknown) => {
     onChange({ ...formData, [field]: value });
@@ -1862,6 +1938,17 @@ function ContractDetailsForm({
     const current = (formData[parent] as Record<string, unknown>) || {};
     onChange({ ...formData, [parent]: { ...current, [field]: value } });
   };
+
+  // For custom contracts (unsupported types), use the CustomContractForm
+  if (customTitle) {
+    return (
+      <CustomContractForm
+        formData={formData}
+        onChange={onChange}
+        customTitle={customTitle}
+      />
+    );
+  }
 
   // Render form based on contract type
   switch (contractType) {
@@ -2473,6 +2560,96 @@ function SAFEForm({
             checked={(formData.proRataRights as boolean) || false}
             onChange={(v) => updateField("proRataRights", v)}
           />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Custom Contract Form - for unsupported contract types
+// Only shows signers, since contract-specific details were already collected in intake
+function CustomContractForm({
+  formData,
+  onChange,
+  customTitle,
+}: {
+  formData: Record<string, unknown>;
+  onChange: (data: Record<string, unknown>) => void;
+  customTitle: string;
+}) {
+  // Initialize signer groups from form data or create defaults with generic labels
+  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+    {
+      role: "partyA",
+      roleLabel: "First Party",
+      name: (formData.partyA as Record<string, string>)?.name || "",
+      email: (formData.partyA as Record<string, string>)?.email || "",
+    },
+    {
+      role: "partyB",
+      roleLabel: "Second Party",
+      name: (formData.partyB as Record<string, string>)?.name || "",
+      email: (formData.partyB as Record<string, string>)?.email || "",
+    },
+  ]);
+
+  const handleSignerGroupsChange = (groups: SignerGroup[]) => {
+    const partyA = groups.find(g => g.role === "partyA");
+    const partyB = groups.find(g => g.role === "partyB");
+
+    const updates: Record<string, unknown> = {
+      ...formData,
+      signerGroups: groups,
+    };
+
+    if (partyA?.signers[0]) {
+      updates.partyA = {
+        name: partyA.signers[0].name,
+        email: partyA.signers[0].email,
+        title: partyA.signers[0].title || "",
+        role: "party_a",
+      };
+    }
+    if (partyB?.signers[0]) {
+      updates.partyB = {
+        name: partyB.signers[0].name,
+        email: partyB.signers[0].email,
+        title: partyB.signers[0].title || "",
+        role: "party_b",
+      };
+    }
+
+    onChange(updates);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-bold text-slate-900">
+          {customTitle} Details
+        </h2>
+        <p className="text-slate-600 mt-2">
+          Add the parties who will sign this contract. Contract details were captured in the previous step.
+        </p>
+      </div>
+
+      {/* Dynamic Signers Section */}
+      <DynamicSignersSection
+        signerGroups={signerGroups}
+        onChange={handleSignerGroupsChange}
+      />
+
+      {/* Info box about custom contract generation */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <div className="flex gap-3">
+          <FileText className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800">Custom Contract</p>
+            <p className="text-sm text-amber-700 mt-1">
+              Our AI will generate this {customTitle.toLowerCase()} using the details you provided.
+              You&apos;ll be able to review and edit all clauses before sending for signature.
+            </p>
+          </div>
         </div>
       </div>
     </div>

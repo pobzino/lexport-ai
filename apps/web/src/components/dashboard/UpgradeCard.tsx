@@ -61,14 +61,14 @@ export function UpgradeCard() {
           Get 50% off your first month
         </h3>
         <p className="text-white/70 text-sm mb-4">
-          Upgrade to Pro and unlock unlimited contracts, AI chat, and our full template library.
+          Upgrade to Pro and unlock 50 contracts/month, AI chat, and our full template library.
         </p>
 
         {/* Features */}
         <div className="grid grid-cols-3 gap-3 mb-5">
           <div className="flex items-center gap-2 text-sm text-white/80">
             <FileText className="w-4 h-4 text-[#529ec6]" />
-            <span>Unlimited contracts</span>
+            <span>50 contracts/mo</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-white/80">
             <MessageSquare className="w-4 h-4 text-[#529ec6]" />

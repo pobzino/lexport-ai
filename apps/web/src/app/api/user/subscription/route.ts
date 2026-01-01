@@ -2,38 +2,54 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { EffectiveSubscription, SubscriptionTier } from "@/db/types";
 
-// Feature flags by tier
-const TIER_FEATURES: Record<SubscriptionTier, {
+// Feature flags and limits by tier
+const TIER_CONFIG: Record<SubscriptionTier, {
   hasAIChat: boolean;
-  hasTemplateAccess: boolean; // Free tier has NO template access
+  hasTemplateAccess: boolean; // Free tier has basic templates only
   hasPremiumTemplates: boolean;
+  hasRiskAnalysis: boolean;
   hasTeamFeatures: boolean;
   hasApiAccess: boolean;
   platformFeePercent: number;
+  contractsLimit: number; // -1 = unlimited
+  signaturesLimit: number; // -1 = unlimited
+  chatMessagesLimit: number; // -1 = unlimited
 }> = {
   free: {
-    hasAIChat: false,
-    hasTemplateAccess: false, // Free tier cannot access templates
+    hasAIChat: true, // Free users can access chat with 5 message limit
+    hasTemplateAccess: true, // Free tier gets basic templates
     hasPremiumTemplates: false,
+    hasRiskAnalysis: false, // Risk analysis is Pro+ only
     hasTeamFeatures: false,
     hasApiAccess: false,
-    platformFeePercent: 5,
+    platformFeePercent: 0,
+    contractsLimit: 3, // 3 contracts/month
+    signaturesLimit: 5, // 5 signatures/month
+    chatMessagesLimit: 5, // 5 chat messages/month
   },
   pro: {
     hasAIChat: true,
-    hasTemplateAccess: true, // Pro gets template access
+    hasTemplateAccess: true,
     hasPremiumTemplates: true,
+    hasRiskAnalysis: true,
     hasTeamFeatures: false,
     hasApiAccess: false,
-    platformFeePercent: 2,
-  },
-  team: {
-    hasAIChat: true,
-    hasTemplateAccess: true, // Team gets template access
-    hasPremiumTemplates: true,
-    hasTeamFeatures: true,
-    hasApiAccess: true,
     platformFeePercent: 0,
+    contractsLimit: 50, // 50 contracts/month
+    signaturesLimit: -1, // Unlimited
+    chatMessagesLimit: -1, // Unlimited
+  },
+  team: { // Business plan (stored as "team" in DB)
+    hasAIChat: true,
+    hasTemplateAccess: true,
+    hasPremiumTemplates: true,
+    hasRiskAnalysis: true,
+    hasTeamFeatures: false, // No team features - just more contracts
+    hasApiAccess: false,
+    platformFeePercent: 0,
+    contractsLimit: 200, // 200 contracts/month
+    signaturesLimit: -1, // Unlimited
+    chatMessagesLimit: -1, // Unlimited
   },
 };
 
@@ -54,19 +70,22 @@ export async function GET() {
       .rpc("get_effective_subscription", { user_uuid: user.id })
       .single<EffectiveSubscription>();
 
-    // If RPC doesn't exist yet (migration not applied), fall back to direct query
-    if (rpcError && (rpcError.code === "42883" || rpcError.code === "PGRST202")) {
+    // If RPC doesn't exist yet (migration not applied) OR user not found, fall back to direct query
+    // 42883 = function doesn't exist, PGRST202 = function not found, PGRST116 = no rows found
+    if (rpcError && (rpcError.code === "42883" || rpcError.code === "PGRST202" || rpcError.code === "PGRST116")) {
       // Function doesn't exist, use fallback
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select(
-          "subscription_tier, subscription_status, ai_contracts_used, ai_contracts_limit, signatures_used, signatures_limit, usage_reset_at"
+          "subscription_tier, subscription_status, ai_contracts_used, ai_contracts_limit, signatures_used, signatures_limit, ai_chat_messages_used, usage_reset_at"
         )
         .eq("id", user.id)
         .single();
 
-      // If columns don't exist yet, return defaults
-      if (userError && userError.code === "42703") {
+      // If columns don't exist yet OR user doesn't exist in table, return defaults
+      // 42703 = column not found, PGRST116 = no rows found
+      if (userError && (userError.code === "42703" || userError.code === "PGRST116")) {
+        const config = TIER_CONFIG.free;
         return NextResponse.json({
           tier: "free" as SubscriptionTier,
           status: "active",
@@ -74,15 +93,24 @@ export async function GET() {
           isUnlimited: false,
           // Usage
           contractsUsed: 0,
-          contractsLimit: 1, // Free tier: 1 contract/month
+          contractsLimit: config.contractsLimit,
           signaturesUsed: 0,
-          signaturesLimit: 3, // Free tier: 3 signatures/month
+          signaturesLimit: config.signaturesLimit,
+          chatMessagesUsed: 0,
+          chatMessagesLimit: config.chatMessagesLimit,
           usageResetAt: null,
           daysUntilReset: null,
           // Feature flags
           canCreateContract: true,
           canSendSignature: true,
-          ...TIER_FEATURES.free,
+          canSendChatMessage: true,
+          hasAIChat: config.hasAIChat,
+          hasRiskAnalysis: config.hasRiskAnalysis,
+          hasTemplateAccess: config.hasTemplateAccess,
+          hasPremiumTemplates: config.hasPremiumTemplates,
+          hasTeamFeatures: config.hasTeamFeatures,
+          hasApiAccess: config.hasApiAccess,
+          platformFeePercent: config.platformFeePercent,
           organizationName: null,
         });
       }
@@ -90,11 +118,14 @@ export async function GET() {
       if (userError) throw userError;
 
       const tier = (userData?.subscription_tier as SubscriptionTier) || "free";
-      const isUnlimited = tier === "pro" || tier === "team";
-      const contractsLimit = userData?.ai_contracts_limit ?? 1; // Default: 1 for free tier
-      const signaturesLimit = userData?.signatures_limit ?? 3; // Default: 3 for free tier
+      const config = TIER_CONFIG[tier];
+      const contractsLimit = config.contractsLimit;
+      const signaturesLimit = config.signaturesLimit;
+      const chatMessagesLimit = config.chatMessagesLimit;
+      const isUnlimited = contractsLimit === -1;
       const contractsUsed = userData?.ai_contracts_used ?? 0;
       const signaturesUsed = userData?.signatures_used ?? 0;
+      const chatMessagesUsed = userData?.ai_chat_messages_used ?? 0;
 
       return NextResponse.json({
         tier,
@@ -103,26 +134,45 @@ export async function GET() {
         isUnlimited,
         // Usage
         contractsUsed,
-        contractsLimit,
+        contractsLimit: contractsLimit === -1 ? 999999 : contractsLimit,
         signaturesUsed,
-        signaturesLimit,
+        signaturesLimit: signaturesLimit === -1 ? 999999 : signaturesLimit,
+        chatMessagesUsed,
+        chatMessagesLimit: chatMessagesLimit === -1 ? 999999 : chatMessagesLimit,
         usageResetAt: userData?.usage_reset_at || null,
         daysUntilReset: calculateDaysUntilReset(userData?.usage_reset_at),
         // Feature flags
         canCreateContract: isUnlimited || contractsUsed < contractsLimit,
-        canSendSignature: isUnlimited || signaturesUsed < signaturesLimit,
-        ...TIER_FEATURES[tier],
+        canSendSignature: signaturesLimit === -1 || signaturesUsed < signaturesLimit,
+        canSendChatMessage: chatMessagesLimit === -1 || chatMessagesUsed < chatMessagesLimit,
+        hasAIChat: config.hasAIChat,
+        hasRiskAnalysis: config.hasRiskAnalysis,
+        hasTemplateAccess: config.hasTemplateAccess,
+        hasPremiumTemplates: config.hasPremiumTemplates,
+        hasTeamFeatures: config.hasTeamFeatures,
+        hasApiAccess: config.hasApiAccess,
+        platformFeePercent: config.platformFeePercent,
         organizationName: null,
       });
     }
 
     if (rpcError) throw rpcError;
 
+    // Get chat messages used (not in RPC yet)
+    const { data: chatData } = await supabase
+      .from("users")
+      .select("ai_chat_messages_used")
+      .eq("id", user.id)
+      .single();
+    const chatMessagesUsed = chatData?.ai_chat_messages_used ?? 0;
+
     // Use effective subscription data from RPC
-    const tier = effectiveData?.effective_tier || "free";
-    const isUnlimited = effectiveData?.is_unlimited || false;
-    const contractsLimit = effectiveData?.contracts_limit ?? 1; // Default: 1 for free tier
-    const signaturesLimit = effectiveData?.signatures_limit ?? 3; // Default: 3 for free tier
+    const tier = (effectiveData?.effective_tier || "free") as SubscriptionTier;
+    const config = TIER_CONFIG[tier];
+    const contractsLimit = config.contractsLimit;
+    const signaturesLimit = config.signaturesLimit;
+    const chatMessagesLimit = config.chatMessagesLimit;
+    const isUnlimited = contractsLimit === -1;
     const contractsUsed = effectiveData?.contracts_used ?? 0;
     const signaturesUsed = effectiveData?.signatures_used ?? 0;
 
@@ -133,15 +183,24 @@ export async function GET() {
       isUnlimited,
       // Usage
       contractsUsed,
-      contractsLimit,
+      contractsLimit: contractsLimit === -1 ? 999999 : contractsLimit,
       signaturesUsed,
-      signaturesLimit,
+      signaturesLimit: signaturesLimit === -1 ? 999999 : signaturesLimit,
+      chatMessagesUsed,
+      chatMessagesLimit: chatMessagesLimit === -1 ? 999999 : chatMessagesLimit,
       usageResetAt: effectiveData?.usage_reset_at || null,
       daysUntilReset: calculateDaysUntilReset(effectiveData?.usage_reset_at),
       // Feature flags
       canCreateContract: isUnlimited || contractsUsed < contractsLimit,
-      canSendSignature: isUnlimited || signaturesUsed < signaturesLimit,
-      ...TIER_FEATURES[tier as SubscriptionTier],
+      canSendSignature: signaturesLimit === -1 || signaturesUsed < signaturesLimit,
+      canSendChatMessage: chatMessagesLimit === -1 || chatMessagesUsed < chatMessagesLimit,
+      hasAIChat: config.hasAIChat,
+      hasRiskAnalysis: config.hasRiskAnalysis,
+      hasTemplateAccess: config.hasTemplateAccess,
+      hasPremiumTemplates: config.hasPremiumTemplates,
+      hasTeamFeatures: config.hasTeamFeatures,
+      hasApiAccess: config.hasApiAccess,
+      platformFeePercent: config.platformFeePercent,
       organizationName: effectiveData?.organization_name || null,
     });
   } catch (error) {

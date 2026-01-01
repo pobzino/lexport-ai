@@ -15,13 +15,17 @@ export interface SubscriptionData {
   contractsLimit: number;
   signaturesUsed: number;
   signaturesLimit: number;
+  chatMessagesUsed: number;
+  chatMessagesLimit: number;
   usageResetAt: string | null;
   daysUntilReset: number | null;
 
   // Feature flags
   canCreateContract: boolean;
   canSendSignature: boolean;
+  canSendChatMessage: boolean;
   hasAIChat: boolean;
+  hasRiskAnalysis: boolean;
   hasTemplateAccess: boolean; // Pro+ only - free tier has no template access
   hasPremiumTemplates: boolean;
   hasTeamFeatures: boolean;
@@ -51,19 +55,23 @@ const DEFAULT_DATA: Omit<SubscriptionData, "refetch"> = {
   source: "user",
   isUnlimited: false,
   contractsUsed: 0,
-  contractsLimit: 1, // Free tier: 1 contract/month
+  contractsLimit: 3, // Free tier: 3 contracts/month
   signaturesUsed: 0,
-  signaturesLimit: 3, // Free tier: 3 signatures/month
+  signaturesLimit: 5, // Free tier: 5 signatures/month
+  chatMessagesUsed: 0,
+  chatMessagesLimit: 5, // Free tier: 5 chat messages/month
   usageResetAt: null,
   daysUntilReset: null,
   canCreateContract: true,
   canSendSignature: true,
-  hasAIChat: false,
-  hasTemplateAccess: false, // Free tier: no template access
+  canSendChatMessage: true,
+  hasAIChat: true, // Free users can access chat (with 5 msg limit)
+  hasRiskAnalysis: false, // Risk analysis is Pro+ only
+  hasTemplateAccess: true, // Free tier: basic templates
   hasPremiumTemplates: false,
   hasTeamFeatures: false,
   hasApiAccess: false,
-  platformFeePercent: 5,
+  platformFeePercent: 0,
   organizationName: null,
   isLoading: true,
   error: null,
@@ -89,20 +97,24 @@ export function useSubscription(): SubscriptionData & LegacySubscriptionData {
         isUnlimited: result.isUnlimited || false,
         // Usage tracking
         contractsUsed: result.contractsUsed ?? 0,
-        contractsLimit: result.contractsLimit ?? 1, // Default: 1 for free tier
+        contractsLimit: result.contractsLimit ?? 3, // Default: 3 for free tier
         signaturesUsed: result.signaturesUsed ?? 0,
-        signaturesLimit: result.signaturesLimit ?? 3, // Default: 3 for free tier
+        signaturesLimit: result.signaturesLimit ?? 5, // Default: 5 for free tier
+        chatMessagesUsed: result.chatMessagesUsed ?? 0,
+        chatMessagesLimit: result.chatMessagesLimit ?? 5, // Default: 5 for free tier
         usageResetAt: result.usageResetAt || null,
         daysUntilReset: result.daysUntilReset ?? null,
         // Feature flags
         canCreateContract: result.canCreateContract ?? true,
         canSendSignature: result.canSendSignature ?? true,
-        hasAIChat: result.hasAIChat ?? false,
-        hasTemplateAccess: result.hasTemplateAccess ?? false, // Pro+ only
+        canSendChatMessage: result.canSendChatMessage ?? true,
+        hasAIChat: result.hasAIChat ?? true, // Free users can access chat
+        hasRiskAnalysis: result.hasRiskAnalysis ?? false, // Pro+ only
+        hasTemplateAccess: result.hasTemplateAccess ?? true, // Basic templates for all
         hasPremiumTemplates: result.hasPremiumTemplates ?? false,
         hasTeamFeatures: result.hasTeamFeatures ?? false,
         hasApiAccess: result.hasApiAccess ?? false,
-        platformFeePercent: result.platformFeePercent ?? 5,
+        platformFeePercent: result.platformFeePercent ?? 0,
         // Organization
         organizationName: result.organizationName || null,
         // State
@@ -138,6 +150,7 @@ export type FeatureType =
   | "ai_contract"
   | "signature"
   | "ai_chat"
+  | "risk_analysis"
   | "templates" // All templates - Pro+ only
   | "premium_template"
   | "team_features"
@@ -163,7 +176,9 @@ export function requiresUpgrade(
     case "signature":
       return !subscription.canSendSignature;
     case "ai_chat":
-      return !subscription.hasAIChat;
+      return !subscription.canSendChatMessage;
+    case "risk_analysis":
+      return !subscription.hasRiskAnalysis;
     case "templates":
       return !subscription.hasTemplateAccess; // Free tier has no template access
     case "premium_template":
@@ -187,7 +202,7 @@ export function getUpgradeMessage(feature: FeatureType): {
     case "ai_contract":
       return {
         title: "Contract Limit Reached",
-        description: "You've used all your AI contract generations this month. Upgrade to Pro for unlimited contracts.",
+        description: "You've used all your AI contract generations this month. Upgrade to Pro for 50 contracts/month.",
         ctaText: "Upgrade to Pro",
       };
     case "signature":
@@ -198,14 +213,20 @@ export function getUpgradeMessage(feature: FeatureType): {
       };
     case "ai_chat":
       return {
-        title: "AI Chat is a Pro Feature",
-        description: "Get instant answers about your contracts with AI-powered chat. Available on Pro and Team plans.",
+        title: "AI Chat Limit Reached",
+        description: "You've used all 5 free AI chat messages this month. Upgrade to Pro for unlimited chat.",
+        ctaText: "Upgrade to Pro",
+      };
+    case "risk_analysis":
+      return {
+        title: "Risk Analysis is a Pro Feature",
+        description: "Get AI-powered analysis of potential risks and issues in your contracts. Available on Pro and Business plans.",
         ctaText: "Upgrade to Pro",
       };
     case "templates":
       return {
-        title: "Templates Require Pro",
-        description: "Access our full library of professionally drafted legal templates. Upgrade to Pro for unlimited template access.",
+        title: "Premium Templates",
+        description: "Access our full library of premium legal templates. Upgrade to Pro for all templates.",
         ctaText: "Upgrade to Pro",
       };
     case "premium_template":
@@ -216,15 +237,15 @@ export function getUpgradeMessage(feature: FeatureType): {
       };
     case "team_features":
       return {
-        title: "Team Features",
-        description: "Collaborate with your team, manage permissions, and share templates. Available on Team plan.",
-        ctaText: "Upgrade to Team",
+        title: "Business Features",
+        description: "Need more contracts? Upgrade to Business for 200 contracts/month.",
+        ctaText: "Upgrade to Business",
       };
     case "api_access":
       return {
         title: "API Access Required",
-        description: "Integrate Lexport with your systems using our API. Available on Team plan.",
-        ctaText: "Upgrade to Team",
+        description: "Integrate Lexport with your systems using our API. Contact us for access.",
+        ctaText: "Contact Us",
       };
     default:
       return {
@@ -249,7 +270,7 @@ export function getTierDisplayName(tier: SubscriptionTier): string {
     case "pro":
       return "Pro";
     case "team":
-      return "Team";
+      return "Business";
     default:
       return "Free";
   }

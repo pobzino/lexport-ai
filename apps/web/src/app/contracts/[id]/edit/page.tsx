@@ -1226,6 +1226,12 @@ export default function ContractEditorPage() {
 
   // Fetch risk analysis
   const fetchRiskAnalysis = async (forceRefresh = false) => {
+    // Check subscription on frontend first to avoid unnecessary API call and loading state
+    if (!subscription.hasRiskAnalysis) {
+      setRiskError("Risk Analysis is a Pro feature. Upgrade to access AI-powered contract risk analysis.");
+      return;
+    }
+
     setRiskLoading(true);
     setRiskError(null);
     try {
@@ -1234,8 +1240,14 @@ export default function ContractEditorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ forceRefresh }),
       });
-      if (!response.ok) throw new Error("Failed to analyze contract");
       const data = await response.json();
+      if (!response.ok) {
+        // Handle upgrade required (403) with specific message
+        if (response.status === 403 && data.upgradeRequired) {
+          throw new Error(data.message || "Risk Analysis is a Pro feature. Upgrade to access.");
+        }
+        throw new Error(data.error || "Failed to analyze contract");
+      }
       setRiskAnalysis(data.analysis);
     } catch (err) {
       setRiskError(err instanceof Error ? err.message : "Analysis failed");
@@ -1313,7 +1325,16 @@ export default function ContractEditorPage() {
               <div className="min-w-0 flex-1">
                 <h1 className="font-semibold text-slate-900 text-sm truncate max-w-[150px] sm:max-w-[250px] lg:max-w-none">{contract.title}</h1>
                 <p className="text-xs text-slate-500 truncate">
-                  Version {contract.version} • {contract.status}
+                  Version {contract.version} • {
+                    {
+                      draft: "Draft",
+                      pending_signature: "Awaiting Signature",
+                      signed: "Signed",
+                      completed: "Completed",
+                      expired: "Expired",
+                      cancelled: "Cancelled",
+                    }[contract.status] || contract.status
+                  }
                 </p>
               </div>
             </div>
@@ -1679,8 +1700,15 @@ export default function ContractEditorPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full font-medium capitalize">
-                {contract?.status?.replace("_", " ")}
+              <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full font-medium">
+                {contract?.status && {
+                  draft: "Draft",
+                  pending_signature: "Awaiting Signature",
+                  signed: "Signed",
+                  completed: "Completed",
+                  expired: "Expired",
+                  cancelled: "Cancelled",
+                }[contract.status] || contract?.status?.replace("_", " ")}
               </span>
             </div>
           </div>

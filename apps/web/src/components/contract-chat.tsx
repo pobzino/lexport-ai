@@ -331,32 +331,46 @@ export function ContractChat({
           </div>
         )}
 
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-          >
+        {messages.map((message) => {
+          // Skip assistant messages with no renderable content (still streaming initial response)
+          if (message.role === "assistant") {
+            const hasContent = message.parts.some(part => {
+              // Show if there's actual text content
+              if (part.type === "text" && part.text.trim()) return true;
+              // Show if there's a tool being processed (to show loading skeleton)
+              if (part.type.startsWith("tool-")) return true;
+              return false;
+            });
+            if (!hasContent) return null;
+          }
+
+          return (
             <div
-              className={`max-w-[90%] rounded-lg p-3 ${
-                message.role === "user"
-                  ? "bg-violet-600 text-white"
-                  : "bg-white border border-slate-200 text-slate-900"
-              }`}
+              key={message.id}
+              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              {message.role === "user" ? (
-                <div className="text-sm whitespace-pre-wrap">
-                  {message.parts
-                    .map((p) => (p.type === "text" ? p.text : ""))
-                    .join("")}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {message.parts.map((part, index) => renderPart(part, index))}
-                </div>
-              )}
+              <div
+                className={`max-w-[90%] rounded-lg p-3 ${
+                  message.role === "user"
+                    ? "bg-violet-600 text-white"
+                    : "bg-white border border-slate-200 text-slate-900"
+                }`}
+              >
+                {message.role === "user" ? (
+                  <div className="text-sm whitespace-pre-wrap">
+                    {message.parts
+                      .map((p) => (p.type === "text" ? p.text : ""))
+                      .join("")}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {message.parts.map((part, index) => renderPart(part, index))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Loading indicator */}
         {(status === "submitted" || status === "streaming") && (

@@ -32,6 +32,12 @@ export const ContractTypeEnum = z.enum([
   "letter_of_intent",
   "cofounder_agreement",
   "sales_contract",
+  "ip_assignment",
+  "advisor_agreement",
+  "employment_offer",
+  "sow",
+  "msa",
+  "custom", // For custom contracts without a template match
 ]);
 
 export type ContractType = z.infer<typeof ContractTypeEnum>;
@@ -324,6 +330,167 @@ export const SalesContractMetadataSchema = z.object({
 
 export type SalesContractMetadata = z.infer<typeof SalesContractMetadataSchema>;
 
+// IP Assignment Metadata
+export const IPAssignmentMetadataSchema = z.object({
+  contractType: z.literal("ip_assignment"),
+  assignor: PartySchema,
+  assignee: PartySchema,
+  ipDescription: z.string().min(10, "Please describe the intellectual property"),
+  ipType: z.enum(["patent", "trademark", "copyright", "trade_secret", "software", "other"]),
+  consideration: z.object({
+    type: z.enum(["cash", "equity", "royalty", "work_for_hire", "other"]),
+    amount: z.number().optional(),
+    description: z.string().optional(),
+  }),
+  priorWorks: z.boolean().default(false),
+  priorWorksDescription: z.string().optional(),
+  effectiveDate: z.string(),
+  jurisdiction: JurisdictionEnum,
+  signerGroups: z.array(SignerGroupSchema).optional(),
+});
+
+export type IPAssignmentMetadata = z.infer<typeof IPAssignmentMetadataSchema>;
+
+// Advisor Agreement Metadata
+export const AdvisorMetadataSchema = z.object({
+  contractType: z.literal("advisor_agreement"),
+  company: PartySchema,
+  advisor: PartySchema,
+  advisorRole: z.string().min(3, "Advisor role required"),
+  advisorResponsibilities: z.string().optional(),
+  timeCommitment: z.string().optional(), // e.g., "4 hours/month"
+  compensationType: z.enum(["equity", "cash", "both", "none"]),
+  equityGrant: z.object({
+    percentage: z.number().min(0).max(100).optional(),
+    vestingMonths: z.number().default(24),
+    cliffMonths: z.number().default(0),
+  }).optional(),
+  cashCompensation: z.object({
+    amount: z.number().optional(),
+    frequency: z.enum(["monthly", "quarterly", "annually", "per_meeting"]).optional(),
+  }).optional(),
+  termMonths: z.number().optional(),
+  effectiveDate: z.string(),
+  jurisdiction: JurisdictionEnum,
+  includeConfidentiality: z.boolean().default(true),
+  includeIPAssignment: z.boolean().default(true),
+  signerGroups: z.array(SignerGroupSchema).optional(),
+});
+
+export type AdvisorMetadata = z.infer<typeof AdvisorMetadataSchema>;
+
+// Employment Offer Letter Metadata
+export const EmploymentOfferMetadataSchema = z.object({
+  contractType: z.literal("employment_offer"),
+  employer: PartySchema,
+  employee: PartySchema,
+  position: z.string().min(2, "Position title required"),
+  department: z.string().optional(),
+  reportsTo: z.string().optional(),
+  startDate: z.string(),
+  employmentType: z.enum(["full_time", "part_time", "temporary", "contract"]),
+  salary: z.number().min(0),
+  salaryFrequency: z.enum(["hourly", "weekly", "biweekly", "monthly", "annually"]).default("annually"),
+  bonus: z.object({
+    eligible: z.boolean().default(false),
+    targetPercentage: z.number().optional(),
+    description: z.string().optional(),
+  }).optional(),
+  equity: z.object({
+    granted: z.boolean().default(false),
+    shares: z.number().optional(),
+    vestingSchedule: z.string().optional(),
+  }).optional(),
+  benefits: z.array(z.string()).optional(), // List of benefits
+  ptoPolicy: z.string().optional(),
+  workLocation: z.enum(["onsite", "remote", "hybrid"]).optional(),
+  workAddress: z.string().optional(),
+  effectiveDate: z.string(),
+  jurisdiction: JurisdictionEnum,
+  atWillEmployment: z.boolean().default(true),
+  signerGroups: z.array(SignerGroupSchema).optional(),
+});
+
+export type EmploymentOfferMetadata = z.infer<typeof EmploymentOfferMetadataSchema>;
+
+// Statement of Work Metadata
+export const SOWMetadataSchema = z.object({
+  contractType: z.literal("sow"),
+  client: PartySchema,
+  provider: PartySchema,
+  projectName: z.string().min(3, "Project name required"),
+  projectScope: z.string().min(20, "Please describe the project scope"),
+  deliverables: z.array(z.object({
+    name: z.string(),
+    description: z.string().optional(),
+    dueDate: z.string().optional(),
+    acceptanceCriteria: z.string().optional(),
+  })).min(1, "At least one deliverable required"),
+  milestones: z.array(z.object({
+    name: z.string(),
+    date: z.string(),
+    payment: z.number().optional(),
+  })).optional(),
+  timeline: z.object({
+    startDate: z.string(),
+    endDate: z.string().optional(),
+    estimatedDuration: z.string().optional(),
+  }),
+  budget: z.object({
+    totalAmount: z.number(),
+    paymentSchedule: z.enum(["upfront", "milestone", "completion", "monthly"]),
+    paymentTerms: z.number().default(30), // days
+  }),
+  assumptions: z.array(z.string()).optional(),
+  outOfScope: z.array(z.string()).optional(),
+  effectiveDate: z.string(),
+  jurisdiction: JurisdictionEnum,
+  masterAgreementId: z.string().optional(), // Reference to MSA if exists
+  signerGroups: z.array(SignerGroupSchema).optional(),
+});
+
+export type SOWMetadata = z.infer<typeof SOWMetadataSchema>;
+
+// Master Service Agreement Metadata
+export const MSAMetadataSchema = z.object({
+  contractType: z.literal("msa"),
+  client: PartySchema,
+  provider: PartySchema,
+  servicesDescription: z.string().min(20, "Please describe the services"),
+  serviceCategories: z.array(z.string()).optional(),
+  pricingStructure: z.enum(["fixed", "time_and_materials", "retainer", "project_based"]),
+  paymentTerms: z.number().default(30), // days
+  termType: z.enum(["fixed", "ongoing"]),
+  termMonths: z.number().optional(),
+  autoRenew: z.boolean().default(true),
+  terminationNoticeDays: z.number().default(30),
+  effectiveDate: z.string(),
+  jurisdiction: JurisdictionEnum,
+  includeConfidentiality: z.boolean().default(true),
+  includeIPAssignment: z.boolean().default(true),
+  liabilityCapType: z.enum(["contract_value", "annual_fees", "fixed_amount", "unlimited"]).default("annual_fees"),
+  liabilityCapAmount: z.number().optional(),
+  indemnificationMutual: z.boolean().default(true),
+  insuranceRequired: z.boolean().default(false),
+  insuranceMinimum: z.number().optional(),
+  signerGroups: z.array(SignerGroupSchema).optional(),
+});
+
+export type MSAMetadata = z.infer<typeof MSAMetadataSchema>;
+
+// Custom Contract Metadata (for unsupported contract types)
+export const CustomMetadataSchema = z.object({
+  contractType: z.literal("custom"),
+  customContractName: z.string().min(1, "Contract name required"),
+  customContractDescription: z.string().optional(),
+  effectiveDate: z.string(),
+  jurisdiction: JurisdictionEnum,
+  signerGroups: z.array(SignerGroupSchema).optional(),
+  // Allow any additional fields from intake follow-up questions
+}).passthrough();
+
+export type CustomMetadata = z.infer<typeof CustomMetadataSchema>;
+
 // Union type for all metadata
 export type ContractMetadata =
   | NDAMetadata
@@ -333,7 +500,13 @@ export type ContractMetadata =
   | FreelanceMetadata
   | LOIMetadata
   | CofounderMetadata
-  | SalesContractMetadata;
+  | SalesContractMetadata
+  | IPAssignmentMetadata
+  | AdvisorMetadata
+  | EmploymentOfferMetadata
+  | SOWMetadata
+  | MSAMetadata
+  | CustomMetadata;
 
 // ============================================================================
 // Payment Configuration Schema
@@ -366,6 +539,12 @@ export const ContractDocumentSchema = z.object({
     LOIMetadataSchema,
     CofounderMetadataSchema,
     SalesContractMetadataSchema,
+    IPAssignmentMetadataSchema,
+    AdvisorMetadataSchema,
+    EmploymentOfferMetadataSchema,
+    SOWMetadataSchema,
+    MSAMetadataSchema,
+    CustomMetadataSchema,
   ]),
   clauses: z.array(ClauseSchema),
   createdAt: z.string(),
@@ -606,6 +785,131 @@ export const CONTRACT_TYPES: Record<ContractType, ContractTypeDefinition> = {
       { id: "dispute_resolution", title: "Dispute Resolution", type: "standard", order: 15, description: "How disputes will be resolved" },
       { id: "general", title: "General Provisions", type: "standard", order: 16, description: "Miscellaneous legal provisions" },
     ],
+  },
+  ip_assignment: {
+    id: "ip_assignment",
+    name: "IP Assignment Agreement",
+    description: "Transfer intellectual property rights to another party",
+    icon: "file-check",
+    estimatedTime: "3 min",
+    jurisdictions: ["us_california", "us_texas", "us_new_york", "uk"],
+    requiredFields: ["assignor", "assignee", "ipDescription", "consideration", "effectiveDate"],
+    clauseTemplates: [
+      { id: "recitals", title: "Recitals", type: "standard", order: 1, description: "Background and purpose of the assignment" },
+      { id: "ip_description", title: "Intellectual Property Description", type: "negotiable", order: 2, description: "Detailed description of IP being assigned" },
+      { id: "assignment", title: "Assignment of Rights", type: "standard", order: 3, description: "Transfer of all rights, title, and interest" },
+      { id: "consideration", title: "Consideration", type: "negotiable", order: 4, description: "Payment or other consideration for the IP" },
+      { id: "warranties", title: "Warranties and Representations", type: "standard", order: 5, description: "Assignor's promises about the IP" },
+      { id: "further_assurances", title: "Further Assurances", type: "standard", order: 6, description: "Obligation to execute additional documents" },
+      { id: "indemnification", title: "Indemnification", type: "standard", order: 7, description: "Protection from third-party claims" },
+      { id: "governing_law", title: "Governing Law", type: "standard", order: 8, description: "Which jurisdiction's laws apply" },
+      { id: "general", title: "General Provisions", type: "standard", order: 9, description: "Miscellaneous legal provisions" },
+    ],
+  },
+  advisor_agreement: {
+    id: "advisor_agreement",
+    name: "Advisor Agreement",
+    description: "Engage advisors with equity or cash compensation",
+    icon: "user-check",
+    estimatedTime: "4 min",
+    jurisdictions: ["us_california", "us_texas", "us_new_york", "uk"],
+    requiredFields: ["company", "advisor", "advisorRole", "compensationType", "effectiveDate"],
+    clauseTemplates: [
+      { id: "engagement", title: "Engagement", type: "standard", order: 1, description: "Scope of advisory services" },
+      { id: "duties", title: "Advisor Duties", type: "negotiable", order: 2, description: "Expected time commitment and responsibilities" },
+      { id: "compensation", title: "Compensation", type: "negotiable", order: 3, description: "Equity grants, vesting, or cash compensation" },
+      { id: "equity_terms", title: "Equity Terms", type: "optional", order: 4, description: "Details of equity grant if applicable" },
+      { id: "term", title: "Term and Termination", type: "negotiable", order: 5, description: "Duration and exit provisions" },
+      { id: "relationship", title: "Independent Contractor Status", type: "standard", order: 6, description: "Confirms non-employee status" },
+      { id: "confidentiality", title: "Confidentiality", type: "standard", order: 7, description: "Non-disclosure obligations" },
+      { id: "ip_assignment", title: "Intellectual Property", type: "standard", order: 8, description: "Assignment of work product to company" },
+      { id: "non_compete", title: "Non-Compete", type: "optional", order: 9, description: "Restrictions on competing activities" },
+      { id: "representations", title: "Representations", type: "standard", order: 10, description: "Warranties and promises" },
+      { id: "governing_law", title: "Governing Law", type: "standard", order: 11, description: "Applicable jurisdiction" },
+      { id: "general", title: "General Provisions", type: "standard", order: 12, description: "Miscellaneous terms" },
+    ],
+  },
+  employment_offer: {
+    id: "employment_offer",
+    name: "Employment Offer Letter",
+    description: "Formal job offer with terms, compensation, and benefits",
+    icon: "briefcase",
+    estimatedTime: "4 min",
+    jurisdictions: ["us_california", "us_texas", "us_new_york", "uk"],
+    requiredFields: ["employer", "employee", "position", "startDate", "salary", "employmentType"],
+    clauseTemplates: [
+      { id: "offer", title: "Offer of Employment", type: "standard", order: 1, description: "Position and start date" },
+      { id: "compensation", title: "Compensation", type: "negotiable", order: 2, description: "Salary, bonus, and payment terms" },
+      { id: "benefits", title: "Benefits", type: "negotiable", order: 3, description: "Health, retirement, PTO, and other benefits" },
+      { id: "equity", title: "Equity Compensation", type: "optional", order: 4, description: "Stock options or equity grants" },
+      { id: "duties", title: "Position and Duties", type: "negotiable", order: 5, description: "Job responsibilities and reporting" },
+      { id: "employment_type", title: "Employment Type", type: "standard", order: 6, description: "At-will or fixed term employment" },
+      { id: "confidentiality", title: "Confidentiality", type: "standard", order: 7, description: "Protection of company information" },
+      { id: "ip_assignment", title: "Intellectual Property", type: "standard", order: 8, description: "Assignment of work product" },
+      { id: "non_compete", title: "Non-Compete/Non-Solicit", type: "optional", order: 9, description: "Post-employment restrictions" },
+      { id: "background_check", title: "Contingencies", type: "optional", order: 10, description: "Background check, references, etc." },
+      { id: "governing_law", title: "Governing Law", type: "standard", order: 11, description: "Applicable jurisdiction" },
+      { id: "acceptance", title: "Acceptance", type: "standard", order: 12, description: "Signature and acceptance terms" },
+    ],
+  },
+  sow: {
+    id: "sow",
+    name: "Statement of Work",
+    description: "Detailed project scope, deliverables, and timeline",
+    icon: "clipboard-list",
+    estimatedTime: "5 min",
+    jurisdictions: ["us_california", "us_texas", "us_new_york", "uk"],
+    requiredFields: ["client", "provider", "projectName", "projectScope", "deliverables", "timeline", "budget"],
+    clauseTemplates: [
+      { id: "overview", title: "Project Overview", type: "standard", order: 1, description: "Summary and objectives" },
+      { id: "scope", title: "Scope of Work", type: "negotiable", order: 2, description: "Detailed description of work" },
+      { id: "deliverables", title: "Deliverables", type: "negotiable", order: 3, description: "Specific outputs and artifacts" },
+      { id: "milestones", title: "Milestones and Timeline", type: "negotiable", order: 4, description: "Key dates and deadlines" },
+      { id: "acceptance", title: "Acceptance Criteria", type: "negotiable", order: 5, description: "How deliverables are approved" },
+      { id: "resources", title: "Resources and Personnel", type: "optional", order: 6, description: "Team members and responsibilities" },
+      { id: "budget", title: "Budget and Payment", type: "negotiable", order: 7, description: "Costs and payment schedule" },
+      { id: "assumptions", title: "Assumptions and Dependencies", type: "standard", order: 8, description: "Key assumptions and requirements" },
+      { id: "change_management", title: "Change Management", type: "standard", order: 9, description: "Process for scope changes" },
+      { id: "communication", title: "Communication Plan", type: "optional", order: 10, description: "Reporting and meetings" },
+      { id: "risks", title: "Risks and Mitigation", type: "optional", order: 11, description: "Identified risks and plans" },
+      { id: "general", title: "General Terms", type: "standard", order: 12, description: "Reference to master agreement" },
+    ],
+  },
+  msa: {
+    id: "msa",
+    name: "Master Service Agreement",
+    description: "Framework agreement for ongoing services relationship",
+    icon: "file-text",
+    estimatedTime: "6 min",
+    jurisdictions: ["us_california", "us_texas", "us_new_york", "uk"],
+    requiredFields: ["client", "provider", "servicesDescription", "effectiveDate"],
+    clauseTemplates: [
+      { id: "recitals", title: "Recitals", type: "standard", order: 1, description: "Background and purpose" },
+      { id: "services", title: "Services", type: "negotiable", order: 2, description: "General description of services" },
+      { id: "sow_process", title: "Statement of Work Process", type: "standard", order: 3, description: "How SOWs are created and executed" },
+      { id: "fees", title: "Fees and Payment", type: "negotiable", order: 4, description: "Pricing structure and payment terms" },
+      { id: "term", title: "Term and Termination", type: "negotiable", order: 5, description: "Duration and exit provisions" },
+      { id: "confidentiality", title: "Confidentiality", type: "standard", order: 6, description: "Protection of proprietary information" },
+      { id: "ip", title: "Intellectual Property", type: "standard", order: 7, description: "Ownership of work product" },
+      { id: "warranties", title: "Warranties", type: "standard", order: 8, description: "Service quality commitments" },
+      { id: "indemnification", title: "Indemnification", type: "standard", order: 9, description: "Protection from third-party claims" },
+      { id: "limitation", title: "Limitation of Liability", type: "standard", order: 10, description: "Caps on damages" },
+      { id: "insurance", title: "Insurance", type: "optional", order: 11, description: "Required coverage" },
+      { id: "compliance", title: "Compliance", type: "standard", order: 12, description: "Legal and regulatory compliance" },
+      { id: "dispute", title: "Dispute Resolution", type: "standard", order: 13, description: "How disputes are resolved" },
+      { id: "governing_law", title: "Governing Law", type: "standard", order: 14, description: "Applicable jurisdiction" },
+      { id: "general", title: "General Provisions", type: "standard", order: 15, description: "Miscellaneous terms" },
+    ],
+  },
+  custom: {
+    id: "custom",
+    name: "Custom Contract",
+    description: "AI-generated contract tailored to your specific needs",
+    icon: "file-text",
+    estimatedTime: "3 min",
+    jurisdictions: ["us_california", "us_texas", "us_new_york", "uk"],
+    requiredFields: ["customContractName", "effectiveDate"],
+    clauseTemplates: [], // Custom contracts generate clauses dynamically based on the contract type
   },
 };
 

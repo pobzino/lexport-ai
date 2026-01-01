@@ -49,6 +49,12 @@ const MANIFEST_KEY_MAP: Record<ContractType, string> = {
   letter_of_intent: "letter_of_intent",
   cofounder_agreement: "cofounder_agreement",
   sales_contract: "sales_contract",
+  ip_assignment: "ip_assignment",
+  advisor_agreement: "advisor_agreement",
+  employment_offer: "employment_offer",
+  sow: "statement_of_work",
+  msa: "master_service_agreement",
+  custom: "", // Custom contracts don't use manifests - handled separately
 };
 
 // Type for manifest structure
@@ -345,12 +351,128 @@ export interface GeneratedContract {
   signatureBlock: string;
 }
 
+// ============================================================================
+// Custom Contract Generation (for unsupported contract types)
+// ============================================================================
+
+async function generateCustomContract(
+  metadata: ContractMetadata
+): Promise<GeneratedContract> {
+  const meta = metadata as Record<string, unknown>;
+  const customContractName = (meta.customContractName as string) || "Custom Agreement";
+  const customContractDescription = (meta.customContractDescription as string) || "";
+  const jurisdiction = metadata.jurisdiction;
+  const jurisdictionName = JURISDICTION_NAMES[jurisdiction];
+
+  // Format signers from signerGroups
+  const signersPrompt = formatSignersForPrompt(metadata);
+
+  const developerPrompt = `You are an expert legal contract drafter specializing in ${jurisdictionName} law. You are generating a ${customContractName}.
+
+IMPORTANT: This is a custom contract type. Generate appropriate clauses based on the contract name and description provided.
+
+FORMATTING REQUIREMENTS:
+1. Use numbered subsections throughout (1.1, 1.2, 2.1, etc.)
+2. Include a Definitions section for key terms
+3. Use professional signature block with "By:" line format
+4. Generate clauses appropriate for this specific contract type
+5. For optional fields not provided, use placeholder format: _____ (5 underscores)
+
+Key requirements for ${jurisdictionName}:
+${getJurisdictionRequirements(jurisdiction)}
+
+SIGNATURE BLOCK FOR MULTIPLE SIGNERS:
+When there are multiple signers:
+- Create a separate signature section for EACH individual signer
+- Group signers by their role/party type with a header
+- Each signer must have their own: Signature line, Printed Name, Title (if provided), Date
+
+Generate a professional, legally sound ${customContractName} with appropriate clauses for this type of agreement.
+
+Output as JSON:
+{
+  "title": "string",
+  "preamble": "string",
+  "recitals": "string",
+  "clauses": [{"id": "string", "title": "string", "content": "string", "type": "standard|negotiable|optional", "order": number}],
+  "signatureBlock": "string"
+}`;
+
+  const userPrompt = `Generate a ${customContractName} for ${jurisdictionName}.
+
+CONTRACT DETAILS:
+- Contract Type: ${customContractName}
+${customContractDescription ? `- Description: ${customContractDescription}` : ""}
+- Effective Date: ${meta.effectiveDate || "To be determined"}
+${signersPrompt ? `\nPARTIES:\n${signersPrompt}` : ""}
+
+${meta.followUpAnswers ? `ADDITIONAL DETAILS:\n${JSON.stringify(meta.followUpAnswers, null, 2)}` : ""}
+
+Return only valid JSON.`;
+
+  // Use GPT-5.1 with Responses API for generation
+  const response = await (getOpenAI() as any).responses.create({
+    model: GENERATION_MODEL,
+    reasoning: { effort: REASONING_EFFORT },
+    input: [
+      { role: "developer", content: developerPrompt },
+      { role: "user", content: userPrompt },
+    ],
+  });
+
+  const content = response.output_text || "";
+
+  // Parse JSON from response
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error("Failed to generate custom contract: No JSON in response");
+  }
+
+  const input = JSON.parse(jsonMatch[0]) as {
+    title: string;
+    preamble: string;
+    recitals: string;
+    clauses: Array<{
+      id: string;
+      title: string;
+      content: string;
+      type: "standard" | "negotiable" | "optional";
+      order: number;
+    }>;
+    signatureBlock: string;
+  };
+
+  // Map to our Clause type with defaults
+  const clauses: Clause[] = input.clauses.map((c, index) => ({
+    id: c.id || `clause_${index + 1}`,
+    title: c.title,
+    content: c.content,
+    type: c.type || "standard",
+    order: c.order || index + 1,
+    isEdited: false,
+  }));
+
+  return {
+    title: input.title,
+    preamble: input.preamble,
+    recitals: input.recitals,
+    clauses,
+    signatureBlock: input.signatureBlock,
+  };
+}
+
 export async function generateContract(
   contractType: ContractType,
   metadata: ContractMetadata
 ): Promise<GeneratedContract> {
-  const typeDefinition = CONTRACT_TYPES[contractType];
   const jurisdiction = metadata.jurisdiction;
+
+  // Handle custom contracts specially - they don't have predefined templates
+  if (contractType === "custom") {
+    return generateCustomContract(metadata);
+  }
+
+  const typeDefinition = CONTRACT_TYPES[contractType];
 
   // Get manifest for this contract type
   const manifest = getManifest(contractType, jurisdiction);

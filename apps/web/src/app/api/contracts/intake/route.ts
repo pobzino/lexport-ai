@@ -13,6 +13,7 @@ const INTAKE_MODEL = "gpt-4.1-mini";
 
 interface ExtractedDetails {
   suggestedType: ContractType;
+  inferredTypeName: string; // Human-readable name for what user needs
   confidence: number; // 0-100
   jurisdiction: Jurisdiction | null;
   extractedFields: Record<string, string | number | boolean>;
@@ -68,11 +69,32 @@ Available jurisdictions:
 ${JURISDICTION_DESCRIPTIONS}
 
 Required fields per contract type:
-- NDA (mutual/one_way): parties (names, emails), purpose, effectiveDate, confidentialityPeriod (years)
-- Independent Contractor: clientName, contractorName, servicesDescription, paymentAmount (number), paymentFrequency (hourly|monthly|project|milestone), duration (e.g. "4 months")
-- Consulting Agreement: clientName, consultantName, consultingScope, hourlyRate or retainerAmount
-- SAFE Note: companyName, investorName, investmentAmount, valuationCap or discountRate (US only)
-- Freelance Service: clientName, freelancerName, projectName, projectDescription, totalAmount
+- NDA (nda_mutual/nda_one_way): parties (names, emails), purpose, effectiveDate, confidentialityPeriod (years)
+- Independent Contractor (independent_contractor): clientName, contractorName, servicesDescription, paymentAmount (number), paymentFrequency (hourly|monthly|project|milestone), duration (e.g. "4 months")
+- Consulting Agreement (consulting_agreement): clientName, consultantName, consultingScope, hourlyRate or retainerAmount
+- SAFE Note (safe_note): companyName, investorName, investmentAmount, valuationCap or discountRate (US only)
+- Freelance Service (freelance_service): clientName, freelancerName, projectName, projectDescription, totalAmount
+- Letter of Intent (letter_of_intent): proposingPartyName, receivingPartyName, transactionType, transactionDescription
+- Co-Founder Agreement (cofounder_agreement): companyName, cofounderNames[], equityPercentages[], roles
+- Sales Contract (sales_contract): sellerName, buyerName, productDescription, totalAmount, deliveryTerms
+- IP Assignment (ip_assignment): assignorName, assigneeName, ipDescription, ipType, consideration
+- Advisor Agreement (advisor_agreement): companyName, advisorName, advisorRole, compensationType (equity|cash|both)
+- Employment Offer Letter (employment_offer): employerName, employeeName, position, salary, startDate, employmentType
+- Statement of Work (sow): clientName, providerName, projectName, projectScope, deliverables, budget
+- Master Service Agreement (msa): clientName, providerName, servicesDescription, pricingStructure, termType
+
+IMPORTANT: If the user's request doesn't clearly match one of the supported contract types above:
+- Set confidence to 0 (zero)
+- Still pick the closest matching contract type as a fallback
+- In reasoning, explain that we don't have a dedicated template for this type but can still generate a custom contract
+
+Examples of requests that should get 0 confidence (no template match):
+- Residential Lease/Rental Agreement
+- Commercial Lease
+- Prenuptial/Postnuptial Agreement
+- Will/Trust/Estate documents
+- Power of Attorney
+- Any other contract type not in the list above
 
 IMPORTANT field naming conventions:
 - paymentAmount: Always a NUMBER (e.g., 25000 not "$25,000")
@@ -83,6 +105,7 @@ IMPORTANT field naming conventions:
 Respond with a JSON object matching this structure:
 {
   "suggestedType": "contract_type_id",
+  "inferredTypeName": "Human-readable contract type name (e.g. 'Residential Lease Agreement', 'Employment Contract')",
   "confidence": 85,
   "jurisdiction": "jurisdiction_id or null",
   "extractedFields": {
@@ -99,6 +122,11 @@ Respond with a JSON object matching this structure:
   ],
   "reasoning": "Brief explanation of why this contract type was chosen"
 }
+
+IMPORTANT for inferredTypeName:
+- Always set this to a clear, professional name for the contract the user needs
+- For supported types, use the official name (e.g., "Mutual NDA", "Independent Contractor Agreement")
+- For unsupported types, use the common legal name (e.g., "Residential Lease Agreement", "Commercial Lease", "Power of Attorney")
 
 Guidelines:
 - Set confidence lower if the description is ambiguous
@@ -129,21 +157,25 @@ Guidelines:
 
     const analysis: ExtractedDetails = JSON.parse(content);
 
-    // Validate the suggested type
+    // Validate the suggested type - if invalid, don't suggest any type
     if (!CONTRACT_TYPES[analysis.suggestedType]) {
-      analysis.suggestedType = "nda_mutual"; // Fallback
-      analysis.confidence = 50;
+      // Return with no recommendation but allow custom generation
+      analysis.confidence = 0;
     }
+
+    // For low confidence (50% or below), mark as "no recommendation"
+    // The frontend will show this and allow AI generation without a template
+    const hasRecommendation = analysis.confidence > 50 && CONTRACT_TYPES[analysis.suggestedType];
 
     // Validate jurisdiction
     if (analysis.jurisdiction && !JURISDICTION_NAMES[analysis.jurisdiction as Jurisdiction]) {
       analysis.jurisdiction = null;
     }
 
-    // Get contract type details for the response
-    const contractTypeDef = CONTRACT_TYPES[analysis.suggestedType];
+    // Get contract type details for the response (may be null for unsupported types)
+    const contractTypeDef = CONTRACT_TYPES[analysis.suggestedType] || null;
 
-    // Check for matching system template
+    // Only check for templates if we have a valid recommendation
     const jurisdiction = analysis.jurisdiction || "us_california";
     const { data: matchingTemplate } = await supabase
       .from("contract_templates")
@@ -209,18 +241,19 @@ Guidelines:
 
     return NextResponse.json({
       success: true,
+      hasRecommendation,
       analysis: {
         ...analysis,
-        contractTypeName: contractTypeDef.name,
-        contractTypeDescription: contractTypeDef.description,
-        contractTypeIcon: contractTypeDef.icon,
+        contractTypeName: analysis.inferredTypeName || contractTypeDef?.name || "Custom Contract",
+        contractTypeDescription: contractTypeDef?.description || "AI-generated contract tailored to your needs",
+        contractTypeIcon: contractTypeDef?.icon || "file-text",
         jurisdictionName: analysis.jurisdiction
           ? JURISDICTION_NAMES[analysis.jurisdiction as Jurisdiction]
           : null,
-        availableJurisdictions: contractTypeDef.jurisdictions.map(j => ({
+        availableJurisdictions: contractTypeDef?.jurisdictions.map(j => ({
           id: j,
           name: JURISDICTION_NAMES[j],
-        })),
+        })) || Object.entries(JURISDICTION_NAMES).map(([id, name]) => ({ id, name })),
       },
       // Include matching template if found
       matchingTemplate: templateMatch,

@@ -7088,5 +7088,568 @@
       "definitionsSection": true,
       "expectedClauseCount": 21
     }
+  },
+  "letter_of_intent": {
+    "contractType": "letter_of_intent",
+    "contractName": "Letter of Intent",
+    "jurisdiction": "california",
+    "requiredClauses": [
+      {
+        "title": "Definitions",
+        "type": "standard",
+        "keyProvisions": [
+          "Define Proposing Party and Receiving Party",
+          "Define Transaction and Transaction Documents",
+          "Define Confidential Information",
+          "Define Due Diligence Period and Materials",
+          "Define Exclusivity Period",
+          "Define Material Adverse Change",
+          "Define Business Day",
+          "Define Affiliate and Representatives"
+        ]
+      },
+      {
+        "title": "Description of Proposed Transaction",
+        "type": "standard",
+        "keyProvisions": [
+          "Detailed description of proposed transaction structure",
+          "Key terms and conditions of the transaction",
+          "Proposed purchase price or valuation",
+          "Assets or equity to be acquired",
+          "Assumption of liabilities (if any)",
+          "Key employees or management retention",
+          "Treatment of existing contracts and relationships"
+        ]
+      },
+      {
+        "title": "Due Diligence",
+        "type": "standard",
+        "keyProvisions": [
+          "Scope of due diligence review",
+          "Access to books, records, and personnel",
+          "Due diligence period and timeline",
+          "Cooperation obligations of target party",
+          "Site visits and facility inspections",
+          "Third-party professional access (accountants, lawyers)",
+          "Reasonable notice requirements for access"
+        ]
+      },
+      {
+        "title": "Key Conditions to Closing",
+        "type": "standard",
+        "keyProvisions": [
+          "Satisfactory completion of due diligence",
+          "Board approval from both parties",
+          "Regulatory approvals (if applicable)",
+          "No material adverse change",
+          "Execution of definitive agreements",
+          "Third-party consents (if required)",
+          "Financing contingency (if applicable)"
+        ]
+      },
+      {
+        "title": "Confidentiality (Binding)",
+        "type": "binding",
+        "keyProvisions": [
+          "Obligation to keep transaction confidential",
+          "Definition of confidential information",
+          "Permitted disclosures to advisors and representatives",
+          "Return or destruction of confidential materials",
+          "Survival of confidentiality obligations",
+          "Reference to separate NDA if applicable",
+          "California trade secret law compliance"
+        ]
+      },
+      {
+        "title": "Exclusivity / No Shop (Binding)",
+        "type": "binding",
+        "keyProvisions": [
+          "Exclusive negotiation period duration",
+          "Prohibition on soliciting competing offers",
+          "Prohibition on providing information to third parties",
+          "Prohibition on entering discussions with third parties",
+          "Notification requirements for unsolicited offers",
+          "Fiduciary out provisions (if applicable)",
+          "Termination of exclusivity provisions"
+        ]
+      }
+    ],
+    "commonClauses": [
+      {
+        "title": "Non-Binding Nature of Other Provisions",
+        "type": "standard",
+        "keyProvisions": [
+          "Clear statement that LOI is non-binding except specified provisions",
+          "List of binding provisions (confidentiality, exclusivity, expenses, governing law)",
+          "No obligation to complete transaction",
+          "Freedom to terminate negotiations",
+          "No liability for failure to reach agreement"
+        ]
+      },
+      {
+        "title": "Expenses",
+        "type": "standard",
+        "keyProvisions": [
+          "Each party bears own expenses",
+          "Legal, accounting, and advisory fees",
+          "Due diligence costs",
+          "No reimbursement upon termination",
+          "Break-up fee provisions (if any)"
+        ]
+      },
+      {
+        "title": "Timeline; Termination",
+        "type": "standard",
+        "keyProvisions": [
+          "Target timeline for definitive agreement",
+          "Expiration date of LOI",
+          "Termination rights of each party",
+          "Effect of termination on binding provisions",
+          "Extension provisions"
+        ]
+      },
+      {
+        "title": "Governing Law; Jurisdiction (Binding)",
+        "type": "binding",
+        "keyProvisions": [
+          "California law governs",
+          "Exclusive jurisdiction in California courts",
+          "Waiver of jury trial (if applicable)",
+          "Attorneys fees provision"
+        ]
+      },
+      {
+        "title": "Announcements; Publicity",
+        "type": "standard",
+        "keyProvisions": [
+          "No public announcements without consent",
+          "Coordination of press releases",
+          "Required disclosures (SEC, regulatory)",
+          "Internal communications limitations"
+        ]
+      },
+      {
+        "title": "Miscellaneous (Binding as to this Section)",
+        "type": "standard",
+        "keyProvisions": [
+          "Entire agreement with respect to LOI subject matter",
+          "Amendment requirements (written, signed)",
+          "Counterparts and electronic signatures",
+          "Assignment restrictions",
+          "Notices provisions",
+          "Severability",
+          "No agency or partnership created"
+        ]
+      }
+    ],
+    "structuralRequirements": {
+      "numberedSubsections": true,
+      "definitionsSection": true,
+      "expectedClauseCount": 12,
+      "bindingProvisionsHighlighted": true
+    }
+  },
+  "cofounder_agreement": {
+    "contractType": "cofounder_agreement",
+    "contractName": "Co-Founder Agreement",
+    "jurisdiction": "california",
+    "requiredClauses": [
+      {
+        "title": "Definitions",
+        "type": "standard",
+        "keyProvisions": [
+          "Define Company and its legal structure",
+          "Define Founders and their roles",
+          "Define Equity and Equity Interests",
+          "Define Vesting Period and Cliff",
+          "Define Intellectual Property",
+          "Define Confidential Information",
+          "Define Good Reason and Cause",
+          "Define Change of Control",
+          "Define Business of the Company"
+        ]
+      },
+      {
+        "title": "Formation; Purpose; Term",
+        "type": "standard",
+        "keyProvisions": [
+          "Company formation and legal structure",
+          "Principal place of business",
+          "Purpose and scope of business",
+          "Term of agreement",
+          "Fiscal year designation"
+        ]
+      },
+      {
+        "title": "Founders; Roles; Contributions",
+        "type": "standard",
+        "keyProvisions": [
+          "Identification of each founder",
+          "Titles and roles (CEO, CTO, etc.)",
+          "Primary responsibilities and duties",
+          "Time commitment expectations",
+          "Initial capital contributions (cash)",
+          "Initial IP contributions",
+          "Valuation of non-cash contributions"
+        ]
+      },
+      {
+        "title": "Equity Ownership; Vesting; Capitalization",
+        "type": "critical",
+        "keyProvisions": [
+          "Initial equity allocation percentages",
+          "Vesting schedule (typically 4 years)",
+          "Cliff period (typically 12 months)",
+          "Acceleration on change of control",
+          "Acceleration on termination without cause",
+          "Treatment of unvested shares on departure",
+          "Anti-dilution provisions",
+          "Future equity pool for employees",
+          "83(b) election requirements"
+        ]
+      },
+      {
+        "title": "Governance; Decision-Making; Deadlock",
+        "type": "critical",
+        "keyProvisions": [
+          "Board composition and voting",
+          "Major decisions requiring unanimous consent",
+          "Day-to-day operational decisions",
+          "Voting thresholds for different matters",
+          "Deadlock resolution mechanisms",
+          "Mediation and arbitration procedures",
+          "Buy-sell provisions for deadlock"
+        ]
+      },
+      {
+        "title": "Compensation; Expenses; Benefits",
+        "type": "standard",
+        "keyProvisions": [
+          "Initial salary arrangements (or deferral)",
+          "Future salary review process",
+          "Expense reimbursement policy",
+          "Benefits eligibility",
+          "Equity as primary compensation initially"
+        ]
+      },
+      {
+        "title": "Confidentiality; Intellectual Property Assignment; Restricted Activities",
+        "type": "critical",
+        "keyProvisions": [
+          "Broad confidentiality obligations",
+          "Assignment of all IP to company",
+          "Work-for-hire provisions",
+          "Prior inventions disclosure and exclusion",
+          "Assistance with IP registration",
+          "Non-compete restrictions (California-limited)",
+          "Non-solicitation of employees",
+          "Non-solicitation of customers"
+        ]
+      },
+      {
+        "title": "Transfer Restrictions; Right of First Refusal; Tag-Along; Drag-Along",
+        "type": "critical",
+        "keyProvisions": [
+          "Restrictions on share transfers",
+          "Right of first refusal for other founders",
+          "Company right of first refusal",
+          "Tag-along rights (co-sale)",
+          "Drag-along rights for majority",
+          "Permitted transfers (estate planning)",
+          "Lock-up periods"
+        ]
+      }
+    ],
+    "commonClauses": [
+      {
+        "title": "Non-Competition and Non-Interference (California-Compliant)",
+        "type": "negotiable",
+        "keyProvisions": [
+          "Acknowledgment of California Business & Professions Code 16600",
+          "Non-compete limited to during employment only",
+          "Non-solicitation of employees (enforceable)",
+          "Non-solicitation of customers (limited enforceability)",
+          "Duty of loyalty during service",
+          "No outside business activities conflicting with company"
+        ]
+      },
+      {
+        "title": "Dispute Resolution; Governing Law; Venue",
+        "type": "standard",
+        "keyProvisions": [
+          "California law governs",
+          "Mandatory mediation first",
+          "Binding arbitration (JAMS or AAA)",
+          "Venue in specified California county",
+          "Prevailing party attorneys fees",
+          "Injunctive relief carve-out"
+        ]
+      },
+      {
+        "title": "Representations; Warranties; Indemnification; Liability",
+        "type": "standard",
+        "keyProvisions": [
+          "Authority to enter agreement",
+          "No conflicts with other obligations",
+          "Ownership of contributed IP",
+          "No pending litigation",
+          "Mutual indemnification",
+          "Limitation of liability"
+        ]
+      },
+      {
+        "title": "Term; Termination; Effects of Termination",
+        "type": "standard",
+        "keyProvisions": [
+          "Voluntary resignation procedures",
+          "Termination for cause definition",
+          "Termination without cause",
+          "Death or disability provisions",
+          "Buyout of departing founder equity",
+          "Valuation methodology for buyout",
+          "Payment terms for buyout",
+          "Survival of certain provisions"
+        ]
+      },
+      {
+        "title": "Miscellaneous",
+        "type": "standard",
+        "keyProvisions": [
+          "Entire agreement",
+          "Amendment requirements",
+          "Waiver provisions",
+          "Severability",
+          "Notices",
+          "Counterparts",
+          "No third-party beneficiaries",
+          "Further assurances"
+        ]
+      }
+    ],
+    "structuralRequirements": {
+      "numberedSubsections": true,
+      "definitionsSection": true,
+      "expectedClauseCount": 13,
+      "californiaSpecific": true,
+      "equityScheduleRequired": true
+    }
+  },
+  "sales_contract": {
+    "contractType": "sales_contract",
+    "contractName": "Sales Contract",
+    "jurisdiction": "california",
+    "requiredClauses": [
+      {
+        "title": "Definitions",
+        "type": "standard",
+        "keyProvisions": [
+          "Define Seller and Buyer",
+          "Define Goods or Products",
+          "Define Purchase Price",
+          "Define Delivery Date and Location",
+          "Define Specifications",
+          "Define Acceptance and Acceptance Period",
+          "Define Warranty Period",
+          "Define Force Majeure Event",
+          "Reference to California Commercial Code"
+        ]
+      },
+      {
+        "title": "Sale of Goods; Description and Specifications",
+        "type": "standard",
+        "keyProvisions": [
+          "Agreement to sell and purchase",
+          "Detailed product description",
+          "Quantity specifications",
+          "Quality standards and specifications",
+          "Reference to attached exhibits or schedules",
+          "Compliance with applicable laws and regulations"
+        ]
+      },
+      {
+        "title": "Purchase Price and Taxes",
+        "type": "standard",
+        "keyProvisions": [
+          "Total purchase price",
+          "Price per unit (if applicable)",
+          "Currency denomination",
+          "Sales tax responsibility",
+          "Import/export duties (if applicable)",
+          "Price adjustment provisions (if any)"
+        ]
+      },
+      {
+        "title": "Payment Terms",
+        "type": "critical",
+        "keyProvisions": [
+          "Payment method (wire, check, etc.)",
+          "Payment schedule (deposit, milestones, final)",
+          "Net payment terms (Net 30, etc.)",
+          "Late payment penalties and interest",
+          "Right to withhold delivery for non-payment",
+          "Security interest until payment in full"
+        ]
+      },
+      {
+        "title": "Delivery, Shipping Terms, and Risk of Loss",
+        "type": "critical",
+        "keyProvisions": [
+          "Delivery method and carrier",
+          "Delivery location (FOB point)",
+          "Shipping terms (FOB Origin, FOB Destination)",
+          "Risk of loss transfer point",
+          "Insurance requirements",
+          "Delivery schedule and deadlines",
+          "Partial shipments (if permitted)",
+          "Delay notifications"
+        ]
+      },
+      {
+        "title": "Inspection and Acceptance",
+        "type": "standard",
+        "keyProvisions": [
+          "Right to inspect goods upon delivery",
+          "Inspection period duration",
+          "Acceptance criteria",
+          "Rejection procedures and notice",
+          "Cure period for non-conforming goods",
+          "Deemed acceptance provisions"
+        ]
+      },
+      {
+        "title": "Warranty",
+        "type": "critical",
+        "keyProvisions": [
+          "Express warranty of conformity to specifications",
+          "Warranty against defects in materials and workmanship",
+          "Warranty period duration",
+          "Warranty claim procedures",
+          "Remedy for warranty breach (repair, replace, refund)",
+          "Exclusions from warranty",
+          "Disclaimer of implied warranties (if applicable)",
+          "California Song-Beverly Act compliance (consumer goods)"
+        ]
+      },
+      {
+        "title": "Limitation of Liability",
+        "type": "standard",
+        "keyProvisions": [
+          "Cap on total liability",
+          "Exclusion of consequential damages",
+          "Exclusion of incidental damages",
+          "Exclusion of lost profits",
+          "Carve-outs for gross negligence and willful misconduct",
+          "Carve-outs for indemnification obligations",
+          "California-specific enforceability considerations"
+        ]
+      }
+    ],
+    "commonClauses": [
+      {
+        "title": "Title and Security Interest",
+        "type": "standard",
+        "keyProvisions": [
+          "Retention of title until payment",
+          "UCC security interest grant",
+          "Buyer authorization for UCC filings",
+          "Risk of loss separate from title"
+        ]
+      },
+      {
+        "title": "Intellectual Property",
+        "type": "standard",
+        "keyProvisions": [
+          "Seller retains all IP rights",
+          "Limited license for intended use",
+          "No reverse engineering",
+          "Trademark and branding restrictions"
+        ]
+      },
+      {
+        "title": "Confidentiality",
+        "type": "standard",
+        "keyProvisions": [
+          "Protection of proprietary information",
+          "Pricing confidentiality",
+          "Technical specifications confidentiality",
+          "Term of confidentiality obligations"
+        ]
+      },
+      {
+        "title": "Indemnification",
+        "type": "standard",
+        "keyProvisions": [
+          "Seller indemnification for IP infringement",
+          "Seller indemnification for product liability",
+          "Buyer indemnification for misuse",
+          "Indemnification procedures",
+          "Defense and settlement rights"
+        ]
+      },
+      {
+        "title": "Force Majeure",
+        "type": "standard",
+        "keyProvisions": [
+          "Definition of force majeure events",
+          "Notice requirements",
+          "Suspension of obligations",
+          "Duration limits",
+          "Right to terminate for extended force majeure"
+        ]
+      },
+      {
+        "title": "Term, Termination, and Remedies",
+        "type": "standard",
+        "keyProvisions": [
+          "Contract term (one-time or ongoing)",
+          "Termination for breach",
+          "Cure period before termination",
+          "Termination for insolvency",
+          "Effect of termination on pending orders",
+          "Survival of certain provisions"
+        ]
+      },
+      {
+        "title": "Governing Law; Dispute Resolution",
+        "type": "standard",
+        "keyProvisions": [
+          "California law governs",
+          "California Commercial Code applies",
+          "Exclusive jurisdiction in California",
+          "Mediation before litigation",
+          "Prevailing party attorneys fees"
+        ]
+      },
+      {
+        "title": "Notices",
+        "type": "standard",
+        "keyProvisions": [
+          "Written notice requirements",
+          "Addresses for notices",
+          "Effective date of notices",
+          "Electronic notice provisions"
+        ]
+      },
+      {
+        "title": "Miscellaneous",
+        "type": "standard",
+        "keyProvisions": [
+          "Entire agreement",
+          "Amendment in writing only",
+          "No waiver by course of dealing",
+          "Severability",
+          "Assignment restrictions",
+          "Counterparts and electronic signatures",
+          "Independent contractors relationship"
+        ]
+      }
+    ],
+    "structuralRequirements": {
+      "numberedSubsections": true,
+      "definitionsSection": true,
+      "expectedClauseCount": 17,
+      "californiaCommercialCode": true,
+      "productScheduleRecommended": true
+    }
   }
 }
