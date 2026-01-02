@@ -184,6 +184,7 @@ export default function ContractEditorPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // UI state
@@ -1204,9 +1205,13 @@ export default function ContractEditorPage() {
   // Download PDF
   const downloadPDF = async () => {
     setDownloading(true);
+    setDownloadError(null);
     try {
       const response = await fetch(`/api/contracts/${contractId}/pdf`);
-      if (!response.ok) throw new Error("Failed to generate PDF");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to generate PDF");
+      }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -1218,7 +1223,10 @@ export default function ContractEditorPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError("Failed to download PDF");
+      console.error("PDF download error:", err);
+      setDownloadError(err instanceof Error ? err.message : "Failed to download PDF");
+      // Auto-dismiss error after 5 seconds
+      setTimeout(() => setDownloadError(null), 5000);
     } finally {
       setDownloading(false);
     }
@@ -2621,6 +2629,22 @@ export default function ContractEditorPage() {
             </button>
             <button
               onClick={() => setDeletedClause(null)}
+              className="p-1 hover:bg-white/10 rounded transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Download Error Toast */}
+      {downloadError && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
+          <div className="flex items-center gap-3 bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span className="text-sm">{downloadError}</span>
+            <button
+              onClick={() => setDownloadError(null)}
               className="p-1 hover:bg-white/10 rounded transition-colors"
             >
               <X className="w-4 h-4" />
