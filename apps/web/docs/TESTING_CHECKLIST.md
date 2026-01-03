@@ -1363,3 +1363,57 @@ This document contains comprehensive testing checklists for all Lexport features
 2. Test mobile responsiveness
 3. Test error handling scenarios
 4. Test actual sign-in/sign-up flows
+
+---
+
+### Run #2: January 3, 2026 - Authenticated Testing Session
+
+**Tester:** Claude (Automated + Manual)
+**Environment:** localhost:3000 (Development)
+**Browser:** Chrome via MCP
+**Session:** Authenticated as Test User E2E
+
+#### Summary
+| Section | Tested | Passed | Failed | Skipped |
+|---------|--------|--------|--------|---------|
+| Dashboard | 11 | 11 | 0 | 2 |
+| Contract Creation (Navigation) | 1 | 0 | 1 | 0 |
+| **Total** | **12** | **11** | **1** | **2** |
+
+#### Test Results
+
+**✅ Dashboard (localhost:3000/dashboard)**
+- Dashboard loads successfully for authenticated users
+- User greeting displays ("Welcome back, Test")
+- Getting Started checklist shows 3/5 completed (60%)
+- Contract stats displayed: 6 total, 2 pending signatures, 0 completed this month
+- Quick action buttons visible (New Contract, Upload Contract)
+- Sidebar navigation present with all menu items
+- User profile section shows "Test User E2E" with email
+
+**❌ Contract Creation Flow**
+- Clicking "New Contract" button or navigating to /contracts/new shows "Rendering..." state
+- Page appears to hang and doesn't load the contract creation wizard
+- No console errors visible
+- **Potential Issues:**
+  1. User may have hit free tier limit (6 contracts created, limit may be 3-5)
+  2. React rendering issue or infinite loop
+  3. API call hanging or failing silently
+  4. Subscription/tier checking logic blocking UI
+
+#### Issues Found
+
+| Severity | Issue | Location | Impact |
+|----------|-------|----------|--------|
+| 🔴 Critical | Contract creation page stuck in "Rendering..." state | /contracts/new | Users cannot create new contracts - core feature blocked |
+
+#### Recommendations
+1. **Immediate:** Investigate contract creation rendering issue
+   - Check browser console for errors
+   - Review /contracts/new page component for infinite loops
+   - Verify subscription limit checking logic
+   - Test with different user tiers
+2. Add loading timeout and error states to prevent indefinite "Rendering..."
+3. Display clear messaging if user has hit tier limits
+4. Implement proper error boundaries for React rendering failures
+5. Continue testing remaining features (e-signatures, payments, templates)
