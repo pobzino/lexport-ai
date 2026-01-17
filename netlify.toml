@@ -1,6 +1,6 @@
 [build]
   base = "apps/web"
-  command = "cd ../.. && bun install && bun run build:web"
+  command = "bun install --cwd ../.. && bun run build"
 
 [build.environment]
   NODE_VERSION = "20"
