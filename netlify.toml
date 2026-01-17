@@ -1,7 +1,6 @@
 [build]
   base = "apps/web"
   command = "cd ../.. && bun install && bun run build:web"
-  publish = ".next"
 
 [build.environment]
   NODE_VERSION = "20"
@@ -9,12 +8,6 @@
 # Use the Next.js plugin for optimal deployment
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-
-# Redirects for SPA-like behavior
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
 
 # Headers for security
 [[headers]]
