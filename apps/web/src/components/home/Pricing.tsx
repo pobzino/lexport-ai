@@ -15,7 +15,6 @@ export function Pricing() {
                         viewport={{ once: true }}
                         className="inline-flex items-center gap-2 bg-[#202e46]/10 text-[#202e46] px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium mb-3 sm:mb-4"
                     >
-                        <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         Simple, transparent pricing
                     </motion.div>
                     <motion.h2
