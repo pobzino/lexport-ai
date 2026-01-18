@@ -24,6 +24,8 @@
   "packageManager": "bun@1.1.0",
   "dependencies": {
     "@napi-rs/canvas": "^0.1.88",
+    "@types/node": "22",
+    "next": "15",
     "pdf-parse": "1.1.1"
   }
 }
