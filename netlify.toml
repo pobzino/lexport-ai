@@ -6,6 +6,13 @@
 [build.environment]
   NODE_VERSION = "20"
 
+# Function configuration - extend timeout for AI operations
+[functions]
+  node_bundler = "esbuild"
+
+[functions."*"]
+  timeout = 26
+
 # Use the Next.js plugin for optimal deployment
 [[plugins]]
   package = "@netlify/plugin-nextjs"
