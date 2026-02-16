@@ -1,0 +1,32 @@
+[
+  {
+    "id": "LEX-002",
+    "task": "Seed system templates and workspace cleanup",
+    "description": "Load 9 pre-generated templates from generated-templates/ into contract_templates table. Remove duplicate files. Make template library functional.",
+    "status": "planned",
+    "priority": "high",
+    "source": "prd-gap-analysis",
+    "plannedAt": "2026-02-16T16:00:00Z",
+    "plannedBy": "opus-analysis",
+    "specFile": "ops/current-spec.md"
+  },
+  {
+    "id": "LEX-001",
+    "task": "Complete streaming contract generation with SSE",
+    "description": "Finish the partially-built streaming contract generation feature. SSE endpoint + frontend overlay + progressive UI updates as clauses generate.",
+    "status": "completed",
+    "priority": "high",
+    "source": "uncommitted-wip",
+    "plannedAt": "2026-02-16T11:57:00Z",
+    "completedAt": "2026-02-16T12:01:07Z",
+    "plannedBy": "opus-analysis",
+    "executedBy": "sonnet-4.5",
+    "commit": "c26e94ce1e8e591dbc7514df406f0563b9ff6f10",
+    "score": 2,
+    "reviewNotes": "Solid implementation. Added 1122 lines across 4 files (SSE route, streaming generator lib, overlay updates, page integration). All spec requirements met. Pre-existing TS error in unrelated file (contracts/[id]/page.ts) not caused by this task. Non-streaming generator preserved as fallback. Clean commit message. Cannot verify runtime behavior without manual testing but code structure looks correct.",
+    "retryCount": 0,
+    "specFile": "ops/current-spec.md",
+    "reviewedAt": "2026-02-16T12:01:00Z",
+    "reviewedBy": "opus-analysis"
+  }
+]
