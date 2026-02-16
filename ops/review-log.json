@@ -10,13 +10,24 @@
       "filesChanged": 4,
       "linesAdded": 1122,
       "commit": "c26e94ce1e8e591dbc7514df406f0563b9ff6f10"
+    },
+    {
+      "taskId": "LEX-002",
+      "executedBy": "sonnet-4.5",
+      "reviewedBy": "opus-review",
+      "reviewedAt": "2026-02-16T16:12:00Z",
+      "score": 2,
+      "notes": "Well-structured seed script with proper TypeScript types, error handling, and graceful duplicate checking. Added npm seed:templates command. Both duplicate files removed. Zero TypeScript errors.",
+      "filesChanged": 5,
+      "linesAdded": 397,
+      "commit": "71c478408fbfdd9d1966f71491697baaab224846"
     }
   ],
   "patterns": {
     "sonnet45": {
-      "totalTasks": 1,
+      "totalTasks": 2,
       "avgScore": 2.0,
-      "strongAt": ["SSE implementation", "large feature integration"],
+      "strongAt": ["SSE implementation", "large feature integration", "infrastructure/tooling"],
       "weakAt": []
     }
   },

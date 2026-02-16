@@ -3,12 +3,20 @@
     "id": "LEX-002",
     "task": "Seed system templates and workspace cleanup",
     "description": "Load 9 pre-generated templates from generated-templates/ into contract_templates table. Remove duplicate files. Make template library functional.",
-    "status": "planned",
+    "status": "completed",
     "priority": "high",
     "source": "prd-gap-analysis",
     "plannedAt": "2026-02-16T16:00:00Z",
+    "completedAt": "2026-02-16T16:09:00Z",
     "plannedBy": "opus-analysis",
-    "specFile": "ops/current-spec.md"
+    "executedBy": "sonnet-4.5",
+    "commit": "71c478408fbfdd9d1966f71491697baaab224846",
+    "score": 2,
+    "reviewNotes": "Solid implementation. Well-structured seed script with proper TypeScript types, error handling, and graceful duplicate checking. Added npm seed:templates command. Both duplicate files removed (commit message only mentioned one, but both were deleted). Zero TypeScript errors. All acceptance criteria met.",
+    "retryCount": 0,
+    "specFile": "ops/current-spec.md",
+    "reviewedAt": "2026-02-16T16:12:00Z",
+    "reviewedBy": "opus-review"
   },
   {
     "id": "LEX-001",
