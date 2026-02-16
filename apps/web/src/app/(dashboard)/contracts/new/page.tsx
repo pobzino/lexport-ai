@@ -110,6 +110,10 @@ export default function NewContractPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Streaming progress state
+  const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
+  const [generationStatus, setGenerationStatus] = useState<string | undefined>(undefined);
+
   // Preview modal state
   const [previewType, setPreviewType] = useState<ContractType | null>(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -558,6 +562,8 @@ export default function NewContractPage() {
 
     setIsGenerating(true);
     setError(null);
+    setGenerationProgress(0);
+    setGenerationStatus("Starting...");
 
     try {
       // Check if this is a custom contract (low confidence from intake)
@@ -591,7 +597,8 @@ export default function NewContractPage() {
           }
         : undefined;
 
-      const response = await fetch("/api/contracts/generate", {
+      // Use streaming endpoint with SSE for real-time progress
+      const response = await fetch("/api/contracts/generate/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -602,18 +609,66 @@ export default function NewContractPage() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to generate contract");
+        throw new Error("Failed to start contract generation");
       }
 
-      const data = await response.json();
-      // Mark onboarding step complete
-      completeStep("first_contract");
-      router.push(`/contracts/${data.contract.id}/edit`);
+      // Process SSE stream
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Failed to read response stream");
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE messages
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || ""; // Keep incomplete message in buffer
+
+        for (const message of lines) {
+          if (!message.trim()) continue;
+
+          const eventMatch = message.match(/event: (\w+)/);
+          const dataMatch = message.match(/data: (.+)/);
+
+          if (eventMatch && dataMatch) {
+            const eventType = eventMatch[1];
+            const data = JSON.parse(dataMatch[1]);
+
+            switch (eventType) {
+              case "progress":
+                setGenerationProgress(data.percent);
+                setGenerationStatus(data.status);
+                break;
+              case "complete":
+                // Mark onboarding step complete
+                completeStep("first_contract");
+                router.push(`/contracts/${data.contractId}/edit`);
+                return;
+              case "error":
+                throw new Error(data.message || "Generation failed");
+              case "heartbeat":
+                // Just keep the connection alive
+                break;
+            }
+          }
+        }
+      }
+
+      // If we get here without completing, something went wrong
+      throw new Error("Connection closed before completion");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setIsGenerating(false);
+      setGenerationProgress(undefined);
+      setGenerationStatus(undefined);
     }
   };
 
@@ -1888,6 +1943,8 @@ export default function NewContractPage() {
       <ContractGeneratingOverlay
         isVisible={isGenerating}
         contractType={selectedType || undefined}
+        serverProgress={generationProgress}
+        serverStatus={generationStatus}
       />
 
       {/* Contract Preview Modal */}

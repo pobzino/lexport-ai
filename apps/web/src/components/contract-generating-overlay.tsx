@@ -46,16 +46,25 @@ const TIPS = [
 interface ContractGeneratingOverlayProps {
   isVisible: boolean;
   contractType?: string;
+  /** Optional server-side progress (0-100) */
+  serverProgress?: number;
+  /** Optional server-side status message */
+  serverStatus?: string;
 }
 
 export function ContractGeneratingOverlay({
   isVisible,
   contractType,
+  serverProgress,
+  serverStatus,
 }: ContractGeneratingOverlayProps) {
   const [currentStage, setCurrentStage] = useState(0);
   const [tipIndex, setTipIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const startTimeRef = useRef<number | null>(null);
+
+  // Use server progress if available, otherwise use local simulation
+  const effectiveProgress = serverProgress !== undefined ? serverProgress : progress;
 
   // Cycle through stages - using refs to prevent reset
   useEffect(() => {
@@ -66,14 +75,28 @@ export function ContractGeneratingOverlay({
       return;
     }
 
-    // Initialize start time only once
+    // If using server progress, calculate stage based on that
+    if (serverProgress !== undefined) {
+      if (serverProgress < 25) {
+        setCurrentStage(0);
+      } else if (serverProgress < 50) {
+        setCurrentStage(1);
+      } else if (serverProgress < 75) {
+        setCurrentStage(2);
+      } else {
+        setCurrentStage(3);
+      }
+      return;
+    }
+
+    // Initialize start time only once (fallback mode)
     if (!startTimeRef.current) {
       startTimeRef.current = Date.now();
     }
 
     const totalDuration = GENERATION_STAGES.reduce((acc, s) => acc + s.duration, 0);
 
-    // Smooth progress animation
+    // Smooth progress animation (fallback mode)
     const progressInterval = setInterval(() => {
       if (!startTimeRef.current) return;
 
@@ -98,7 +121,7 @@ export function ContractGeneratingOverlay({
     return () => {
       clearInterval(progressInterval);
     };
-  }, [isVisible]);
+  }, [isVisible, serverProgress]);
 
   // Cycle tips
   useEffect(() => {
@@ -241,7 +264,7 @@ export function ContractGeneratingOverlay({
         >
           <motion.div
             className="absolute inset-y-0 left-0 bg-gradient-to-r from-[#529ec6] via-emerald-500 to-[#529ec6] rounded-full"
-            style={{ width: `${progress}%` }}
+            style={{ width: `${effectiveProgress}%` }}
             transition={{ duration: 0.3, ease: "easeOut" }}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
@@ -300,25 +323,25 @@ export function ContractGeneratingOverlay({
         >
           <AnimatePresence mode="wait">
             <motion.p
-              key={stage?.label}
+              key={serverStatus || stage?.label}
               initial={{ y: 10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -10, opacity: 0 }}
               className="text-xl font-semibold text-white flex items-center justify-center gap-2"
             >
               <StageIcon className="w-5 h-5 text-[#529ec6]" />
-              {stage?.label}
+              {serverStatus || stage?.label}
             </motion.p>
           </AnimatePresence>
           <AnimatePresence mode="wait">
             <motion.p
-              key={stage?.description}
+              key={serverStatus ? "server-status" : stage?.description}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="text-slate-400"
             >
-              {stage?.description}
+              {serverStatus ? `${Math.round(effectiveProgress)}% complete` : stage?.description}
             </motion.p>
           </AnimatePresence>
         </motion.div>
