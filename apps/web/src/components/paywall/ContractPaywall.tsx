@@ -69,7 +69,7 @@ export function ContractPaywall({ type, currentUsage, limit }: ContractPaywallPr
               className="w-full inline-flex items-center justify-center bg-[#202e46] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#1a2539] transition-all hover:shadow-lg"
             >
               <Sparkles className="w-4 h-4 mr-2" />
-              Upgrade to Pro - $25/mo
+              Upgrade to Pro - $19.99/mo
               <ArrowRight className="w-4 h-4 ml-2" />
             </Link>
 

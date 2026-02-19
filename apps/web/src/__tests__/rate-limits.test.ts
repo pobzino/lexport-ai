@@ -11,7 +11,7 @@ import {
 describe("Rate Limits", () => {
   describe("TIER_LIMITS configuration", () => {
     it("should have correct limits for free tier", () => {
-      expect(TIER_LIMITS.free.contractsPerMonth).toBe(2);
+      expect(TIER_LIMITS.free.contractsPerMonth).toBe(3);
       expect(TIER_LIMITS.free.signaturesPerMonth).toBe(5);
       expect(TIER_LIMITS.free.chatMessagesPerContract).toBe(5);
     });
@@ -50,7 +50,7 @@ describe("Rate Limits", () => {
 
   describe("getRemainingQuota", () => {
     it("should return correct remaining quota", () => {
-      expect(getRemainingQuota(0, "free", "contractsPerMonth")).toBe(2);
+      expect(getRemainingQuota(0, "free", "contractsPerMonth")).toBe(3);
       expect(getRemainingQuota(1, "free", "contractsPerMonth")).toBe(1);
       expect(getRemainingQuota(2, "free", "contractsPerMonth")).toBe(0);
     });

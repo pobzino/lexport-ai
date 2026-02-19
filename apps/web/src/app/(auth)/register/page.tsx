@@ -1,3 +1,10 @@
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Create Account",
+  description: "Sign up for Lexport — create AI-powered contracts, send e-signatures, and collect payments. Free plan available.",
+};
+
 import Link from "next/link";
 import Image from "next/image";
 import { RegisterForm } from "./register-form";

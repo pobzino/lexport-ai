@@ -1,3 +1,10 @@
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Log In",
+  description: "Sign in to your Lexport account to manage contracts, e-signatures, and payments.",
+};
+
 import Link from "next/link";
 import Image from "next/image";
 import { LoginForm } from "./login-form";

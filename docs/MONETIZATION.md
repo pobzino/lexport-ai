@@ -21,7 +21,7 @@ This maximizes revenue capture across different user segments while maintaining 
 
 | Feature | Limit |
 |---------|-------|
-| Contract generation | 2 per month |
+| Contract generation | 3 per month |
 | AI chat assistance | 5 messages per contract |
 | Contract preview | ✅ Full (not blurred) |
 | PDF download | ❌ Requires payment |
@@ -39,21 +39,21 @@ Users who don't want a subscription can unlock individual contracts.
 
 | Action | Price |
 |--------|-------|
-| Download PDF | £5 |
-| Send for signature | £5 |
-| Download + Signature bundle | £7 |
+| Download PDF | $5 |
+| Send for signature | $5 |
+| Download + Signature bundle | $7 |
 
 **How it works**:
 1. User generates a contract (free)
 2. Clicks "Download PDF" or "Send for Signature"
 3. Paywall appears with options:
-   - Pay £5 for this contract
+   - Pay $5 for this contract
    - Subscribe for unlimited
 4. After payment, contract is permanently unlocked
 
 ---
 
-### ⭐ Pro Subscription - £29/month
+### ⭐ Pro Subscription - $19.99/month
 
 | Feature | Included |
 |---------|----------|
@@ -68,7 +68,7 @@ Users who don't want a subscription can unlock individual contracts.
 
 ---
 
-### 🏢 Team Subscription - £79/month
+### 🏢 Business Subscription - $39.99/month
 
 | Feature | Included |
 |---------|----------|
@@ -166,7 +166,7 @@ CREATE TABLE contract_purchases (
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   stripe_payment_intent_id TEXT,
   amount INTEGER NOT NULL, -- in cents
-  currency TEXT DEFAULT 'gbp',
+  currency TEXT DEFAULT 'usd',
   purchase_type TEXT NOT NULL, -- 'download', 'signature', 'bundle'
   status TEXT DEFAULT 'pending', -- 'pending', 'succeeded', 'failed'
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -190,9 +190,9 @@ Response:
   "canSign": boolean,
   "reason": "subscribed" | "purchased" | "free_tier" | "requires_payment",
   "purchaseOptions": {
-    "download": { "price": 500, "currency": "gbp" },
-    "signature": { "price": 500, "currency": "gbp" },
-    "bundle": { "price": 700, "currency": "gbp" }
+    "download": { "price": 500, "currency": "usd" },
+    "signature": { "price": 500, "currency": "usd" },
+    "bundle": { "price": 700, "currency": "usd" }
   }
 }
 ```
@@ -243,11 +243,11 @@ Shown when user tries to access a gated feature:
 │  ┌────────────────────────────────────────────────────┐     │
 │  │  💳  Pay for this contract                          │     │
 │  │                                                      │     │
-│  │  • Download PDF only ................ £5            │     │
-│  │  • Send for signature ............... £5            │     │
-│  │  • Both (save £3) ................... £7            │     │
+│  │  • Download PDF only ................ $5            │     │
+│  │  • Send for signature ............... $5            │     │
+│  │  • Both (save $3) ................... $7            │     │
 │  │                                                      │     │
-│  │              [ Pay £5 - Download ]                   │     │
+│  │              [ Pay $5 - Download ]                   │     │
 │  └────────────────────────────────────────────────────┘     │
 │                                                              │
 │                         ─ or ─                               │
@@ -260,7 +260,7 @@ Shown when user tries to access a gated feature:
 │  │  • Unlimited signatures                              │     │
 │  │  • Priority support                                  │     │
 │  │                                                      │     │
-│  │           [ Subscribe - £29/month ]                  │     │
+│  │           [ Subscribe - $19.99/month ]                  │     │
 │  └────────────────────────────────────────────────────┘     │
 │                                                              │
 │                        [ Maybe Later ]                       │
@@ -281,7 +281,7 @@ Show unlock status on contract cards:
 │    │ 🔒 Locked    │  ← Not yet purchased   │
 │    └──────────────┘                        │
 │                                            │
-│    [ Edit ]  [ Preview ]  [ Unlock £5 ]    │
+│    [ Edit ]  [ Preview ]  [ Unlock $5 ]    │
 └────────────────────────────────────────────┘
 
 ┌────────────────────────────────────────────┐
@@ -335,27 +335,27 @@ Show unlock status on contract cards:
 
 1. **Pro Subscription**
    - Price ID: `price_pro_monthly`
-   - Amount: £29/month
+   - Amount: $19.99/month
    - Recurring: Monthly
 
 2. **Team Subscription**
    - Price ID: `price_team_monthly`
-   - Amount: £79/month
+   - Amount: $39.99/month
    - Recurring: Monthly
 
 3. **Contract Download**
    - Price ID: `price_contract_download`
-   - Amount: £5
+   - Amount: $5
    - One-time
 
 4. **Contract Signature**
    - Price ID: `price_contract_signature`
-   - Amount: £5
+   - Amount: $5
    - One-time
 
 5. **Contract Bundle**
    - Price ID: `price_contract_bundle`
-   - Amount: £7
+   - Amount: $7
    - One-time
 
 ---
@@ -366,30 +366,30 @@ When users collect payments through contracts (deposits, milestone payments, ful
 
 ### Fee Structure
 
-| User Tier | Platform Fee | Example: £1,000 payment |
+| User Tier | Platform Fee | Example: $1,000 payment |
 |-----------|--------------|-------------------------|
 | Free | N/A (can't collect) | — |
-| Pay-Per-Contract (Free) | 1.0% | £10 platform fee |
-| Pro | 0.75% | £7.50 platform fee |
-| Team | 0.5% | £5 platform fee |
+| Pay-Per-Contract (Free) | 1.0% | $10 platform fee |
+| Pro | 0.75% | $7.50 platform fee |
+| Team | 0.5% | $5 platform fee |
 
 *Plus Stripe's standard 1.5% + 20p processing fee*
 
-### Total Cost to User (£1,000 payment)
+### Total Cost to User ($1,000 payment)
 
 | Tier | Platform Fee | Stripe Fee | Total Fees | User Receives |
 |------|--------------|------------|------------|---------------|
-| Pay-Per-Contract (Free) | £10.00 | £15.20 | £25.20 | £974.80 |
-| Pro | £7.50 | £15.20 | £22.70 | £977.30 |
-| Team | £5.00 | £15.20 | £20.20 | £979.80 |
+| Pay-Per-Contract (Free) | $10.00 | $15.20 | $25.20 | $974.80 |
+| Pro | $7.50 | $15.20 | $22.70 | $977.30 |
+| Team | $5.00 | $15.20 | $20.20 | $979.80 |
 
 ### Revenue Potential
 
-If 100 Pro users each collect £5,000/month in contract payments:
-- Monthly payment volume: £500,000
-- Platform fee (0.75%): **£3,750/month**
-- Plus subscription revenue: £2,900/month (100 × £29)
-- **Total: £6,650/month**
+If 100 Pro users each collect $5,000/month in contract payments:
+- Monthly payment volume: $500,000
+- Platform fee (0.75%): **$3,750/month**
+- Plus subscription revenue: $2,900/month (100 × $29)
+- **Total: $6,650/month**
 
 ### Implementation
 
@@ -408,7 +408,7 @@ const PLATFORM_FEES = {
 // When creating payment intent
 const subscriptionTier: SubscriptionTier = "pro";
 const paymentIntent = await stripe.paymentIntents.create({
-  amount: 100000, // £1,000 in pence
+  amount: 100000, // $1,000 in pence
   currency: 'gbp',
   application_fee_amount: calculatePlatformFee(100000, subscriptionTier), // 750 (0.75%)
   transfer_data: {
@@ -433,7 +433,7 @@ const paymentIntent = await stripe.paymentIntents.create({
 | Free → Paid conversion | 5-10% |
 | Pay-per-contract vs subscription | 30% / 70% |
 | Monthly churn rate | < 5% |
-| Average revenue per user (ARPU) | £15+ |
+| Average revenue per user (ARPU) | $15+ |
 
 ---
 

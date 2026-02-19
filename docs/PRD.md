@@ -1103,8 +1103,8 @@ Week 9-10: Launch Prep
 | Plan | Price | Contracts/Mo | Signatures/Mo | Features |
 |------|-------|--------------|---------------|----------|
 | Free | $0 | 3 | 5 | Basic templates, watermark |
-| Pro | $29/mo | 20 | 50 | All templates, AI generation, no watermark |
-| Team | $79/mo | Unlimited | 200 | Team features, priority support |
+| Pro | $19.99/mo | 50 | Unlimited | All templates, AI generation, no watermark |
+| Business | $39.99/mo | 200 | Unlimited | Team features, priority support |
 | Enterprise | Custom | Unlimited | Unlimited | SSO, API, custom branding |
 
 ### C. Go-to-Market Strategy
