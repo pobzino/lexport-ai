@@ -41,6 +41,7 @@ import {
   BookOpen,
   Lock,
   Upload,
+  Folder,
 } from "lucide-react";
 import type { Clause } from "@/lib/contracts/schemas";
 import { SignatureFieldEditor, type SignatureField } from "@/components/signature-field-editor";
@@ -68,6 +69,7 @@ import { ContractChat } from "@/components/contract-chat";
 import { useOnboarding } from "@/components/onboarding";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 import { ContractPaywall } from "@/components/paywall/ContractPaywall";
+import { TagInput } from "@/components/dashboard/TagInput";
 
 interface ContractContent {
   preamble: string;
@@ -1345,6 +1347,9 @@ export default function ContractEditorPage() {
                     }[contract.status] || contract.status
                   }
                 </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <TagInput contractId={contract.id} />
+                </div>
               </div>
             </div>
 
