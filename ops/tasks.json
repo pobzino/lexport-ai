@@ -3,14 +3,18 @@
     "id": "LEX-003",
     "task": "Contract Dashboard: Folders & Tags",
     "description": "Implement folder organization and tagging system for contract dashboard. Database schema (contract_folders, contract_tags, contract_tag_assignments), folder sidebar UI, tag management, API routes, and dashboard integration.",
-    "status": "blocked",
+    "status": "completed",
     "priority": "high",
     "source": "prd-post-launch",
     "plannedAt": "2026-02-19T14:00:00Z",
     "plannedBy": "opus-analysis",
     "retryCount": 0,
     "specFile": "ops/current-spec.md",
-    "reviewNotes": "BUILD BLOCKED: Git repository corruption (fatal: mmap failed: Resource deadlock avoided). All code implementation complete: 5 UI components (FolderSidebar, CreateFolderDialog, TagManager, TagInput, ContractOrganizer), 4 API routes with Next.js 15 async params support (folders/[id], tags/[id], contracts/[id]/folder, contracts/[id]/tags), updated contracts API with folder/tag filtering. TypeScript compiles with only 1 pre-existing error. Database migration already exists. Unable to commit due to git corruption - repository needs manual repair or fresh clone."
+    "reviewNotes": "Code complete. Git corruption recovery required manual commit via fresh clone. All 5 UI components + 4 API routes + updated contracts API committed.",
+    "completedAt": "2026-02-19T15:30:00Z",
+    "executedBy": "sonnet-4.5",
+    "commit": "7eaf4a3",
+    "score": null
   },
   {
     "id": "LEX-002",
@@ -71,7 +75,7 @@
   {
     "id": "LEX-LAUNCH-002",
     "task": "Fix Pricing in MONETIZATION.md",
-    "description": "Convert GBP (£) to USD ($), update Pro/Business prices",
+    "description": "Convert GBP (\u00a3) to USD ($), update Pro/Business prices",
     "status": "completed",
     "priority": "P0",
     "source": "launch-plan",
@@ -225,7 +229,7 @@
     "executedBy": "sonnet-4.5",
     "commit": "663032a",
     "score": 2,
-    "reviewNotes": "Retry successful: @playwright/test@1.58.2 added as devDependency. All 14 Playwright TS errors resolved. Only remaining TS error is pre-existing Next.js async params issue in .next/types/ (unrelated). Clean commit — 1 line in package.json + lockfile update.",
+    "reviewNotes": "Retry successful: @playwright/test@1.58.2 added as devDependency. All 14 Playwright TS errors resolved. Only remaining TS error is pre-existing Next.js async params issue in .next/types/ (unrelated). Clean commit \u2014 1 line in package.json + lockfile update.",
     "retryCount": 1,
     "reviewedAt": "2026-02-19T12:00:00Z",
     "reviewedBy": "opus-review"
