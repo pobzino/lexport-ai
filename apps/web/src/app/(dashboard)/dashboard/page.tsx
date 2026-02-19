@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { FileText, PenTool, Clock, Plus, ArrowRight, Shield, Briefcase, Users, TrendingUp, Edit, DollarSign, Receipt, Download } from "lucide-react";
+import { FileText, PenTool, Clock, Plus, Shield, Briefcase, Users, TrendingUp, Edit } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { CONTRACT_TYPES } from "@/lib/contracts/schemas";
 import { DashboardChecklistWrapper } from "@/components/onboarding";
 import { ExpiringContracts } from "@/components/dashboard/ExpiringContracts";
 import { UpgradeCard } from "@/components/dashboard/UpgradeCard";
 import { UsageWarning } from "@/components/dashboard/UsageWarning";
-import { ContractOrganizer } from "@/components/dashboard/ContractOrganizer";
 
 // Icon mapping for contract types
 const CONTRACT_ICONS: Record<string, typeof Shield> = {
@@ -27,26 +26,6 @@ interface Contract {
   payment_status?: string;
   payment_amount?: number;
   payment_currency?: string;
-}
-
-interface Invoice {
-  id: string;
-  contract_id: string;
-  invoice_number: string;
-  amount: number;
-  currency: string;
-  status: string;
-  recipient_name: string | null;
-  created_at: string;
-  paid_at: string | null;
-}
-
-// Format currency helper
-function formatCurrency(amount: number, currency: string): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-  }).format(amount / 100);
 }
 
 export default async function DashboardPage() {
@@ -70,23 +49,6 @@ export default async function DashboardPage() {
     .select("id, title, type, jurisdiction, status, updated_at, payment_status, payment_amount, payment_currency")
     .eq("user_id", user.id)
     .order("updated_at", { ascending: false });
-
-  // Get the 5 most recent for display
-  const userContracts = (allContracts || []).slice(0, 5);
-
-  // Fetch user's invoices
-  const { data: userInvoices = [] } = await supabase
-    .from("invoices")
-    .select("id, contract_id, invoice_number, amount, currency, status, recipient_name, created_at, paid_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(5);
-
-  // Fetch all invoices for stats (without limit)
-  const { data: allInvoices = [] } = await supabase
-    .from("invoices")
-    .select("id, amount, currency, status")
-    .eq("user_id", user.id);
 
   // Fetch expiring contracts (pending_signature with expires_at within 7 days)
   const sevenDaysFromNow = new Date();
@@ -144,16 +106,6 @@ export default async function DashboardPage() {
   thisMonthStart.setHours(0, 0, 0, 0);
 
   const contracts = (allContracts || []) as Contract[];
-  const recentContracts = (userContracts || []) as Contract[];
-  const invoices = (userInvoices || []) as Invoice[];
-  const allInvoicesList = (allInvoices || []) as { id: string; amount: number; currency: string; status: string }[];
-
-  // Invoice stats (assuming USD for simplicity, convert if needed)
-  const totalInvoiced = allInvoicesList.reduce((sum, inv) => sum + inv.amount, 0);
-  const paidInvoices = allInvoicesList.filter(inv => inv.status === "paid");
-  const totalPaid = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
-  const pendingInvoices = allInvoicesList.filter(inv => inv.status === "sent" || inv.status === "draft");
-  const totalPending = pendingInvoices.reduce((sum, inv) => sum + inv.amount, 0);
 
   const stats = {
     totalContracts: contracts.length,
@@ -161,13 +113,6 @@ export default async function DashboardPage() {
     completedThisMonth: contracts.filter(
       c => c.status === "signed" && new Date(c.updated_at) >= thisMonthStart
     ).length,
-    // Invoice stats
-    totalInvoiced,
-    totalPaid,
-    totalPending,
-    invoiceCount: allInvoicesList.length,
-    paidCount: paidInvoices.length,
-    pendingCount: pendingInvoices.length,
   };
 
   return (
@@ -239,56 +184,6 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Invoice Stats */}
-      {stats.invoiceCount > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">Total Invoiced</p>
-                <p className="text-2xl font-bold text-slate-900">
-                  {formatCurrency(stats.totalInvoiced, "usd")}
-                </p>
-                <p className="text-xs text-slate-400 mt-1">{stats.invoiceCount} invoices</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
-                <Receipt className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">Paid</p>
-                <p className="text-2xl font-bold text-emerald-600">
-                  {formatCurrency(stats.totalPaid, "usd")}
-                </p>
-                <p className="text-xs text-slate-400 mt-1">{stats.paidCount} paid</p>
-              </div>
-              <div className="w-12 h-12 bg-emerald-50 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-emerald-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">Pending</p>
-                <p className="text-2xl font-bold text-amber-600">
-                  {formatCurrency(stats.totalPending, "usd")}
-                </p>
-                <p className="text-xs text-slate-400 mt-1">{stats.pendingCount} pending</p>
-              </div>
-              <div className="w-12 h-12 bg-amber-50 rounded-lg flex items-center justify-center">
-                <Clock className="w-6 h-6 text-amber-600" />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Quick Actions */}
       <div className="bg-white rounded-xl border border-slate-200">
         <div className="px-6 py-4 border-b border-slate-200">
@@ -333,91 +228,6 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Contracts with Folders & Tags */}
-      <div className="bg-white rounded-xl border border-slate-200">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-900">My Contracts</h2>
-          <p className="text-sm text-slate-500">
-            Organize and filter your contracts by folders and tags
-          </p>
-        </div>
-        <ContractOrganizer initialContracts={contracts} />
-      </div>
-
-      {/* Recent Invoices */}
-      {invoices.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Recent Invoices</h2>
-              <p className="text-sm text-slate-500">
-                Your most recent invoices
-              </p>
-            </div>
-          </div>
-          <div className="p-6">
-            <div className="divide-y divide-slate-100">
-              {invoices.map((invoice) => (
-                <div
-                  key={invoice.id}
-                  className="flex items-center justify-between py-4"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${invoice.status === "paid"
-                        ? "bg-emerald-100"
-                        : invoice.status === "sent"
-                          ? "bg-amber-100"
-                          : "bg-slate-100"
-                      }`}>
-                      <Receipt className={`w-5 h-5 ${invoice.status === "paid"
-                          ? "text-emerald-600"
-                          : invoice.status === "sent"
-                            ? "text-amber-600"
-                            : "text-slate-600"
-                        }`} />
-                    </div>
-                    <div>
-                      <p className="font-medium text-slate-900">{invoice.invoice_number}</p>
-                      <p className="text-sm text-slate-500">
-                        {invoice.recipient_name || "No recipient"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="font-semibold text-slate-900">
-                        {formatCurrency(invoice.amount, invoice.currency)}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {new Date(invoice.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${invoice.status === "paid"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : invoice.status === "sent"
-                            ? "bg-amber-100 text-amber-700"
-                            : invoice.status === "void"
-                              ? "bg-red-100 text-red-700"
-                              : "bg-slate-100 text-slate-600"
-                        }`}
-                    >
-                      {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
-                    </span>
-                    <a
-                      href={`/api/invoices/${invoice.id}?format=pdf`}
-                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                      title="Download PDF"
-                    >
-                      <Download className="w-4 h-4 text-slate-400" />
-                    </a>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
