@@ -1750,3 +1750,109 @@ Reply directly to this email to respond to ${name}.
   }
 }
 
+/**
+ * Send a welcome email after signup (never throws — fire-and-forget safe)
+ */
+export async function sendWelcomeEmail({
+  to,
+  userName,
+}: {
+  to: string;
+  userName: string;
+}) {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
+  const createUrl = `${baseUrl}/contracts/new`;
+
+  const content = `
+    <div style="text-align: center; margin-bottom: 24px;">
+      <div style="display: inline-block; background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); border-radius: 50%; padding: 24px; margin-bottom: 16px;">
+        <span style="font-size: 40px;">🎉</span>
+      </div>
+      <h2 style="color: ${BRAND.navy}; font-size: 24px; margin: 0;">Welcome to Lexport!</h2>
+    </div>
+
+    <p style="margin: 16px 0; color: #475569;">Hi ${userName},</p>
+
+    <p style="margin: 16px 0; color: #475569;">
+      Thanks for signing up! Lexport makes it easy to create legally binding contracts, collect e-signatures, and manage your documents — all powered by AI.
+    </p>
+
+    <h3 style="color: ${BRAND.navy}; font-size: 16px; margin: 28px 0 16px;">Get started in 3 steps:</h3>
+
+    <div style="margin: 0 0 12px;">
+      <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px;">
+        <span style="display: inline-block; background: ${BRAND.emerald}; color: white; border-radius: 50%; width: 28px; height: 28px; text-align: center; line-height: 28px; font-weight: 700; font-size: 14px; flex-shrink: 0;">1</span>
+        <div>
+          <strong style="color: ${BRAND.navy};">Create a contract</strong>
+          <p style="margin: 4px 0 0; color: #64748b; font-size: 14px;">Choose from NDA, consulting, freelance, and more — AI fills in the details.</p>
+        </div>
+      </div>
+      <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px;">
+        <span style="display: inline-block; background: ${BRAND.emerald}; color: white; border-radius: 50%; width: 28px; height: 28px; text-align: center; line-height: 28px; font-weight: 700; font-size: 14px; flex-shrink: 0;">2</span>
+        <div>
+          <strong style="color: ${BRAND.navy};">Send for signature</strong>
+          <p style="margin: 4px 0 0; color: #64748b; font-size: 14px;">Add signers and send — they sign right from their email.</p>
+        </div>
+      </div>
+      <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px;">
+        <span style="display: inline-block; background: ${BRAND.emerald}; color: white; border-radius: 50%; width: 28px; height: 28px; text-align: center; line-height: 28px; font-weight: 700; font-size: 14px; flex-shrink: 0;">3</span>
+        <div>
+          <strong style="color: ${BRAND.navy};">Download &amp; manage</strong>
+          <p style="margin: 4px 0 0; color: #64748b; font-size: 14px;">Get a signed PDF with a Certificate of Completion for your records.</p>
+        </div>
+      </div>
+    </div>
+
+    ${primaryButton(createUrl, "Create Your First Contract")}
+
+    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0;">
+
+    <p style="margin: 0; font-size: 12px; color: #94a3b8; text-align: center;">
+      Questions? Reply to this email — we're happy to help.
+    </p>
+  `;
+
+  const html = emailWrapper(content);
+
+  const text = `
+Welcome to Lexport!
+
+Hi ${userName},
+
+Thanks for signing up! Lexport makes it easy to create legally binding contracts, collect e-signatures, and manage your documents — all powered by AI.
+
+Get started in 3 steps:
+1. Create a contract — Choose from NDA, consulting, freelance, and more.
+2. Send for signature — Add signers and send.
+3. Download & manage — Get a signed PDF with a Certificate of Completion.
+
+Create your first contract: ${createUrl}
+
+Questions? Reply to this email — we're happy to help.
+
+---
+Powered by Lexport
+`;
+
+  try {
+    const { data, error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to: [to],
+      subject: "Welcome to Lexport — Let's create your first contract 🚀",
+      html,
+      text,
+    });
+
+    if (error) {
+      console.error("Failed to send welcome email:", error);
+      return { success: false };
+    }
+
+    console.log(`Welcome email sent to ${to}:`, data?.id);
+    return { success: true, id: data?.id };
+  } catch (error) {
+    console.error("Error sending welcome email:", error);
+    return { success: false };
+  }
+}
+
