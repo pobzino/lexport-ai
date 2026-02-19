@@ -615,6 +615,40 @@ async function generateContractPDF(
     }
   }
 
+  // AI Disclaimer
+  checkPageBreak(lineHeight * 6);
+  yPosition -= lineHeight * 2;
+
+  // Horizontal rule
+  currentPage.drawLine({
+    start: { x: margin, y: yPosition },
+    end: { x: pageWidth - margin, y: yPosition },
+    thickness: 0.5,
+    color: rgb(0.7, 0.7, 0.7),
+  });
+  yPosition -= lineHeight * 1.5;
+
+  // DISCLAIMER heading
+  currentPage.drawText("DISCLAIMER", {
+    x: margin,
+    y: yPosition,
+    size: 8,
+    font: timesRomanBoldFont,
+    color: rgb(0.5, 0.5, 0.5),
+  });
+  yPosition -= lineHeight;
+
+  // Disclaimer text
+  drawText(
+    "This document was generated using Lexport AI. While our templates are reviewed by legal professionals, this does not constitute legal advice. For complex or high-value transactions, we recommend consulting with a qualified attorney in your jurisdiction.",
+    {
+      font: timesRomanItalicFont,
+      size: 8,
+      color: { r: 0.5, g: 0.5, b: 0.5 },
+    }
+  );
+  yPosition -= lineHeight;
+
   // Footer on all pages
   const pages = pdfDoc.getPages();
   for (let i = 0; i < pages.length; i++) {

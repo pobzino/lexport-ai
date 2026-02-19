@@ -46,6 +46,7 @@ import type { Clause } from "@/lib/contracts/schemas";
 import { SignatureFieldEditor, type SignatureField } from "@/components/signature-field-editor";
 import { SignatureFieldEditorVisual, type PlacedFieldData } from "@/components/signature-field-editor/index";
 import { SignatureBlockDisplay } from "@/components/signature-block-display";
+import { AIDisclaimer } from "@/components/contracts/AIDisclaimer";
 import { SignerStatusPanel } from "@/components/signer-status-panel";
 import { CommentSidebar, CommentIndicator } from "@/components/comments";
 import { SelectionPopup } from "@/components/comments/SelectionPopup";
@@ -2237,6 +2238,7 @@ export default function ContractEditorPage() {
                       showPlaceholders={true}
                     />
                   )}
+                  <AIDisclaimer />
                 </>
               )}
             </div>
