@@ -1,5 +1,18 @@
 [
   {
+    "id": "LEX-003",
+    "task": "Contract Dashboard: Folders & Tags",
+    "description": "Implement folder organization and tagging system for contract dashboard. Database schema (contract_folders, contract_tags, contract_tag_assignments), folder sidebar UI, tag management, API routes, and dashboard integration.",
+    "status": "blocked",
+    "priority": "high",
+    "source": "prd-post-launch",
+    "plannedAt": "2026-02-19T14:00:00Z",
+    "plannedBy": "opus-analysis",
+    "retryCount": 0,
+    "specFile": "ops/current-spec.md",
+    "reviewNotes": "BUILD BLOCKED: Git repository corruption (fatal: mmap failed: Resource deadlock avoided). All code implementation complete: 5 UI components (FolderSidebar, CreateFolderDialog, TagManager, TagInput, ContractOrganizer), 4 API routes with Next.js 15 async params support (folders/[id], tags/[id], contracts/[id]/folder, contracts/[id]/tags), updated contracts API with folder/tag filtering. TypeScript compiles with only 1 pre-existing error. Database migration already exists. Unable to commit due to git corruption - repository needs manual repair or fresh clone."
+  },
+  {
     "id": "LEX-002",
     "task": "Seed system templates and workspace cleanup",
     "description": "Load 9 pre-generated templates from generated-templates/ into contract_templates table. Remove duplicate files. Make template library functional.",
@@ -49,8 +62,11 @@
     "plannedBy": "pobot",
     "executedBy": "pobot",
     "commit": "f0a1544",
-    "score": null,
-    "retryCount": 0
+    "score": 2,
+    "reviewNotes": "Verified: ContractPaywall.tsx displays '$19.99/mo' in upgrade CTA. Correct.",
+    "retryCount": 0,
+    "reviewedAt": "2026-02-19T09:00:00Z",
+    "reviewedBy": "opus-review"
   },
   {
     "id": "LEX-LAUNCH-002",
@@ -64,8 +80,11 @@
     "plannedBy": "pobot",
     "executedBy": "pobot",
     "commit": "f0a1544",
-    "score": null,
-    "retryCount": 0
+    "score": 2,
+    "reviewNotes": "Verified: docs/MONETIZATION.md shows Pro at $19.99/month USD throughout. Currency conversion complete.",
+    "retryCount": 0,
+    "reviewedAt": "2026-02-19T09:00:00Z",
+    "reviewedBy": "opus-review"
   },
   {
     "id": "LEX-LAUNCH-003",
@@ -79,8 +98,11 @@
     "plannedBy": "pobot",
     "executedBy": "pobot",
     "commit": "f0a1544",
-    "score": null,
-    "retryCount": 0
+    "score": 2,
+    "reviewNotes": "Verified: PRD.md pricing table shows Pro $19.99/mo and Business $39.99/mo. Correct.",
+    "retryCount": 0,
+    "reviewedAt": "2026-02-19T09:00:00Z",
+    "reviewedBy": "opus-review"
   },
   {
     "id": "LEX-LAUNCH-004",
@@ -94,8 +116,11 @@
     "plannedBy": "pobot",
     "executedBy": "pobot",
     "commit": "f0a1544",
-    "score": null,
-    "retryCount": 0
+    "score": 2,
+    "reviewNotes": "Verified: rate-limits.ts free.contractsPerMonth is 3. Helper functions (isLimitExceeded, getRemainingQuota, etc.) all reference TIER_LIMITS correctly.",
+    "retryCount": 0,
+    "reviewedAt": "2026-02-19T09:00:00Z",
+    "reviewedBy": "opus-review"
   },
   {
     "id": "LEX-LAUNCH-005",
@@ -109,9 +134,11 @@
     "plannedBy": "pobot",
     "executedBy": "pre-existing",
     "commit": "pre-existing",
-    "score": null,
-    "reviewNotes": "Already implemented - checkAndResetUsage function exists in subscription/route.ts with proper reset-on-read logic",
-    "retryCount": 0
+    "score": 2,
+    "reviewNotes": "Verified pre-existing: checkAndResetUsage function in subscription/route.ts implements reset-on-read pattern correctly. No new code needed.",
+    "retryCount": 0,
+    "reviewedAt": "2026-02-19T09:00:00Z",
+    "reviewedBy": "opus-review"
   },
   {
     "id": "LEX-LAUNCH-006",
@@ -125,9 +152,11 @@
     "plannedBy": "pobot",
     "executedBy": "pre-existing",
     "commit": "f2d36f1",
-    "score": null,
-    "reviewNotes": "PDF disclaimer already implemented in pdf/route.ts. AIDisclaimer component created at components/contracts/AIDisclaimer.tsx, already imported and used in edit/page.tsx",
-    "retryCount": 0
+    "score": 2,
+    "reviewNotes": "Verified: AIDisclaimer component at components/contracts/AIDisclaimer.tsx with AlertTriangle icon, amber styling, professional legal language. PDF disclaimer pre-existing in pdf/route.ts. Component imported in edit/page.tsx.",
+    "retryCount": 0,
+    "reviewedAt": "2026-02-19T09:00:00Z",
+    "reviewedBy": "opus-review"
   },
   {
     "id": "LEX-LAUNCH-007",
@@ -141,8 +170,11 @@
     "plannedBy": "pobot",
     "executedBy": "pobot",
     "commit": "f0a1544",
-    "score": null,
-    "retryCount": 0
+    "score": 2,
+    "reviewNotes": "Verified: only generator-streaming.ts exists in contracts/ lib. Duplicate removed.",
+    "retryCount": 0,
+    "reviewedAt": "2026-02-19T09:00:00Z",
+    "reviewedBy": "opus-review"
   },
   {
     "id": "LEX-LAUNCH-008",
@@ -156,8 +188,11 @@
     "plannedBy": "pobot",
     "executedBy": "pobot",
     "commit": "f0a1544",
-    "score": null,
-    "retryCount": 0
+    "score": 3,
+    "reviewNotes": "Excellent: STRIPE_WEBHOOKS.md documents both webhook endpoints with complete event tables, file paths, env vars, overlap warning (checkout.session.completed handled by both), and local testing instructions with Stripe CLI. Production-ready documentation.",
+    "retryCount": 0,
+    "reviewedAt": "2026-02-19T09:00:00Z",
+    "reviewedBy": "opus-review"
   },
   {
     "id": "LEX-LAUNCH-009",
@@ -171,8 +206,11 @@
     "plannedBy": "pobot",
     "executedBy": "pobot",
     "commit": "f0a1544",
-    "score": null,
-    "retryCount": 0
+    "score": 2,
+    "reviewNotes": "Verified: SENTRY_SETUP.md has clear 7-step checklist. Documents what's already configured (client replay, server/edge sampling, tunnel route). Actionable for human.",
+    "retryCount": 0,
+    "reviewedAt": "2026-02-19T09:00:00Z",
+    "reviewedBy": "opus-review"
   },
   {
     "id": "LEX-LAUNCH-010",
@@ -182,12 +220,15 @@
     "priority": "P1",
     "source": "launch-plan",
     "plannedAt": "2026-02-19T04:30:00Z",
-    "completedAt": "2026-02-19T06:25:00Z",
+    "completedAt": "2026-02-19T11:30:00Z",
     "plannedBy": "pobot",
-    "executedBy": "pobot",
-    "commit": "f2d36f1",
-    "score": null,
-    "retryCount": 0
+    "executedBy": "sonnet-4.5",
+    "commit": "663032a",
+    "score": 2,
+    "reviewNotes": "Retry successful: @playwright/test@1.58.2 added as devDependency. All 14 Playwright TS errors resolved. Only remaining TS error is pre-existing Next.js async params issue in .next/types/ (unrelated). Clean commit — 1 line in package.json + lockfile update.",
+    "retryCount": 1,
+    "reviewedAt": "2026-02-19T12:00:00Z",
+    "reviewedBy": "opus-review"
   },
   {
     "id": "LEX-LAUNCH-011",
@@ -201,9 +242,11 @@
     "plannedBy": "pobot",
     "executedBy": "pre-existing",
     "commit": "pre-existing",
-    "score": null,
-    "reviewNotes": "Already implemented - sendWelcomeEmail in email.ts, triggered in auth/callback/route.ts",
-    "retryCount": 0
+    "score": 2,
+    "reviewNotes": "Verified pre-existing: sendWelcomeEmail in email.ts, triggered in auth/callback/route.ts. No new code needed.",
+    "retryCount": 0,
+    "reviewedAt": "2026-02-19T09:00:00Z",
+    "reviewedBy": "opus-review"
   },
   {
     "id": "LEX-LAUNCH-012",
@@ -217,8 +260,11 @@
     "plannedBy": "pobot",
     "executedBy": "pobot",
     "commit": "f0a1544",
-    "score": null,
-    "retryCount": 0
+    "score": 2,
+    "reviewNotes": "Verified: All 4 pages have metadata. Login/register export metadata directly (server components). About/contact correctly use layout.tsx files for metadata since pages are 'use client'. Proper titles and descriptions throughout.",
+    "retryCount": 0,
+    "reviewedAt": "2026-02-19T09:00:00Z",
+    "reviewedBy": "opus-review"
   },
   {
     "id": "LEX-LAUNCH-013",
@@ -232,9 +278,11 @@
     "plannedBy": "pobot",
     "executedBy": "pre-existing",
     "commit": "pre-existing",
-    "score": null,
-    "reviewNotes": "Already implemented - both /terms and /privacy have comprehensive legal content covering ESIGN Act, GDPR, etc.",
-    "retryCount": 0
+    "score": 2,
+    "reviewNotes": "Verified pre-existing: /terms and /privacy have comprehensive legal content covering ESIGN Act, GDPR, etc. E2E tests also validate this content exists.",
+    "retryCount": 0,
+    "reviewedAt": "2026-02-19T09:00:00Z",
+    "reviewedBy": "opus-review"
   },
   {
     "id": "LEX-LAUNCH-014",
@@ -248,7 +296,10 @@
     "plannedBy": "pobot",
     "executedBy": "pobot",
     "commit": "f0a1544",
-    "score": null,
-    "retryCount": 0
+    "score": 3,
+    "reviewNotes": "Excellent: Comprehensive deployment checklist covering all env vars (Supabase, AI, Stripe, Email, Analytics, App), Stripe setup steps, DNS/SSL, Supabase config, email verification, post-deployment verification (11 checks), and 48-hour monitoring plan. Production-ready.",
+    "retryCount": 0,
+    "reviewedAt": "2026-02-19T09:00:00Z",
+    "reviewedBy": "opus-review"
   }
 ]

@@ -55,12 +55,25 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get("status");
+    const folderId = searchParams.get("folderId");
+    const uncategorized = searchParams.get("uncategorized");
+    const tags = searchParams.get("tags");
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = parseInt(searchParams.get("offset") || "0");
 
     let query = supabase
       .from("contracts")
-      .select("id, title, type, status, jurisdiction, created_at, updated_at")
+      .select(`
+        id, 
+        title, 
+        type, 
+        status, 
+        jurisdiction, 
+        created_at, 
+        updated_at,
+        folder_id,
+        contract_tags(tag_id, tags(id, name, color))
+      `)
       .eq("user_id", user.id)
       .order("updated_at", { ascending: false });
 
@@ -74,6 +87,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Handle folder filter
+    if (folderId) {
+      query = query.eq("folder_id", folderId);
+    } else if (uncategorized === "true") {
+      query = query.is("folder_id", null);
+    }
+
     // Apply pagination
     query = query.range(offset, offset + limit - 1);
 
@@ -84,7 +104,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch contracts" }, { status: 500 });
     }
 
-    return NextResponse.json({ contracts: contracts || [] });
+    // Transform contract_tags structure for easier frontend use
+    let transformedContracts = (contracts || []).map((contract: any) => ({
+      ...contract,
+      tags: (contract.contract_tags || [])
+        .map((ct: any) => ct.tags)
+        .filter((tag: any) => tag), // Filter out any null tags
+    }));
+
+    // Filter by tags if specified
+    if (tags) {
+      const tagIds = tags.split(",");
+      transformedContracts = transformedContracts.filter((contract: any) => {
+        const contractTagIds = contract.tags.map((t: any) => t.id);
+        return tagIds.every((tagId) => contractTagIds.includes(tagId));
+      });
+    }
+
+    return NextResponse.json({ contracts: transformedContracts });
   } catch (error) {
     console.error("Error in GET /api/contracts:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

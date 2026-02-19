@@ -1,130 +1,203 @@
-# Task Spec: LEX-002 — Seed System Templates & Workspace Cleanup
+# Task Specification: LEX-003 — Contract Dashboard: Folders & Tags
+
+## Task ID
+LEX-003
 
 ## Context
 
-The template library UI is built (`/templates` page + `TemplateLibrary` component + API routes) but the system templates from `generated-templates/` are not seeded into the database. Users visiting `/templates` will see an empty state.
+Lexport AI has completed all launch tasks (LEX-LAUNCH-001 through 014). The contract dashboard currently provides basic contract listing with status filtering. The PRD (section F4) specifies enhanced contract organization features that are P1 priority for post-launch.
 
-Additionally, there are duplicate files in the workspace that should be cleaned up:
-- `apps/web/src/app/api/contracts/generate/stream/route 2.ts`
-- `apps/web/src/lib/contracts/generator-streaming 2.ts`
+**What exists:**
+- `/dashboard` page with contract list
+- Basic status filtering (draft, pending, signed, etc.)
+- Contract detail view with history
+- Download signed PDF functionality
+
+**What's missing:**
+- Folder organization for contracts
+- Tags and labels for categorization
+- Expiration/renewal alerts
+- Contract analytics (avg sign time, etc.)
 
 ## Goal
 
-1. Seed the 9 pre-generated templates from `generated-templates/` into the `contract_templates` table
-2. Remove duplicate files
-3. Verify the template library page loads and displays the seeded templates
+Implement folder organization and tagging system for contract dashboard. This enables users to organize contracts by client, project, or any custom taxonomy.
 
-## Step-by-Step Instructions
+## Database Schema Changes
 
-### Step 1: Review existing infrastructure
+### New Table: `contract_folders`
+```sql
+CREATE TABLE contract_folders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL,
+  color VARCHAR(7) DEFAULT '#3B82F6', -- hex color for UI
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-1. Read `apps/web/src/app/api/templates/route.ts` (~line 90+) to understand how it fetches from `contract_templates` table
-2. Check Supabase schema for `contract_templates` table structure (likely has: id, name, description, type, jurisdiction, content, is_active, created_at, etc.)
-3. Note: `templates` table = user templates, `contract_templates` table = system templates
+CREATE INDEX idx_contract_folders_user ON contract_folders(user_id);
+```
 
-### Step 2: Create a seed script for system templates
+### New Table: `contract_tags`
+```sql
+CREATE TABLE contract_tags (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(50) NOT NULL,
+  color VARCHAR(7) DEFAULT '#6B7280',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-1. Create `apps/web/scripts/seed-system-templates.ts`
-2. Load JSON files from `generated-templates/`:
-   - `consulting_agreement_us_california.json`
-   - `freelance_service_us_california.json`
-   - `independent_contractor_us_california.json`
-   - `nda_mutual_us_california.json`
-   - `nda_one_way_uk.json`
-   - `nda_one_way_us_california.json`
-   - `nda_one_way_us_new_york.json`
-   - `nda_one_way_us_texas.json`
-   - `safe_note_us_california.json`
-3. For each JSON file:
-   - Parse the template content
-   - Determine contract type, jurisdiction, and metadata from filename/content
-   - Insert into `contract_templates` table with:
-     - `name`: human-readable name (e.g., "Mutual NDA (California)")
-     - `description`: 1-2 sentence description
-     - `type`: contract type code (e.g., "nda_mutual")
-     - `jurisdiction`: jurisdiction code (e.g., "us_california")
-     - `content`: the full JSON template structure
-     - `is_active`: true
-     - `is_public`: true (system templates are public)
-4. Use Supabase service role key for insertion
-5. Handle duplicates gracefully (upsert or skip if already exists)
+CREATE INDEX idx_contract_tags_user ON contract_tags(user_id);
+```
 
-### Step 3: Clean up duplicate files
+### Modified Table: `contracts` (add folder_id)
+```sql
+ALTER TABLE contracts ADD COLUMN folder_id UUID REFERENCES contract_folders(id) ON DELETE SET NULL;
+CREATE INDEX idx_contracts_folder ON contracts(folder_id) WHERE folder_id IS NOT NULL;
+```
 
-1. Verify these files are true duplicates (compare content):
-   - `apps/web/src/app/api/contracts/generate/stream/route 2.ts` vs `route.ts`
-   - `apps/web/src/lib/contracts/generator-streaming 2.ts` vs `generator-streaming.ts`
-2. If they are duplicates, delete the " 2" versions:
-   ```bash
-   rm "apps/web/src/app/api/contracts/generate/stream/route 2.ts"
-   rm "apps/web/src/lib/contracts/generator-streaming 2.ts"
-   ```
+### New Junction Table: `contract_tag_assignments`
+```sql
+CREATE TABLE contract_tag_assignments (
+  contract_id UUID REFERENCES contracts(id) ON DELETE CASCADE,
+  tag_id UUID REFERENCES contract_tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (contract_id, tag_id)
+);
 
-### Step 4: Run the seed script
+CREATE INDEX idx_tag_assignments_contract ON contract_tag_assignments(contract_id);
+CREATE INDEX idx_tag_assignments_tag ON contract_tag_assignments(tag_id);
+```
 
-1. Add npm script to `apps/web/package.json`:
-   ```json
-   "seed:templates": "bun run scripts/seed-system-templates.ts"
-   ```
-2. Run: `cd apps/web && npm run seed:templates`
-3. Verify output shows 9 templates inserted successfully
+## Implementation Steps
 
-### Step 5: Verify template library
+### Step 1: Database Migration
 
-1. Start dev server: `npm run dev`
-2. Navigate to `/templates` (after login)
-3. Verify:
-   - Templates are displayed in grid
-   - Search works
-   - Type and jurisdiction filters work
-   - Can view/preview templates
-   - No console errors
+Create `supabase/migrations/2026021900000_contract_folders_tags.sql`:
+- Create tables above
+- Add RLS policies (users can only access their own folders/tags)
+- Add updated_at trigger for contract_folders
 
-### Step 6: Commit changes
+### Step 2: Create Folder Management UI
 
-1. Stage: seed script, deleted duplicates, any schema fixes
-2. Commit message format:
-   ```
-   feat(LEX-002): seed system templates and cleanup workspace
+**New Component:** `src/components/dashboard/FolderSidebar.tsx`
+- Display list of user's folders with color indicators
+- "All Contracts" default view
+- "Uncategorized" pseudo-folder for contracts without folder
+- Create new folder button with color picker
+- Edit/delete folder options (with confirmation)
+- Drag-and-drop or click-to-move contracts to folders
 
-   - Add seed-system-templates.ts script to load generated templates
-   - Insert 9 pre-generated templates into contract_templates table
-   - Remove duplicate route 2.ts and generator-streaming 2.ts files
-   - Templates now appear in /templates library on fresh install
-   ```
+**New Component:** `src/components/dashboard/CreateFolderDialog.tsx`
+- Modal for creating/editing folders
+- Name input with validation
+- Color picker (preset palette)
+
+### Step 3: Create Tag Management System
+
+**New Component:** `src/components/dashboard/TagManager.tsx`
+- Display tags as colored badges
+- Create new tag with color picker
+- Tag assignment on contracts (multi-select)
+- Filter by tag in dashboard
+
+**New Component:** `src/components/dashboard/TagInput.tsx`
+- Combobox for selecting/creating tags
+- Typeahead search existing tags
+- Create new tag inline if not found
+- Visual tag badges in input
+
+### Step 4: Update Contract Dashboard
+
+**Modify:** `src/app/dashboard/page.tsx` or relevant dashboard component
+- Add folder sidebar layout (sidebar + main content)
+- Show current folder name in header
+- Filter contracts by selected folder
+- Add tag filters alongside status filters
+- Bulk actions: move to folder, add/remove tags
+
+### Step 5: Update Contract Detail View
+
+**Modify:** `src/app/contracts/[id]/page.tsx`
+- Display folder badge (click to change)
+- Display assigned tags
+- Add folder/tag editing in contract settings/actions
+
+### Step 6: API Routes
+
+**New:** `src/app/api/folders/route.ts`
+- GET: List user's folders with contract counts
+- POST: Create new folder
+- PATCH: Update folder name/color
+- DELETE: Delete folder (move contracts to uncategorized)
+
+**New:** `src/app/api/tags/route.ts`
+- GET: List user's tags
+- POST: Create new tag
+- PATCH: Update tag
+- DELETE: Delete tag (remove from all contracts)
+
+**New:** `src/app/api/contracts/[id]/folder/route.ts`
+- PATCH: Move contract to folder (or remove from folder)
+
+**New:** `src/app/api/contracts/[id]/tags/route.ts`
+- POST: Add tag to contract
+- DELETE: Remove tag from contract
+
+### Step 7: Update Dashboard Contract List
+
+**Modify:** Contract list items to show:
+- Folder badge (if in a folder)
+- Tag badges (max 3 visible, +N more indicator)
+- Quick actions: move folder dropdown, tag dropdown
+
+## Files to Create
+
+1. `supabase/migrations/2026021900000_contract_folders_tags.sql`
+2. `src/components/dashboard/FolderSidebar.tsx`
+3. `src/components/dashboard/CreateFolderDialog.tsx`
+4. `src/components/dashboard/TagManager.tsx`
+5. `src/components/dashboard/TagInput.tsx`
+6. `src/app/api/folders/route.ts`
+7. `src/app/api/tags/route.ts`
+8. `src/app/api/contracts/[id]/folder/route.ts`
+9. `src/app/api/contracts/[id]/tags/route.ts`
+
+## Files to Modify
+
+1. `src/app/dashboard/page.tsx` — add folder sidebar, tag filters
+2. `src/app/contracts/[id]/page.tsx` — show folder/tags, editing UI
+3. `src/components/dashboard/ContractList.tsx` or equivalent — show folder/tag badges
 
 ## Acceptance Criteria
 
-- [ ] `apps/web/scripts/seed-system-templates.ts` exists and runs successfully
-- [ ] 9 templates inserted into `contract_templates` table
-- [ ] Duplicate files removed from workspace
-- [ ] `/templates` page shows seeded templates (after login)
-- [ ] Template filtering by type and jurisdiction works
-- [ ] No TypeScript errors in modified files
-- [ ] Clean commit with conventional message format
-- [ ] Working tree clean except `ops/`
+- [ ] Migration creates all tables with proper indexes and RLS
+- [ ] User can create folders with custom colors
+- [ ] User can move contracts to folders (drag-drop or dropdown)
+- [ ] Folder sidebar shows contract counts per folder
+- [ ] User can create tags with custom colors
+- [ ] User can assign multiple tags to a contract
+- [ ] Dashboard can filter by folder and/or tags
+- [ ] Contract detail view shows folder and tags
+- [ ] Deleting a folder moves contracts to "uncategorized"
+- [ ] All UI updates in real-time (no page refresh needed)
+- [ ] TypeScript types for all new entities
+- [ ] Clean conventional commit: `feat(LEX-003): add contract folders and tags`
 
 ## DO NOT
 
-- Don't modify the template JSON files themselves
-- Don't change the template library UI (already built)
-- Don't add new template types beyond what's in `generated-templates/`
-- Don't break existing contract generation flow
-- Don't commit node_modules or build artifacts
+- Do NOT implement expiration alerts (out of scope for this task)
+- Do NOT implement contract analytics (out of scope)
+- Do NOT implement nested folders (flat structure only)
+- Do NOT break existing dashboard functionality
+- Do NOT add folder sharing between users (personal only)
+- Do NOT use any external libraries for color picking (use native input type="color" or preset palette)
 
-## Files to Touch
+## UI/UX Notes
 
-### Create:
-- `apps/web/scripts/seed-system-templates.ts`
-
-### Read:
-- `apps/web/src/app/api/templates/route.ts`
-- `generated-templates/*.json` (all 9 files)
-- Supabase schema (via Supabase Studio or existing migration files)
-
-### Delete:
-- `apps/web/src/app/api/contracts/generate/stream/route 2.ts`
-- `apps/web/src/lib/contracts/generator-streaming 2.ts`
-
-### Potentially Update:
-- `apps/web/package.json` (add seed script)
+- Use shadcn/ui components for consistency
+- Sidebar width: ~240px, collapsible on mobile
+- Tag badges: pill-shaped with tag color as background
+- Folder colors: use for folder icon and left border indicator
+- Empty states: show helpful messages for empty folders
