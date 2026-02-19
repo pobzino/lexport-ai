@@ -53,6 +53,54 @@ const TIER_CONFIG: Record<SubscriptionTier, {
   },
 };
 
+/**
+ * Check if usage counters need to be reset based on the billing cycle.
+ * Implements "reset-on-read": resets counters when the reset date has passed.
+ */
+async function checkAndResetUsage(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  usageResetAt: string | null | undefined
+): Promise<boolean> {
+  const now = new Date();
+
+  if (!usageResetAt) {
+    // No reset date set — initialize to first of next month
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    await supabase
+      .from("users")
+      .update({ usage_reset_at: nextMonth.toISOString() })
+      .eq("id", userId);
+    return false;
+  }
+
+  const resetDate = new Date(usageResetAt);
+  if (now >= resetDate) {
+    // Reset all usage counters and advance reset date by 1 month
+    const nextReset = new Date(resetDate);
+    nextReset.setMonth(nextReset.getMonth() + 1);
+    // If the next reset is still in the past, fast-forward to next month from now
+    if (nextReset <= now) {
+      nextReset.setFullYear(now.getFullYear());
+      nextReset.setMonth(now.getMonth() + 1);
+      nextReset.setDate(1);
+    }
+
+    await supabase
+      .from("users")
+      .update({
+        ai_contracts_used: 0,
+        signatures_used: 0,
+        ai_chat_messages_used: 0,
+        usage_reset_at: nextReset.toISOString(),
+      })
+      .eq("id", userId);
+    return true;
+  }
+
+  return false;
+}
+
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -117,15 +165,18 @@ export async function GET() {
 
       if (userError) throw userError;
 
+      // Check and reset usage if billing cycle has elapsed
+      const wasReset = await checkAndResetUsage(supabase, user.id, userData?.usage_reset_at);
+
       const tier = (userData?.subscription_tier as SubscriptionTier) || "free";
       const config = TIER_CONFIG[tier];
       const contractsLimit = config.contractsLimit;
       const signaturesLimit = config.signaturesLimit;
       const chatMessagesLimit = config.chatMessagesLimit;
       const isUnlimited = contractsLimit === -1;
-      const contractsUsed = userData?.ai_contracts_used ?? 0;
-      const signaturesUsed = userData?.signatures_used ?? 0;
-      const chatMessagesUsed = userData?.ai_chat_messages_used ?? 0;
+      const contractsUsed = wasReset ? 0 : (userData?.ai_contracts_used ?? 0);
+      const signaturesUsed = wasReset ? 0 : (userData?.signatures_used ?? 0);
+      const chatMessagesUsed = wasReset ? 0 : (userData?.ai_chat_messages_used ?? 0);
 
       return NextResponse.json({
         tier,
@@ -158,13 +209,16 @@ export async function GET() {
 
     if (rpcError) throw rpcError;
 
+    // Check and reset usage if billing cycle has elapsed
+    const wasReset = await checkAndResetUsage(supabase, user.id, effectiveData?.usage_reset_at);
+
     // Get chat messages used (not in RPC yet)
     const { data: chatData } = await supabase
       .from("users")
       .select("ai_chat_messages_used")
       .eq("id", user.id)
       .single();
-    const chatMessagesUsed = chatData?.ai_chat_messages_used ?? 0;
+    const chatMessagesUsed = wasReset ? 0 : (chatData?.ai_chat_messages_used ?? 0);
 
     // Use effective subscription data from RPC
     const tier = (effectiveData?.effective_tier || "free") as SubscriptionTier;
@@ -173,8 +227,8 @@ export async function GET() {
     const signaturesLimit = config.signaturesLimit;
     const chatMessagesLimit = config.chatMessagesLimit;
     const isUnlimited = contractsLimit === -1;
-    const contractsUsed = effectiveData?.contracts_used ?? 0;
-    const signaturesUsed = effectiveData?.signatures_used ?? 0;
+    const contractsUsed = wasReset ? 0 : (effectiveData?.contracts_used ?? 0);
+    const signaturesUsed = wasReset ? 0 : (effectiveData?.signatures_used ?? 0);
 
     return NextResponse.json({
       tier,
