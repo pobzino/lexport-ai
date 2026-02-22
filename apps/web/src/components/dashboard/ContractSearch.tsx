@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Search,
@@ -20,6 +21,7 @@ import {
   Users,
   TrendingUp,
   FileSignature,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -27,6 +29,7 @@ import { createClient } from "@/lib/supabase/client";
 interface Contract {
   id: string;
   title: string;
+  title_highlighted?: string;
   type: string;
   jurisdiction: string;
   status: string;
@@ -273,26 +276,41 @@ interface ContractSearchProps {
 }
 
 export function ContractSearch({ onResultsChange }: ContractSearchProps) {
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const supabase = createClient();
+
+  // Initialize from URL params
+  const [query, setQuery] = useState(searchParams.get("q") || "");
+  const [debouncedQuery, setDebouncedQuery] = useState(searchParams.get("q") || "");
   const [results, setResults] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [currentOffset, setCurrentOffset] = useState(0);
 
-  // Filters
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
-  const [selectedJurisdiction, setSelectedJurisdiction] = useState("");
-  const [selectedFolderId, setSelectedFolderId] = useState("");
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [sortBy, setSortBy] = useState<"relevance" | "date" | "title">("relevance");
+  // Filters - initialize from URL
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(
+    searchParams.get("status")?.split(",").filter(Boolean) || []
+  );
+  const [selectedJurisdiction, setSelectedJurisdiction] = useState(
+    searchParams.get("jurisdiction") || ""
+  );
+  const [selectedFolderId, setSelectedFolderId] = useState(
+    searchParams.get("folderId") || ""
+  );
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
+    searchParams.get("tagIds")?.split(",").filter(Boolean) || []
+  );
+  const [dateFrom, setDateFrom] = useState(searchParams.get("dateFrom") || "");
+  const [dateTo, setDateTo] = useState(searchParams.get("dateTo") || "");
+  const [sortBy, setSortBy] = useState<"relevance" | "date" | "title">(
+    (searchParams.get("sortBy") as "relevance" | "date" | "title") || "relevance"
+  );
 
   // Folders and tags
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
-
-  const supabase = createClient();
 
   // Fetch folders and tags
   useEffect(() => {
@@ -307,6 +325,33 @@ export function ContractSearch({ onResultsChange }: ContractSearchProps) {
     fetchFilters();
   }, []);
 
+  // Sync state to URL
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (selectedStatuses.length > 0) params.set("status", selectedStatuses.join(","));
+    if (selectedJurisdiction) params.set("jurisdiction", selectedJurisdiction);
+    if (selectedFolderId) params.set("folderId", selectedFolderId);
+    if (selectedTagIds.length > 0) params.set("tagIds", selectedTagIds.join(","));
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
+    if (sortBy !== "relevance") params.set("sortBy", sortBy);
+
+    const newUrl = params.toString() ? `?${params.toString()}` : "";
+    if (newUrl !== `?${searchParams.toString()}`) {
+      router.replace(newUrl || window.location.pathname, { scroll: false });
+    }
+  }, [
+    query,
+    selectedStatuses,
+    selectedJurisdiction,
+    selectedFolderId,
+    selectedTagIds,
+    dateFrom,
+    dateTo,
+    sortBy,
+  ]);
+
   // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -316,7 +361,7 @@ export function ContractSearch({ onResultsChange }: ContractSearchProps) {
   }, [query]);
 
   // Perform search
-  const performSearch = useCallback(async () => {
+  const performSearch = useCallback(async (offset: number = 0, append: boolean = false) => {
     // Only search if we have a query or filters active
     const hasQuery = debouncedQuery.trim().length > 0;
     const hasFilters =
@@ -333,7 +378,15 @@ export function ContractSearch({ onResultsChange }: ContractSearchProps) {
       return;
     }
 
-    setLoading(true);
+    // FIX: Always hide regular list when search is active
+    onResultsChange?.(true);
+
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
+
     try {
       const params = new URLSearchParams();
       if (debouncedQuery) params.append("q", debouncedQuery);
@@ -348,7 +401,7 @@ export function ContractSearch({ onResultsChange }: ContractSearchProps) {
       if (dateTo) params.append("dateTo", dateTo);
       params.append("sortBy", sortBy);
       params.append("limit", "20");
-      params.append("offset", "0");
+      params.append("offset", offset.toString());
 
       const response = await fetch(`/api/contracts/search?${params.toString()}`);
       if (!response.ok) {
@@ -356,14 +409,25 @@ export function ContractSearch({ onResultsChange }: ContractSearchProps) {
       }
 
       const data: SearchResult = await response.json();
-      setResults(data);
-      onResultsChange?.(data.total > 0);
+      
+      if (append && results) {
+        setResults({
+          ...data,
+          contracts: [...results.contracts, ...data.contracts],
+        });
+      } else {
+        setResults(data);
+        setCurrentOffset(0);
+      }
     } catch (error) {
       console.error("Search error:", error);
-      setResults(null);
-      onResultsChange?.(false);
+      if (!append) {
+        setResults(null);
+        onResultsChange?.(false);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [
     debouncedQuery,
@@ -375,12 +439,31 @@ export function ContractSearch({ onResultsChange }: ContractSearchProps) {
     dateTo,
     sortBy,
     onResultsChange,
+    results,
   ]);
 
   // Trigger search when params change
   useEffect(() => {
-    performSearch();
-  }, [performSearch]);
+    performSearch(0, false);
+  }, [
+    debouncedQuery,
+    selectedStatuses,
+    selectedJurisdiction,
+    selectedFolderId,
+    selectedTagIds,
+    dateFrom,
+    dateTo,
+    sortBy,
+  ]);
+
+  // Load more results
+  const loadMore = () => {
+    if (results && results.contracts.length < results.total) {
+      const newOffset = results.contracts.length;
+      setCurrentOffset(newOffset);
+      performSearch(newOffset, true);
+    }
+  };
 
   // Count active filters
   const activeFilterCount = useMemo(() => {
@@ -653,10 +736,17 @@ export function ContractSearch({ onResultsChange }: ContractSearchProps) {
                   {typeDisplay.label}
                 </div>
 
-                {/* Title */}
-                <h3 className="font-semibold text-slate-900 mb-2 line-clamp-2">
-                  {contract.title}
-                </h3>
+                {/* Title with highlighting */}
+                {contract.title_highlighted ? (
+                  <h3
+                    className="font-semibold text-slate-900 mb-2 line-clamp-2 [&_mark]:bg-yellow-200 [&_mark]:text-yellow-900 [&_mark]:px-1"
+                    dangerouslySetInnerHTML={{ __html: contract.title_highlighted }}
+                  />
+                ) : (
+                  <h3 className="font-semibold text-slate-900 mb-2 line-clamp-2">
+                    {contract.title}
+                  </h3>
+                )}
 
                 {/* Metadata */}
                 <div className="space-y-2 mb-3">
@@ -701,6 +791,31 @@ export function ContractSearch({ onResultsChange }: ContractSearchProps) {
               </Link>
             );
           })}
+        </div>
+      )}
+
+      {/* Load More Button */}
+      {!loading && results && results.contracts.length > 0 && results.contracts.length < results.total && (
+        <div className="flex justify-center pt-6">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-[#202e46] text-white rounded-lg hover:bg-[#1a2539] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loadingMore ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              <>
+                Load More
+                <span className="text-sm text-slate-300">
+                  ({results.contracts.length} of {results.total})
+                </span>
+              </>
+            )}
+          </button>
         </div>
       )}
 
