@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Plus, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { ContractsList } from "./contracts-list";
+import { ContractsPageClient } from "./contracts-page-client";
 
 interface Payment {
   contract_id: string;
@@ -139,8 +139,8 @@ export default async function ContractsPage() {
         </div>
       </div>
 
-      {/* Contracts List with Search & Filter */}
-      <ContractsList contracts={contractsList} />
+      {/* Contracts List with Advanced Search & Filter */}
+      <ContractsPageClient contracts={contractsList} />
     </div>
   );
 }
