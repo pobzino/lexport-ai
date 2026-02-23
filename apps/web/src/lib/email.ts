@@ -1320,6 +1320,210 @@ Powered by Lexport
   }
 }
 
+/**
+ * Send expiration notification to signer when their signature request expires
+ */
+export async function sendExpirationNotificationToSigner({
+  to,
+  signerName,
+  contractTitle,
+  expiresAt,
+  senderName,
+}: {
+  to: string;
+  signerName: string;
+  contractTitle: string;
+  expiresAt: string;
+  senderName?: string;
+}) {
+  const expirationDate = new Date(expiresAt).toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const content = `
+    <div style="text-align: center; margin-bottom: 24px;">
+      <span style="display: inline-block; background-color: #fef2f2; color: #991b1b; padding: 8px 20px; border-radius: 20px; font-size: 14px; font-weight: 600; border: 1px solid #ef4444;">⏱️ Signature Request Expired</span>
+    </div>
+
+    <h2 style="color: ${BRAND.navy}; font-size: 22px; margin: 0 0 20px; text-align: center;">Signature Request Has Expired</h2>
+
+    <p style="margin: 16px 0; color: #475569;">Hi ${signerName},</p>
+
+    <p style="margin: 16px 0; color: #475569;">
+      The signature request for the following contract has expired:
+    </p>
+
+    <div style="background-color: #fef2f2; border-radius: 12px; padding: 20px; margin: 24px 0; border-left: 4px solid #ef4444;">
+      <p style="margin: 0 0 12px; color: ${BRAND.navy}; font-size: 18px; font-weight: 600;">${contractTitle}</p>
+      <p style="margin: 0; color: #991b1b; font-size: 14px;">
+        <strong>Expired:</strong> ${expirationDate}
+      </p>
+    </div>
+
+    <div style="background-color: ${BRAND.lightSlate}; border-radius: 10px; padding: 16px; margin: 24px 0;">
+      <p style="margin: 0 0 8px; font-size: 15px; color: ${BRAND.navy}; font-weight: 600;">What happens now?</p>
+      <p style="margin: 0; font-size: 14px; color: #475569;">
+        You can no longer sign this document using the previous link. If you still need to sign this contract, please contact ${senderName || "the sender"} to request a new signing link.
+      </p>
+    </div>
+
+    <p style="margin: 24px 0 0; font-size: 14px; color: #475569; text-align: center;">
+      For assistance, reach out to ${senderName || "the person who sent you this document"}.
+    </p>
+  `;
+
+  const html = emailWrapper(content);
+
+  const text = `
+Signature Request Expired
+
+Hi ${signerName},
+
+The signature request for the following contract has expired:
+
+${contractTitle}
+Expired: ${expirationDate}
+
+You can no longer sign this document using the previous link. If you still need to sign this contract, please contact ${senderName || "the sender"} to request a new signing link.
+
+For assistance, reach out to ${senderName || "the person who sent you this document"}.
+
+---
+Powered by Lexport
+`;
+
+  try {
+    const { data, error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to: [to],
+      subject: `⏱️ Signature request expired: ${contractTitle}`,
+      html,
+      text,
+    });
+
+    if (error) {
+      console.error("Failed to send expiration notification to signer:", error);
+      throw error;
+    }
+
+    console.log(`Expiration notification sent to signer ${to}:`, data?.id);
+    return { success: true, id: data?.id };
+  } catch (error) {
+    console.error("Error sending expiration notification to signer:", error);
+    throw error;
+  }
+}
+
+/**
+ * Send expiration notification to contract owner when a signature request expires
+ */
+export async function sendExpirationNotificationToOwner({
+  to,
+  ownerName,
+  signerName,
+  contractTitle,
+  expiresAt,
+  contractId,
+}: {
+  to: string;
+  ownerName: string;
+  signerName: string;
+  contractTitle: string;
+  expiresAt: string;
+  contractId: string;
+}) {
+  const expirationDate = new Date(expiresAt).toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard/contracts/${contractId}`;
+
+  const content = `
+    <div style="text-align: center; margin-bottom: 24px;">
+      <span style="display: inline-block; background-color: #fef2f2; color: #991b1b; padding: 8px 20px; border-radius: 20px; font-size: 14px; font-weight: 600; border: 1px solid #ef4444;">⏱️ Signature Request Expired</span>
+    </div>
+
+    <h2 style="color: ${BRAND.navy}; font-size: 22px; margin: 0 0 20px; text-align: center;">Signature Request Expired</h2>
+
+    <p style="margin: 16px 0; color: #475569;">Hi ${ownerName},</p>
+
+    <p style="margin: 16px 0; color: #475569;">
+      A signature request for your contract has expired without being signed:
+    </p>
+
+    <div style="background-color: #fef2f2; border-radius: 12px; padding: 20px; margin: 24px 0; border-left: 4px solid #ef4444;">
+      <p style="margin: 0 0 12px; color: ${BRAND.navy}; font-size: 18px; font-weight: 600;">${contractTitle}</p>
+      <p style="margin: 0 0 8px; color: #475569; font-size: 14px;">
+        <strong>Signer:</strong> ${signerName}
+      </p>
+      <p style="margin: 0; color: #991b1b; font-size: 14px;">
+        <strong>Expired:</strong> ${expirationDate}
+      </p>
+    </div>
+
+    <div style="background-color: ${BRAND.lightSlate}; border-radius: 10px; padding: 16px; margin: 24px 0;">
+      <p style="margin: 0 0 8px; font-size: 15px; color: ${BRAND.navy}; font-weight: 600;">What's next?</p>
+      <p style="margin: 0; font-size: 14px; color: #475569;">
+        <strong>${signerName}</strong> did not sign the contract before the deadline. You can send a new signing request from your dashboard with an updated expiration date.
+      </p>
+    </div>
+
+    ${secondaryButton(dashboardUrl, "View Contract & Re-send")}
+
+    <p style="margin: 16px 0; font-size: 14px; color: #475569; text-align: center;">
+      You can generate a new signing link and send it to ${signerName} directly from your contract dashboard.
+    </p>
+  `;
+
+  const html = emailWrapper(content);
+
+  const text = `
+Signature Request Expired
+
+Hi ${ownerName},
+
+A signature request for your contract has expired without being signed:
+
+${contractTitle}
+Signer: ${signerName}
+Expired: ${expirationDate}
+
+${signerName} did not sign the contract before the deadline. You can send a new signing request from your dashboard with an updated expiration date.
+
+View contract and re-send: ${dashboardUrl}
+
+---
+Powered by Lexport
+`;
+
+  try {
+    const { data, error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to: [to],
+      subject: `⏱️ Signature request expired: ${contractTitle}`,
+      html,
+      text,
+    });
+
+    if (error) {
+      console.error("Failed to send expiration notification to owner:", error);
+      throw error;
+    }
+
+    console.log(`Expiration notification sent to owner ${to}:`, data?.id);
+    return { success: true, id: data?.id };
+  } catch (error) {
+    console.error("Error sending expiration notification to owner:", error);
+    throw error;
+  }
+}
+
 export interface InvoiceReminderEmailParams {
   to: string;
   recipientName: string;

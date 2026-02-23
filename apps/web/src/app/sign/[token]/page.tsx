@@ -141,6 +141,7 @@ export default function SignContractPage() {
   const [alreadySigned, setAlreadySigned] = useState(false);
   const [notYourTurn, setNotYourTurn] = useState(false);
   const [waitingMessage, setWaitingMessage] = useState<string | null>(null);
+  const [expired, setExpired] = useState(false);
   const [signatureRequest, setSignatureRequest] = useState<SignatureRequest | null>(null);
   const [contract, setContract] = useState<Contract | null>(null);
   const [signingProgress, setSigningProgress] = useState<{
@@ -232,6 +233,13 @@ export default function SignContractPage() {
         const data = await response.json();
         setSignatureRequest(data.signatureRequest);
         setContract(data.contract);
+
+        // Check if expired
+        if (data.signatureRequest?.status === "expired") {
+          setExpired(true);
+          setLoading(false);
+          return;
+        }
 
         // Set signing progress for sequential contracts
         if (data.signingProgress) {
@@ -939,6 +947,42 @@ export default function SignContractPage() {
           </p>
           <p className="text-sm text-slate-500">
             You&apos;ll receive an email notification when it&apos;s your turn to sign.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (expired) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="bg-white rounded-xl border border-slate-200 p-8 max-w-md text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">
+            This Signature Request Has Expired
+          </h1>
+          <p className="text-slate-600 mb-4">
+            This signing link expired on{" "}
+            <span className="font-medium">
+              {signatureRequest?.expiresAt
+                ? new Date(signatureRequest.expiresAt).toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "the deadline"}
+            </span>
+            .
+          </p>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-amber-800">
+              Please contact the sender to request a new signing link.
+            </p>
+          </div>
+          <p className="text-xs text-slate-500">
+            For assistance, reach out to the person who sent you this document.
           </p>
         </div>
       </div>

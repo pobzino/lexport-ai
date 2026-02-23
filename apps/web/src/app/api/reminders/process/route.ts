@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { sendBalanceReminderEmail, sendSigningReminder, sendExpirationWarningEmail } from "@/lib/email";
+import { sendBalanceReminderEmail, sendSigningReminder, sendExpirationWarningEmail, sendExpirationNotificationToSigner, sendExpirationNotificationToOwner } from "@/lib/email";
 
 // Lazy initialization for service role client (bypasses RLS)
 let supabaseAdmin: SupabaseClient | null = null;
@@ -263,13 +263,12 @@ export async function POST(request: NextRequest) {
       .select(`
         id, contract_id, signer_email, signer_name, token,
         reminder_enabled, reminder_count, max_reminders,
-        next_reminder_at, expires_at, created_at,
+        next_reminder_at, expires_at, created_at, reminder_interval_days,
         contracts!inner(id, title, user_id, users(name))
       `)
       .eq("status", "pending")
       .eq("reminder_enabled", true)
       .lte("next_reminder_at", now.toISOString())
-      .lt("reminder_count", 5) // max_reminders default
       .gt("expires_at", now.toISOString()); // Not expired
 
     if (sigRequestsError) {
@@ -278,9 +277,14 @@ export async function POST(request: NextRequest) {
       for (const sigRequest of signatureRequests) {
         signatureResults.processed++;
 
+        // Check max_reminders limit
+        if (sigRequest.reminder_count >= sigRequest.max_reminders) {
+          continue; // Skip if already at max reminders
+        }
+
         try {
           const contract = Array.isArray(sigRequest.contracts) ? sigRequest.contracts[0] : sigRequest.contracts;
-          const senderName = contract?.users?.name;
+          const senderName = (contract?.users as any)?.[0]?.name;
           const signingUrl = `${baseUrl}/sign/${sigRequest.token}`;
           const expiresAt = sigRequest.expires_at;
           
@@ -409,8 +413,38 @@ export async function POST(request: NextRequest) {
             })
             .eq("id", expiredRequest.id);
 
-          // Send notification to signer (simple approach - could be expanded)
-          // For now, we'll just log it and rely on the contract owner to re-send
+          // Send expiration notifications
+          const senderName = (contract?.users as any)?.[0]?.name;
+          const ownerEmail = (contract?.users as any)?.[0]?.email;
+
+          // Notify signer
+          try {
+            await sendExpirationNotificationToSigner({
+              to: expiredRequest.signer_email,
+              signerName: expiredRequest.signer_name,
+              contractTitle: contract.title,
+              expiresAt: expiredRequest.expires_at,
+              senderName,
+            });
+          } catch (emailError) {
+            console.error(`Failed to send expiration notification to signer:`, emailError);
+          }
+
+          // Notify contract owner
+          if (ownerEmail) {
+            try {
+              await sendExpirationNotificationToOwner({
+                to: ownerEmail,
+                ownerName: senderName || "Contract Owner",
+                signerName: expiredRequest.signer_name,
+                contractTitle: contract.title,
+                expiresAt: expiredRequest.expires_at,
+                contractId: expiredRequest.contract_id,
+              });
+            } catch (emailError) {
+              console.error(`Failed to send expiration notification to owner:`, emailError);
+            }
+          }
 
           // Log audit event
           await getSupabaseAdmin().from("audit_logs").insert({
