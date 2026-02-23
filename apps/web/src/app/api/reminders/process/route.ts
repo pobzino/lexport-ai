@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { sendBalanceReminderEmail } from "@/lib/email";
+import { sendBalanceReminderEmail, sendSigningReminder, sendExpirationWarningEmail } from "@/lib/email";
 
 // Lazy initialization for service role client (bypasses RLS)
 let supabaseAdmin: SupabaseClient | null = null;
@@ -52,12 +52,27 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date();
-    const results = {
+    const paymentResults = {
       processed: 0,
-      remindersSent: 0,
+      sent: 0,
       skipped: 0,
       errors: [] as string[],
     };
+    
+    const signatureResults = {
+      processed: 0,
+      sent: 0,
+      skipped: 0,
+      errors: [] as string[],
+    };
+    
+    const expirationResults = {
+      processed: 0,
+      expired: 0,
+      errors: [] as string[],
+    };
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
 
     // Find contracts with deposit paid but balance unpaid
     // These are contracts with deposit_balance structure where we have a deposit payment but no balance payment
@@ -80,16 +95,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!contracts || contracts.length === 0) {
-      return NextResponse.json({
-        message: "No contracts with balance due dates found",
-        ...results,
-      });
-    }
-
-    // Process each contract
-    for (const contract of contracts as ContractWithBalance[]) {
-      results.processed++;
+    // Process payment reminders (existing logic)
+    if (contracts && contracts.length > 0) {
+      for (const contract of contracts as ContractWithBalance[]) {
+        paymentResults.processed++;
 
       try {
         // Check if deposit is paid and balance is not
@@ -102,156 +111,344 @@ export async function POST(request: NextRequest) {
         const depositPayment = payments?.find(p => p.payment_type === "deposit");
         const balancePayment = payments?.find(p => p.payment_type === "balance");
 
-        // Skip if deposit not paid or balance already paid
-        if (!depositPayment || balancePayment) {
-          results.skipped++;
-          continue;
-        }
-
-        // Get recipient email from deposit payment
-        const recipientEmail = depositPayment.payer_email;
-        const recipientName = depositPayment.payer_name;
-
-        if (!recipientEmail) {
-          results.skipped++;
-          continue;
-        }
-
-        // Calculate days until due
-        const dueDate = new Date(contract.balance_due_date!);
-        const daysUntilDue = Math.ceil(
-          (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-        );
-
-        // Find the appropriate reminder to send
-        const reminderToSend = REMINDER_SCHEDULE.find(
-          (r) => r.daysBeforeDue === daysUntilDue
-        );
-
-        if (!reminderToSend) {
-          results.skipped++;
-          continue;
-        }
-
-        // Check if we already sent this type of reminder
-        const { data: existingReminders } = await getSupabaseAdmin()
-          .from("payment_reminders")
-          .select("id, reminder_type")
-          .eq("contract_id", contract.id)
-          .eq("reminder_type", reminderToSend.reminderType);
-
-        // For "first" and "second", only send once
-        // For "final", allow multiple (overdue reminders)
-        if (existingReminders && existingReminders.length > 0) {
-          if (reminderToSend.reminderType !== "final") {
-            results.skipped++;
+          // Skip if deposit not paid or balance already paid
+          if (!depositPayment || balancePayment) {
+            paymentResults.skipped++;
             continue;
           }
 
-          // For final reminders, check 24-hour cooldown
-          const lastReminder = await getSupabaseAdmin()
-            .from("payment_reminders")
-            .select("sent_at")
-            .eq("contract_id", contract.id)
-            .order("sent_at", { ascending: false })
-            .limit(1)
-            .single();
+          // Get recipient email from deposit payment
+          const recipientEmail = depositPayment.payer_email;
+          const recipientName = depositPayment.payer_name;
 
-          if (lastReminder.data) {
-            const hoursSinceLastReminder =
-              (now.getTime() - new Date(lastReminder.data.sent_at).getTime()) /
-              (1000 * 60 * 60);
-            if (hoursSinceLastReminder < 24) {
-              results.skipped++;
+          if (!recipientEmail) {
+            paymentResults.skipped++;
+            continue;
+          }
+
+          // Calculate days until due
+          const dueDate = new Date(contract.balance_due_date!);
+          const daysUntilDue = Math.ceil(
+            (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+          );
+
+          // Find the appropriate reminder to send
+          const reminderToSend = REMINDER_SCHEDULE.find(
+            (r) => r.daysBeforeDue === daysUntilDue
+          );
+
+          if (!reminderToSend) {
+            paymentResults.skipped++;
+            continue;
+          }
+
+          // Check if we already sent this type of reminder
+          const { data: existingReminders } = await getSupabaseAdmin()
+            .from("payment_reminders")
+            .select("id, reminder_type")
+            .eq("contract_id", contract.id)
+            .eq("reminder_type", reminderToSend.reminderType);
+
+          // For "first" and "second", only send once
+          // For "final", allow multiple (overdue reminders)
+          if (existingReminders && existingReminders.length > 0) {
+            if (reminderToSend.reminderType !== "final") {
+              paymentResults.skipped++;
               continue;
             }
+
+            // For final reminders, check 24-hour cooldown
+            const lastReminder = await getSupabaseAdmin()
+              .from("payment_reminders")
+              .select("sent_at")
+              .eq("contract_id", contract.id)
+              .order("sent_at", { ascending: false })
+              .limit(1)
+              .single();
+
+            if (lastReminder.data) {
+              const hoursSinceLastReminder =
+                (now.getTime() - new Date(lastReminder.data.sent_at).getTime()) /
+                (1000 * 60 * 60);
+              if (hoursSinceLastReminder < 24) {
+                paymentResults.skipped++;
+                continue;
+              }
+            }
           }
-        }
 
-        // Get contract owner info for sender details
-        const { data: ownerData } = await getSupabaseAdmin()
-          .from("users")
-          .select("name, email")
-          .eq("id", contract.user_id)
-          .single();
+          // Get contract owner info for sender details
+          const { data: ownerData } = await getSupabaseAdmin()
+            .from("users")
+            .select("name, email")
+            .eq("id", contract.user_id)
+            .single();
 
-        // Calculate amounts
-        const totalAmount = Math.round(contract.payment_amount * 100);
-        const depositPercentage = contract.deposit_percentage || 30;
-        const depositAmount = Math.round(totalAmount * (depositPercentage / 100));
-        const balanceAmount = totalAmount - depositAmount;
+          // Calculate amounts
+          const totalAmount = Math.round(contract.payment_amount * 100);
+          const depositPercentage = contract.deposit_percentage || 30;
+          const depositAmount = Math.round(totalAmount * (depositPercentage / 100));
+          const balanceAmount = totalAmount - depositAmount;
 
-        // Build payment URL
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
-        const paymentUrl = `${baseUrl}/portal/contracts/${contract.id}?action=pay`;
+          // Build payment URL
+          const paymentUrl = `${baseUrl}/portal/contracts/${contract.id}?action=pay`;
 
-        // Send the reminder
-        const emailResult = await sendBalanceReminderEmail({
-          to: recipientEmail,
-          recipientName: recipientName || "Valued Customer",
-          contractTitle: contract.title,
-          balanceAmount,
-          currency: contract.payment_currency || "usd",
-          dueDate: contract.balance_due_date || undefined,
-          paymentUrl,
-          depositPaidAmount: depositAmount,
-          senderName: ownerData?.name || undefined,
-          reminderType: reminderToSend.reminderType,
-        });
+          // Send the reminder
+          const emailResult = await sendBalanceReminderEmail({
+            to: recipientEmail,
+            recipientName: recipientName || "Valued Customer",
+            contractTitle: contract.title,
+            balanceAmount,
+            currency: contract.payment_currency || "usd",
+            dueDate: contract.balance_due_date || undefined,
+            paymentUrl,
+            depositPaidAmount: depositAmount,
+            senderName: ownerData?.name || undefined,
+            reminderType: reminderToSend.reminderType,
+          });
 
-        // Record the reminder
-        await getSupabaseAdmin().from("payment_reminders").insert({
-          contract_id: contract.id,
-          payment_id: depositPayment.id,
-          recipient_email: recipientEmail,
-          recipient_name: recipientName,
-          reminder_type: reminderToSend.reminderType,
-          amount: balanceAmount,
-          currency: contract.payment_currency || "usd",
-          email_id: emailResult.id || null,
-        });
-
-        // Update contract's last_reminder_sent
-        await getSupabaseAdmin()
-          .from("contracts")
-          .update({
-            last_reminder_sent: now.toISOString(),
-            updated_at: now.toISOString(),
-          })
-          .eq("id", contract.id);
-
-        // Log audit event
-        await getSupabaseAdmin().from("audit_logs").insert({
-          contract_id: contract.id,
-          user_id: contract.user_id,
-          event_type: "auto_balance_reminder_sent",
-          ip_address: "cron",
-          user_agent: "netlify-scheduled-function",
-          metadata: {
-            reminder_type: reminderToSend.reminderType,
-            days_until_due: daysUntilDue,
+          // Record the reminder
+          await getSupabaseAdmin().from("payment_reminders").insert({
+            contract_id: contract.id,
+            payment_id: depositPayment.id,
             recipient_email: recipientEmail,
-            balance_amount: balanceAmount,
-          },
-        });
+            recipient_name: recipientName,
+            reminder_type: reminderToSend.reminderType,
+            amount: balanceAmount,
+            currency: contract.payment_currency || "usd",
+            email_id: emailResult.id || null,
+          });
 
-        results.remindersSent++;
-        console.log(
-          `Sent ${reminderToSend.reminderType} reminder for contract ${contract.id} (${daysUntilDue} days until due)`
-        );
-      } catch (contractError) {
-        const errorMsg = `Failed to process contract ${contract.id}: ${contractError}`;
-        console.error(errorMsg);
-        results.errors.push(errorMsg);
+          // Update contract's last_reminder_sent
+          await getSupabaseAdmin()
+            .from("contracts")
+            .update({
+              last_reminder_sent: now.toISOString(),
+              updated_at: now.toISOString(),
+            })
+            .eq("id", contract.id);
+
+          // Log audit event
+          await getSupabaseAdmin().from("audit_logs").insert({
+            contract_id: contract.id,
+            user_id: contract.user_id,
+            event_type: "auto_balance_reminder_sent",
+            ip_address: "cron",
+            user_agent: "netlify-scheduled-function",
+            metadata: {
+              reminder_type: reminderToSend.reminderType,
+              days_until_due: daysUntilDue,
+              recipient_email: recipientEmail,
+              balance_amount: balanceAmount,
+            },
+          });
+
+          paymentResults.sent++;
+          console.log(
+            `Sent ${reminderToSend.reminderType} payment reminder for contract ${contract.id} (${daysUntilDue} days until due)`
+          );
+        } catch (contractError) {
+          const errorMsg = `Failed to process contract ${contract.id}: ${contractError}`;
+          console.error(errorMsg);
+          paymentResults.errors.push(errorMsg);
+        }
       }
     }
 
-    console.log("Reminder processing complete:", results);
+    // ======== SIGNATURE REMINDER PROCESSING ========
+    
+    // Query signature requests needing reminders
+    const { data: signatureRequests, error: sigRequestsError } = await getSupabaseAdmin()
+      .from("signature_requests")
+      .select(`
+        id, contract_id, signer_email, signer_name, token,
+        reminder_enabled, reminder_count, max_reminders,
+        next_reminder_at, expires_at, created_at,
+        contracts!inner(id, title, user_id, users(name))
+      `)
+      .eq("status", "pending")
+      .eq("reminder_enabled", true)
+      .lte("next_reminder_at", now.toISOString())
+      .lt("reminder_count", 5) // max_reminders default
+      .gt("expires_at", now.toISOString()); // Not expired
+
+    if (sigRequestsError) {
+      console.error("Failed to fetch signature requests:", sigRequestsError);
+    } else if (signatureRequests && signatureRequests.length > 0) {
+      for (const sigRequest of signatureRequests) {
+        signatureResults.processed++;
+
+        try {
+          const contract = Array.isArray(sigRequest.contracts) ? sigRequest.contracts[0] : sigRequest.contracts;
+          const senderName = contract?.users?.name;
+          const signingUrl = `${baseUrl}/sign/${sigRequest.token}`;
+          const expiresAt = sigRequest.expires_at;
+          
+          // Determine reminder type based on reminder count
+          let reminderType: "first" | "followup" | "final" = "first";
+          if (sigRequest.reminder_count === 0) {
+            reminderType = "first";
+          } else if (sigRequest.reminder_count >= 2) {
+            reminderType = "final";
+          } else {
+            reminderType = "followup";
+          }
+
+          // Check if this is final reminder (24h before expiration)
+          const hoursUntilExpiration = expiresAt 
+            ? (new Date(expiresAt).getTime() - now.getTime()) / (1000 * 60 * 60)
+            : null;
+          
+          const isFinalWarning = hoursUntilExpiration && hoursUntilExpiration <= 24 && hoursUntilExpiration > 0;
+
+          if (isFinalWarning) {
+            // Send expiration warning
+            await sendExpirationWarningEmail({
+              to: sigRequest.signer_email,
+              signerName: sigRequest.signer_name,
+              contractTitle: contract.title,
+              signingUrl,
+              expiresAt: expiresAt!,
+              hoursRemaining: hoursUntilExpiration,
+              senderName,
+            });
+            reminderType = "final";
+          } else {
+            // Send regular reminder
+            await sendSigningReminder({
+              to: sigRequest.signer_email,
+              signerName: sigRequest.signer_name,
+              contractTitle: contract.title,
+              signingUrl,
+              expiresAt: expiresAt || undefined,
+            });
+          }
+
+          // Record in history
+          await getSupabaseAdmin().from("signature_reminder_history").insert({
+            signature_request_id: sigRequest.id,
+            contract_id: sigRequest.contract_id,
+            reminder_type: isFinalWarning ? "expiration_warning" : reminderType,
+            recipient_email: sigRequest.signer_email,
+            recipient_name: sigRequest.signer_name,
+            days_until_expiration: hoursUntilExpiration ? Math.ceil(hoursUntilExpiration / 24) : null,
+          });
+
+          // Update signature request
+          const newReminderCount = sigRequest.reminder_count + 1;
+          const reminderIntervalDays = sigRequest.reminder_interval_days || 3;
+          const nextReminderAt = new Date(now.getTime() + reminderIntervalDays * 24 * 60 * 60 * 1000);
+
+          await getSupabaseAdmin()
+            .from("signature_requests")
+            .update({
+              reminder_count: newReminderCount,
+              last_reminder_sent_at: now.toISOString(),
+              next_reminder_at: nextReminderAt.toISOString(),
+              updated_at: now.toISOString(),
+            })
+            .eq("id", sigRequest.id);
+
+          // Log audit event
+          await getSupabaseAdmin().from("audit_logs").insert({
+            contract_id: sigRequest.contract_id,
+            user_id: contract.user_id,
+            event_type: "auto_signature_reminder_sent",
+            ip_address: "cron",
+            user_agent: "netlify-scheduled-function",
+            metadata: {
+              signature_request_id: sigRequest.id,
+              reminder_type: reminderType,
+              reminder_count: newReminderCount,
+              recipient_email: sigRequest.signer_email,
+              expires_at: expiresAt,
+            },
+          });
+
+          signatureResults.sent++;
+          console.log(
+            `Sent ${reminderType} signature reminder for request ${sigRequest.id} (count: ${newReminderCount})`
+          );
+        } catch (error) {
+          const errorMsg = `Failed to process signature request ${sigRequest.id}: ${error}`;
+          console.error(errorMsg);
+          signatureResults.errors.push(errorMsg);
+        }
+      }
+    }
+
+    // ======== EXPIRATION PROCESSING ========
+    
+    // Find expired signature requests that haven't been processed
+    const { data: expiredRequests, error: expiredError } = await getSupabaseAdmin()
+      .from("signature_requests")
+      .select(`
+        id, contract_id, signer_email, signer_name, token, expires_at,
+        contracts!inner(id, title, user_id, users(name, email))
+      `)
+      .eq("status", "pending")
+      .lte("expires_at", now.toISOString())
+      .eq("expired_processed", false);
+
+    if (expiredError) {
+      console.error("Failed to fetch expired requests:", expiredError);
+    } else if (expiredRequests && expiredRequests.length > 0) {
+      for (const expiredRequest of expiredRequests) {
+        expirationResults.processed++;
+
+        try {
+          const contract = Array.isArray(expiredRequest.contracts) ? expiredRequest.contracts[0] : expiredRequest.contracts;
+          
+          // Mark as expired
+          await getSupabaseAdmin()
+            .from("signature_requests")
+            .update({
+              status: "expired",
+              expired_processed: true,
+              updated_at: now.toISOString(),
+            })
+            .eq("id", expiredRequest.id);
+
+          // Send notification to signer (simple approach - could be expanded)
+          // For now, we'll just log it and rely on the contract owner to re-send
+
+          // Log audit event
+          await getSupabaseAdmin().from("audit_logs").insert({
+            contract_id: expiredRequest.contract_id,
+            user_id: contract.user_id,
+            event_type: "signature_request_expired",
+            ip_address: "cron",
+            user_agent: "netlify-scheduled-function",
+            metadata: {
+              signature_request_id: expiredRequest.id,
+              signer_email: expiredRequest.signer_email,
+              expired_at: expiredRequest.expires_at,
+            },
+          });
+
+          expirationResults.expired++;
+          console.log(
+            `Marked signature request ${expiredRequest.id} as expired`
+          );
+        } catch (error) {
+          const errorMsg = `Failed to expire signature request ${expiredRequest.id}: ${error}`;
+          console.error(errorMsg);
+          expirationResults.errors.push(errorMsg);
+        }
+      }
+    }
+
+    console.log("Reminder processing complete:", {
+      paymentReminders: paymentResults,
+      signatureReminders: signatureResults,
+      expiredRequests: expirationResults,
+    });
 
     return NextResponse.json({
       success: true,
-      message: `Processed ${results.processed} contracts, sent ${results.remindersSent} reminders`,
-      ...results,
+      paymentReminders: paymentResults,
+      signatureReminders: signatureResults,
+      expiredRequests: expirationResults,
     });
   } catch (error) {
     console.error("Error processing reminders:", error);

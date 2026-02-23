@@ -104,6 +104,11 @@ export async function POST(
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
+    // Calculate first reminder time (24h after sending)
+    const firstReminderAt = reminderEnabled
+      ? new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
+      : null;
+
     // Create signature requests for each signer
     const signatureRequestsData = signers.map((signer, index) => ({
       contract_id: id,
@@ -115,6 +120,11 @@ export async function POST(
       order: index + 1,
       expires_at: expiresAt.toISOString(),
       message,
+      reminder_enabled: reminderEnabled,
+      reminder_interval_days: reminderIntervalDays,
+      next_reminder_at: firstReminderAt?.toISOString(),
+      reminder_count: 0,
+      max_reminders: 5,
     }));
 
     const { data: createdRequests, error: insertError } = await supabase
