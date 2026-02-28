@@ -13,9 +13,10 @@ const ToggleSchema = z.object({
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const supabase = await createClient();
 
     // Check authentication
@@ -40,7 +41,7 @@ export async function POST(
     }
 
     const { signatureRequestId, reminderEnabled } = result.data;
-    const contractId = params.id;
+    const contractId = id;
 
     // Verify user owns the contract
     const { data: contract, error: contractError } = await supabase
