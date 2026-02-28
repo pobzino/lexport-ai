@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
  */
 export const securityHeaders = {
     // Prevent clickjacking
-    "X-Frame-Options": "DENY",
+    "X-Frame-Options": "ALLOW-FROM https://loxdigital.com",
 
     // Prevent MIME type sniffing
     "X-Content-Type-Options": "nosniff",
@@ -29,7 +29,7 @@ export const securityHeaders = {
         "img-src 'self' data: blob: https:",
         "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.openai.com",
         "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com",
-        "frame-ancestors 'none'",
+        "frame-ancestors 'self' https://loxdigital.com https://www.loxdigital.com",
         "form-action 'self'",
         "base-uri 'self'",
         "object-src 'none'",

@@ -12,7 +12,7 @@ const ContentSecurityPolicy = `
   img-src 'self' data: blob: https: http:;
   connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.openai.com https://app.posthog.com https://us.i.posthog.com https://*.sentry.io;
   frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com;
-  frame-ancestors 'none';
+  frame-ancestors 'self' https://loxdigital.com https://www.loxdigital.com;
   form-action 'self';
   base-uri 'self';
   object-src 'none';
@@ -30,7 +30,7 @@ const securityHeaders = [
   },
   {
     key: "X-Frame-Options",
-    value: "DENY",
+    value: "ALLOW-FROM https://loxdigital.com",
   },
   {
     key: "X-Content-Type-Options",
