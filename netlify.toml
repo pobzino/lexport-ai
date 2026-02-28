@@ -21,10 +21,10 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Content-Security-Policy = "frame-ancestors 'self' https://loxdigital.com https://www.loxdigital.com"
 
 # Cache static assets
 [[headers]]
