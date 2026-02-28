@@ -29,7 +29,7 @@ export const securityHeaders = {
         "img-src 'self' data: blob: https:",
         "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.openai.com",
         "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com",
-        "frame-ancestors 'self' https://loxdigital.com https://www.loxdigital.com",
+        "frame-ancestors 'self' https://loxdigital.com https://www.loxdigital.com https://loxdigital.netlify.app",
         "form-action 'self'",
         "base-uri 'self'",
         "object-src 'none'",
