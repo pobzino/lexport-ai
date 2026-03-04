@@ -27,6 +27,8 @@ import {
   ClipboardList,
   FileText,
   ShoppingCart,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { ContractGeneratingOverlay } from "@/components/contract-generating-overlay";
 import { ContractPreviewModal } from "@/components/contract-preview-modal";
@@ -67,6 +69,24 @@ const STEPS = [
   { id: 2, name: "Details", description: "Enter the specifics" },
   { id: 3, name: "Review", description: "Generate with AI" },
 ];
+
+const WIZARD_SUPPORTED_TYPES: ContractType[] = [
+  "nda_mutual",
+  "nda_one_way",
+  "independent_contractor",
+  "consulting_agreement",
+  "safe_note",
+  "freelance_service",
+  "letter_of_intent",
+  "cofounder_agreement",
+  "sales_contract",
+  "custom",
+];
+
+const WIZARD_SUPPORTED_TYPE_SET = new Set<ContractType>(WIZARD_SUPPORTED_TYPES);
+
+const isWizardSupportedType = (type: ContractType): boolean =>
+  WIZARD_SUPPORTED_TYPE_SET.has(type);
 
 // Intake analysis result type
 interface IntakeAnalysis {
@@ -158,6 +178,7 @@ export default function NewContractPage() {
   const [paymentRequired, setPaymentRequired] = useState(false);
   const [paymentCurrency, setPaymentCurrency] = useState("usd");
   const [paymentStructure, setPaymentStructure] = useState<"full" | "deposit_balance" | "bnpl">("full");
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
   // Derive payment amount from form data (totalAmount or paymentAmount fields)
   const derivedPaymentAmount = (() => {
@@ -220,15 +241,13 @@ export default function NewContractPage() {
         setMatchingTemplate(null);
       }
 
-      // Only set the type if it's a valid type in our schema
-      // For custom contracts with invalid suggested types, we'll handle specially in generation
+      // Only route into the structured wizard for types we fully support in this flow.
+      // Everything else is treated as custom generation.
       const suggestedType = data.analysis.suggestedType as ContractType;
-      if (CONTRACT_TYPES[suggestedType]) {
+      if (CONTRACT_TYPES[suggestedType] && isWizardSupportedType(suggestedType)) {
         setSelectedType(suggestedType);
       } else {
-        // For unsupported types, use a generic fallback that can still be generated
-        // We'll use the first available type as a technical fallback for the generation flow
-        setSelectedType("freelance_service"); // Generic fallback for custom contracts
+        setSelectedType("custom");
       }
       if (data.analysis.jurisdiction) {
         setJurisdiction(data.analysis.jurisdiction as Jurisdiction);
@@ -282,7 +301,7 @@ export default function NewContractPage() {
     const signerGroups = formData.signerGroups as SignerGroup[] | undefined;
 
     // For custom contracts (low confidence), only validate signers
-    const isCustomContract = intakeAnalysis && intakeAnalysis.confidence <= 50;
+    const isCustomContract = selectedType === "custom" || Boolean(intakeAnalysis && intakeAnalysis.confidence <= 50);
     if (isCustomContract) {
       // Only validate signers for custom contracts
       if (signerGroups) {
@@ -541,6 +560,22 @@ export default function NewContractPage() {
   };
 
   const handleNext = () => {
+    if (step === 1) {
+      if (creationMode === "smart") {
+        if (!intakeAnalysis) {
+          void handleAnalyzeIntake();
+          return;
+        }
+        handleConfirmIntake();
+        return;
+      }
+
+      if (creationMode === "template") {
+        setError("Select a template to continue, or switch to Describe Need / Pick Type.");
+        return;
+      }
+    }
+
     // Validate before moving from step 2 to step 3
     if (step === 2) {
       const isValid = validateFormData();
@@ -566,8 +601,8 @@ export default function NewContractPage() {
     setGenerationStatus("Starting...");
 
     try {
-      // Check if this is a custom contract (low confidence from intake)
-      const isCustomContract = intakeAnalysis && intakeAnalysis.confidence <= 50;
+      // Check if this should run through custom generation
+      const isCustomContract = selectedType === "custom" || Boolean(intakeAnalysis && intakeAnalysis.confidence <= 50);
 
       // Build the metadata based on contract type
       let metadata = buildMetadata(selectedType, jurisdiction, formData);
@@ -576,8 +611,8 @@ export default function NewContractPage() {
       if (isCustomContract) {
         metadata = {
           ...metadata,
-          customContractName: intakeAnalysis.contractTypeName,
-          customContractDescription: intakeDescription,
+          customContractName: intakeAnalysis?.contractTypeName || "Custom Contract",
+          customContractDescription: intakeDescription || "Custom contract requirements",
           // Include follow-up answers as nested object for AI prompt
           followUpAnswers: Object.keys(followUpAnswers).length > 0 ? followUpAnswers : undefined,
           // Also spread for backwards compatibility
@@ -797,6 +832,25 @@ export default function NewContractPage() {
       setIsUsingTemplate(false);
     }
   };
+
+  const stepOneContinueDisabled =
+    step === 1 &&
+    (creationMode === "manual"
+      ? !selectedType
+      : creationMode === "smart"
+        ? intakeAnalysis ? !selectedType : isAnalyzing || intakeDescription.length < 10
+        : true);
+
+  const stepOneContinueLabel =
+    step === 1 && creationMode === "smart" && !intakeAnalysis
+      ? "Analyze & Continue"
+      : step === 1 && creationMode === "template"
+        ? "Select Template Above"
+        : "Continue";
+
+  const isCustomGenerationFlow = Boolean(
+    selectedType === "custom" || (intakeAnalysis && intakeAnalysis.confidence <= 50)
+  );
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -1170,21 +1224,12 @@ export default function NewContractPage() {
                     >
                       ← Start over
                     </button>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => setCreationMode("manual")}
-                        className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
-                      >
-                        Pick different type
-                      </button>
-                      <button
-                        onClick={handleConfirmIntake}
-                        className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium bg-[#202e46] text-white hover:bg-[#1a2539] transition-colors"
-                      >
-                        Continue
-                        <ArrowRight className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setCreationMode("manual")}
+                      className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+                    >
+                      Pick different type
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1204,7 +1249,9 @@ export default function NewContractPage() {
                       </span>
                     </div>
                     <div className="grid md:grid-cols-3 gap-4">
-                      {RECOMMENDED_BY_USER_TYPE[userType].map((typeId) => {
+                      {RECOMMENDED_BY_USER_TYPE[userType]
+                        .filter((typeId) => isWizardSupportedType(typeId))
+                        .map((typeId) => {
                         const type = CONTRACT_TYPES[typeId];
                         if (!type) return null;
                         const Icon = CONTRACT_ICONS[type.icon] || Shield;
@@ -1262,7 +1309,7 @@ export default function NewContractPage() {
                             </div>
                           </div>
                         );
-                      })}
+                        })}
                     </div>
                   </div>
                 )}
@@ -1274,6 +1321,7 @@ export default function NewContractPage() {
                   </h3>
                   <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Object.values(CONTRACT_TYPES)
+                      .filter((type) => isWizardSupportedType(type.id) && type.id !== "custom")
                       .filter((type) => !userType || !RECOMMENDED_BY_USER_TYPE[userType]?.includes(type.id))
                       .map((type) => {
                         const Icon = CONTRACT_ICONS[type.icon] || Shield;
@@ -1560,168 +1608,183 @@ export default function NewContractPage() {
               formData={formData}
               onChange={setFormData}
               errors={formErrors}
-              customTitle={intakeAnalysis && intakeAnalysis.confidence <= 50 ? intakeAnalysis.contractTypeName : undefined}
+              customTitle={isCustomGenerationFlow ? intakeAnalysis?.contractTypeName || "Custom Contract" : undefined}
             />
 
-            {/* Payment Settings Section - Only for service/work contracts */}
+            {/* Advanced options - collapsed by default to keep step 2 focused on core contract details */}
             {selectedType && !["nda_mutual", "nda_one_way", "safe_note"].includes(selectedType) && (
-            <div className="bg-white rounded-xl border border-slate-200 p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                  <DollarSign className="w-5 h-5 text-emerald-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900">Payment Collection</h3>
-                  <p className="text-sm text-slate-500">Optionally require payment with this contract</p>
-                </div>
-              </div>
-
-              {/* Require Payment Toggle */}
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                <div>
-                  <p className="font-medium text-slate-900">Require Payment</p>
-                  <p className="text-sm text-slate-500">Collect payment when contract is signed</p>
-                </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-6">
                 <button
-                  onClick={() => setPaymentRequired(!paymentRequired)}
-                  className={`relative w-12 h-6 rounded-full transition-colors ${
-                    paymentRequired ? "bg-emerald-600" : "bg-slate-300"
-                  }`}
+                  type="button"
+                  onClick={() => setShowAdvancedOptions(prev => !prev)}
+                  className="w-full flex items-center justify-between text-left"
                 >
-                  <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                      paymentRequired ? "translate-x-6" : ""
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {paymentRequired && (
-                <div className="mt-4 space-y-4">
-                  {/* Amount Display (derived from project details) */}
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Amount
-                      </label>
-                      <div className="relative">
-                        <div className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 font-medium">
-                          {derivedPaymentAmount > 0 ? (
-                            <span>${derivedPaymentAmount.toLocaleString()}</span>
-                          ) : (
-                            <span className="text-slate-400">Enter amount in project details above</span>
-                          )}
-                        </div>
-                        {derivedPaymentAmount > 0 && (
-                          <p className="text-xs text-slate-500 mt-1">From Total Amount in project details</p>
-                        )}
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                      <DollarSign className="w-5 h-5 text-emerald-600" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Currency
-                      </label>
-                      <select
-                        value={paymentCurrency}
-                        onChange={(e) => setPaymentCurrency(e.target.value)}
-                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
-                      >
-                        <option value="usd">USD ($)</option>
-                        <option value="eur">EUR (€)</option>
-                        <option value="gbp">GBP (£)</option>
-                      </select>
+                      <h3 className="font-semibold text-slate-900">Advanced Options</h3>
+                      <p className="text-sm text-slate-500">Payment collection and payout settings</p>
                     </div>
                   </div>
-
-                  {/* Payment Structure */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Payment Structure
-                    </label>
-                    <div className="grid md:grid-cols-3 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setPaymentStructure("full")}
-                        className={`p-3 rounded-lg border-2 text-left transition-all ${
-                          paymentStructure === "full"
-                            ? "border-emerald-500 bg-emerald-50"
-                            : "border-slate-200 hover:border-slate-300"
-                        }`}
-                      >
-                        <p className="font-medium text-slate-900">Full Payment</p>
-                        <p className="text-xs text-slate-500 mt-1">Pay 100% upfront</p>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPaymentStructure("deposit_balance")}
-                        className={`p-3 rounded-lg border-2 text-left transition-all ${
-                          paymentStructure === "deposit_balance"
-                            ? "border-emerald-500 bg-emerald-50"
-                            : "border-slate-200 hover:border-slate-300"
-                        }`}
-                      >
-                        <p className="font-medium text-slate-900">Deposit + Balance</p>
-                        <p className="text-xs text-slate-500 mt-1">Split payment</p>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPaymentStructure("bnpl")}
-                        className={`p-3 rounded-lg border-2 text-left transition-all ${
-                          paymentStructure === "bnpl"
-                            ? "border-emerald-500 bg-emerald-50"
-                            : "border-slate-200 hover:border-slate-300"
-                        }`}
-                      >
-                        <p className="font-medium text-slate-900">Buy Now, Pay Later</p>
-                        <p className="text-xs text-slate-500 mt-1">Klarna / Afterpay</p>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Deposit Details (only for deposit_balance) */}
-                  {paymentStructure === "deposit_balance" && (
-                    <div className="p-4 bg-emerald-50 rounded-lg">
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Payment Split
-                      </label>
-                      {derivedPaymentAmount > 0 ? (
-                        <div className="grid md:grid-cols-2 gap-4">
-                          <div className="bg-white rounded-lg p-3 border border-emerald-200">
-                            <p className="text-xs text-slate-500 mb-1">Deposit ({depositPercentage}%)</p>
-                            <p className="text-lg font-semibold text-emerald-600">
-                              ${derivedDepositAmount.toLocaleString()}
-                            </p>
-                            <p className="text-xs text-slate-500">Due at signing</p>
-                          </div>
-                          <div className="bg-white rounded-lg p-3 border border-slate-200">
-                            <p className="text-xs text-slate-500 mb-1">Balance ({100 - depositPercentage}%)</p>
-                            <p className="text-lg font-semibold text-slate-900">
-                              ${(derivedPaymentAmount - derivedDepositAmount).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-slate-500">Due on completion</p>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-500">Enter Total Amount and Deposit in project details above</p>
-                      )}
-                    </div>
+                  {showAdvancedOptions ? (
+                    <ChevronUp className="w-5 h-5 text-slate-500" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-slate-500" />
                   )}
+                </button>
 
-                  {/* Info Box */}
-                  <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg">
-                    <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-blue-800">
-                      <p className="font-medium">How Payment Works</p>
-                      <p className="mt-1">
-                        {paymentStructure === "full" && `The signer will pay ${derivedPaymentAmount > 0 ? `$${derivedPaymentAmount.toLocaleString()}` : 'the full amount'} when signing the contract. You'll receive funds via Stripe.`}
-                        {paymentStructure === "deposit_balance" && `The signer pays $${derivedDepositAmount.toLocaleString()} (${depositPercentage}%) deposit upfront, and the remaining $${(derivedPaymentAmount - derivedDepositAmount).toLocaleString()} upon completion.`}
-                        {paymentStructure === "bnpl" && `The signer can pay $${derivedPaymentAmount.toLocaleString()} in installments via Klarna or Afterpay. You receive the full amount immediately.`}
-                      </p>
+                {showAdvancedOptions && (
+                  <div className="mt-4 pt-4 border-t border-slate-200">
+                    {/* Require Payment Toggle */}
+                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-slate-900">Require Payment</p>
+                        <p className="text-sm text-slate-500">Collect payment when contract is signed</p>
+                      </div>
+                      <button
+                        onClick={() => setPaymentRequired(!paymentRequired)}
+                        className={`relative w-12 h-6 rounded-full transition-colors ${
+                          paymentRequired ? "bg-emerald-600" : "bg-slate-300"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                            paymentRequired ? "translate-x-6" : ""
+                          }`}
+                        />
+                      </button>
                     </div>
+
+                    {paymentRequired && (
+                      <div className="mt-4 space-y-4">
+                        {/* Amount Display (derived from project details) */}
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                              Amount
+                            </label>
+                            <div className="relative">
+                              <div className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 font-medium">
+                                {derivedPaymentAmount > 0 ? (
+                                  <span>${derivedPaymentAmount.toLocaleString()}</span>
+                                ) : (
+                                  <span className="text-slate-400">Enter amount in project details above</span>
+                                )}
+                              </div>
+                              {derivedPaymentAmount > 0 && (
+                                <p className="text-xs text-slate-500 mt-1">From Total Amount in project details</p>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                              Currency
+                            </label>
+                            <select
+                              value={paymentCurrency}
+                              onChange={(e) => setPaymentCurrency(e.target.value)}
+                              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
+                            >
+                              <option value="usd">USD ($)</option>
+                              <option value="eur">EUR (€)</option>
+                              <option value="gbp">GBP (£)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Payment Structure */}
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Payment Structure
+                          </label>
+                          <div className="grid md:grid-cols-3 gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setPaymentStructure("full")}
+                              className={`p-3 rounded-lg border-2 text-left transition-all ${
+                                paymentStructure === "full"
+                                  ? "border-emerald-500 bg-emerald-50"
+                                  : "border-slate-200 hover:border-slate-300"
+                              }`}
+                            >
+                              <p className="font-medium text-slate-900">Full Payment</p>
+                              <p className="text-xs text-slate-500 mt-1">Pay 100% upfront</p>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPaymentStructure("deposit_balance")}
+                              className={`p-3 rounded-lg border-2 text-left transition-all ${
+                                paymentStructure === "deposit_balance"
+                                  ? "border-emerald-500 bg-emerald-50"
+                                  : "border-slate-200 hover:border-slate-300"
+                              }`}
+                            >
+                              <p className="font-medium text-slate-900">Deposit + Balance</p>
+                              <p className="text-xs text-slate-500 mt-1">Split payment</p>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPaymentStructure("bnpl")}
+                              className={`p-3 rounded-lg border-2 text-left transition-all ${
+                                paymentStructure === "bnpl"
+                                  ? "border-emerald-500 bg-emerald-50"
+                                  : "border-slate-200 hover:border-slate-300"
+                              }`}
+                            >
+                              <p className="font-medium text-slate-900">Buy Now, Pay Later</p>
+                              <p className="text-xs text-slate-500 mt-1">Klarna / Afterpay</p>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Deposit Details (only for deposit_balance) */}
+                        {paymentStructure === "deposit_balance" && (
+                          <div className="p-4 bg-emerald-50 rounded-lg">
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Payment Split
+                            </label>
+                            {derivedPaymentAmount > 0 ? (
+                              <div className="grid md:grid-cols-2 gap-4">
+                                <div className="bg-white rounded-lg p-3 border border-emerald-200">
+                                  <p className="text-xs text-slate-500 mb-1">Deposit ({depositPercentage}%)</p>
+                                  <p className="text-lg font-semibold text-emerald-600">
+                                    ${derivedDepositAmount.toLocaleString()}
+                                  </p>
+                                  <p className="text-xs text-slate-500">Due at signing</p>
+                                </div>
+                                <div className="bg-white rounded-lg p-3 border border-slate-200">
+                                  <p className="text-xs text-slate-500 mb-1">Balance ({100 - depositPercentage}%)</p>
+                                  <p className="text-lg font-semibold text-slate-900">
+                                    ${(derivedPaymentAmount - derivedDepositAmount).toLocaleString()}
+                                  </p>
+                                  <p className="text-xs text-slate-500">Due on completion</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-slate-500">Enter Total Amount and Deposit in project details above</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Info Box */}
+                        <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg">
+                          <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                          <div className="text-sm text-blue-800">
+                            <p className="font-medium">How Payment Works</p>
+                            <p className="mt-1">
+                              {paymentStructure === "full" && `The signer will pay ${derivedPaymentAmount > 0 ? `$${derivedPaymentAmount.toLocaleString()}` : "the full amount"} when signing the contract. You'll receive funds via Stripe.`}
+                              {paymentStructure === "deposit_balance" && `The signer pays $${derivedDepositAmount.toLocaleString()} (${depositPercentage}%) deposit upfront, and the remaining $${(derivedPaymentAmount - derivedDepositAmount).toLocaleString()} upon completion.`}
+                              {paymentStructure === "bnpl" && `The signer can pay $${derivedPaymentAmount.toLocaleString()} in installments via Klarna or Afterpay. You receive the full amount immediately.`}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -1745,8 +1808,8 @@ export default function NewContractPage() {
                 <div>
                   <p className="text-sm text-slate-500">Contract Type</p>
                   <p className="font-medium text-slate-900">
-                    {(intakeAnalysis && intakeAnalysis.confidence <= 50)
-                      ? intakeAnalysis.contractTypeName
+                    {isCustomGenerationFlow
+                      ? intakeAnalysis?.contractTypeName || "Custom Contract"
                       : CONTRACT_TYPES[selectedType]?.name || "Custom Contract"}
                   </p>
                 </div>
@@ -1870,56 +1933,63 @@ export default function NewContractPage() {
           </div>
         )}
 
-        {/* Navigation Buttons - Hide on step 1 in template/smart mode */}
-        {!(step === 1 && (creationMode === "template" || creationMode === "smart")) && (
-          <div className="flex justify-between mt-8 pt-6 border-t border-slate-200">
+        {/* Navigation Buttons */}
+        <div className="flex justify-between mt-8 pt-6 border-t border-slate-200">
+          <button
+            onClick={handleBack}
+            disabled={step === 1}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
+              step === 1
+                ? "text-slate-400 cursor-not-allowed"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </button>
+
+          {step < 3 ? (
             <button
-              onClick={handleBack}
-              disabled={step === 1}
+              onClick={handleNext}
+              disabled={stepOneContinueDisabled}
               className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
-                step === 1
-                  ? "text-slate-400 cursor-not-allowed"
-                  : "text-slate-600 hover:bg-slate-100"
+                stepOneContinueDisabled
+                  ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                  : "bg-[#202e46] text-white hover:bg-[#1a2539]"
               }`}
             >
-              <ArrowLeft className="w-4 h-4" />
-              Back
+              {step === 1 && creationMode === "smart" && isAnalyzing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  {stepOneContinueLabel}
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
-
-            {step < 3 ? (
-              <button
-                onClick={handleNext}
-                disabled={step === 1 && !selectedType}
-                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
-                  step === 1 && !selectedType
-                    ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                    : "bg-[#202e46] text-white hover:bg-[#1a2539]"
-                }`}
-              >
-                Continue
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                onClick={handleGenerate}
-                disabled={isGenerating}
-                className="flex items-center gap-2 px-8 py-3 rounded-lg font-medium bg-gradient-to-r from-[#202e46] to-[#2a3d5c] text-white hover:from-[#1a2539] hover:to-[#202e46] transition-all disabled:opacity-50"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    Generate Contract
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        )}
+          ) : (
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              className="flex items-center gap-2 px-8 py-3 rounded-lg font-medium bg-gradient-to-r from-[#202e46] to-[#2a3d5c] text-white hover:from-[#1a2539] hover:to-[#202e46] transition-all disabled:opacity-50"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Generate Contract
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </main>
 
       {/* Placeholder Fill-in Modal for System Templates */}

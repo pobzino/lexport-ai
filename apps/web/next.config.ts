@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import path from "path";
 
 // Content Security Policy
 // Note: 'unsafe-inline' for styles is required by Next.js and Tailwind
@@ -58,6 +59,16 @@ const nextConfig: NextConfig = {
   // Enable React strict mode for better development experience
   reactStrictMode: true,
 
+  // Ensure Next uses the repo root (not parent home dir) for tracing/watch context.
+  outputFileTracingRoot: path.join(process.cwd(), "../.."),
+
+  // Keep recently visited routes warm in dev to avoid frequent recompiles
+  // while navigating around the dashboard.
+  onDemandEntries: {
+    maxInactiveAge: 1000 * 60 * 60, // 1 hour
+    pagesBufferLength: 50,
+  },
+
   // Image optimization configuration
   images: {
     remotePatterns: [
@@ -80,6 +91,12 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
     ];
+  },
+
+  webpack: (config) => {
+    config.ignoreWarnings = config.ignoreWarnings || [];
+    config.ignoreWarnings.push(/Invalid source map/);
+    return config;
   },
 
   // Experimental features
