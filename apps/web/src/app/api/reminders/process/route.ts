@@ -2,13 +2,59 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { sendBalanceReminderEmail, sendSigningReminder, sendExpirationWarningEmail, sendExpirationNotificationToSigner, sendExpirationNotificationToOwner } from "@/lib/email";
 
+class RemindersConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RemindersConfigError";
+  }
+}
+
+function getServiceRoleKey(): string | null {
+  return (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_ADMIN_KEY ||
+    null
+  );
+}
+
+function isServiceKeyAuthError(error: unknown): boolean {
+  const message =
+    typeof error === "object" && error && "message" in error
+      ? String((error as { message?: unknown }).message || "").toLowerCase()
+      : "";
+
+  return (
+    message.includes("invalid api key") ||
+    message.includes("invalid jwt") ||
+    message.includes("jwt") ||
+    message.includes("unauthorized") ||
+    message.includes("permission denied") ||
+    message.includes("apikey")
+  );
+}
+
 // Lazy initialization for service role client (bypasses RLS)
 let supabaseAdmin: SupabaseClient | null = null;
 function getSupabaseAdmin() {
   if (!supabaseAdmin) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = getServiceRoleKey();
+
+    if (!supabaseUrl) {
+      throw new RemindersConfigError("NEXT_PUBLIC_SUPABASE_URL is required.");
+    }
+
+    if (!serviceRoleKey) {
+      throw new RemindersConfigError(
+        "Supabase service key is missing. Set SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY."
+      );
+    }
+
     supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      supabaseUrl,
+      serviceRoleKey
     );
   }
   return supabaseAdmin;
@@ -88,6 +134,15 @@ export async function POST(request: NextRequest) {
       .not("balance_due_date", "is", null);
 
     if (contractsError) {
+      if (isServiceKeyAuthError(contractsError)) {
+        return NextResponse.json(
+          {
+            error:
+              "Reminders service is not configured with a valid Supabase service key. Set SUPABASE_SECRET_KEY (preferred) or SUPABASE_SERVICE_ROLE_KEY.",
+          },
+          { status: 503 }
+        );
+      }
       console.error("Failed to fetch contracts:", contractsError);
       return NextResponse.json(
         { error: "Failed to fetch contracts" },
@@ -485,6 +540,17 @@ export async function POST(request: NextRequest) {
       expiredRequests: expirationResults,
     });
   } catch (error) {
+    if (error instanceof RemindersConfigError) {
+      return NextResponse.json(
+        {
+          error:
+            "Reminders service is not configured. Set SUPABASE_SECRET_KEY (preferred) or SUPABASE_SERVICE_ROLE_KEY.",
+          details: error.message,
+        },
+        { status: 503 }
+      );
+    }
+
     console.error("Error processing reminders:", error);
     return NextResponse.json(
       { error: "Failed to process reminders" },
