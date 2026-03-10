@@ -1,5 +1,47 @@
 import { NextResponse } from "next/server";
 
+const isProduction = process.env.NODE_ENV === "production";
+const localSupabaseConnectSources: string[] = [];
+
+if (!isProduction) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (supabaseUrl) {
+        try {
+            const parsed = new URL(supabaseUrl);
+            localSupabaseConnectSources.push(parsed.origin);
+            localSupabaseConnectSources.push(
+                parsed.protocol === "https:" ? `wss://${parsed.host}` : `ws://${parsed.host}`
+            );
+        } catch {
+            // Ignore malformed URL and keep default policy.
+        }
+    }
+}
+
+const contentSecurityPolicyDirectives = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://js.stripe.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    `connect-src ${[
+        "'self'",
+        "https://*.supabase.co",
+        "wss://*.supabase.co",
+        "https://api.stripe.com",
+        "https://api.openai.com",
+        ...localSupabaseConnectSources,
+    ]
+        .filter(Boolean)
+        .join(" ")}`,
+    "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com",
+    "frame-ancestors 'self' https://loxdigital.com https://www.loxdigital.com https://loxdigital.netlify.app",
+    "form-action 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    ...(isProduction ? ["upgrade-insecure-requests"] : []),
+];
+
 /**
  * Security headers for the application
  * Based on OWASP recommendations and modern best practices
@@ -21,23 +63,14 @@ export const securityHeaders = {
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
 
     // Content Security Policy
-    "Content-Security-Policy": [
-        "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://js.stripe.com",
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-        "font-src 'self' https://fonts.gstatic.com",
-        "img-src 'self' data: blob: https:",
-        "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.openai.com",
-        "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com",
-        "frame-ancestors 'self' https://loxdigital.com https://www.loxdigital.com https://loxdigital.netlify.app",
-        "form-action 'self'",
-        "base-uri 'self'",
-        "object-src 'none'",
-        "upgrade-insecure-requests",
-    ].join("; "),
+    "Content-Security-Policy": contentSecurityPolicyDirectives.join("; "),
 
-    // Strict Transport Security (HTTPS)
-    "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+    // Strict Transport Security (HTTPS) should only be sent in production.
+    ...(isProduction
+        ? {
+              "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+          }
+        : {}),
 };
 
 /**

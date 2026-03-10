@@ -42,8 +42,20 @@ CREATE TABLE IF NOT EXISTS organization_invites (
   UNIQUE(organization_id, email)
 );
 
--- Add organization_id to users table (primary org)
-ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id);
+-- Add organization_id to auth.users when running with sufficient privileges.
+-- Local Supabase migrations run as a role that does not own auth.users, so this
+-- operation can fail there while still being valid in managed environments.
+DO $$
+BEGIN
+  BEGIN
+    ALTER TABLE auth.users
+      ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id);
+  EXCEPTION
+    WHEN insufficient_privilege OR undefined_table THEN
+      NULL;
+  END;
+END;
+$$;
 
 -- Add organization_id to contracts table
 ALTER TABLE contracts ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id);

@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import type { ContractType, Jurisdiction } from "@/lib/contracts/schemas";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  buildSystemTemplateSemanticText,
+  buildTemplateSemanticText,
+  createEmbedding,
+  createEmbeddings,
+  persistUserTemplateEmbedding,
+  toPgVector,
+} from "@/lib/templates/semantic-search";
 
 // Request schemas
 const ListTemplatesSchema = z.object({
@@ -58,106 +67,462 @@ export async function GET(request: NextRequest) {
 
     const { type, jurisdiction, search, public: publicFilter, limit, offset } = parseResult.data;
 
-    // Fetch user templates from 'templates' table
-    let userQuery = supabase
-      .from("templates")
-      .select("*", { count: "exact" });
+    const trimmedSearch = search?.trim();
+    if (trimmedSearch) {
+      const semanticResult = await listTemplatesSemantic({
+        supabase,
+        userId: user.id,
+        type: type || null,
+        jurisdiction: jurisdiction || null,
+        search: trimmedSearch,
+        publicFilter,
+        limit,
+        offset,
+      });
 
-    // Filter by ownership/public
-    if (publicFilter === "true") {
-      userQuery = userQuery.eq("is_public", true);
-    } else if (publicFilter === "false") {
-      userQuery = userQuery.eq("created_by_id", user.id);
-    } else {
-      // "all" - show user's templates and public templates
-      userQuery = userQuery.or(`created_by_id.eq.${user.id},is_public.eq.true`);
+      if (semanticResult) {
+        return NextResponse.json(semanticResult);
+      }
     }
 
-    // Optional filters
-    if (type) {
-      userQuery = userQuery.eq("type", type);
-    }
-    if (jurisdiction) {
-      userQuery = userQuery.eq("jurisdiction", jurisdiction);
-    }
-    if (search) {
-      userQuery = userQuery.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
-    }
-
-    // Pagination and ordering
-    userQuery = userQuery
-      .order("usage_count", { ascending: false })
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    // Fetch system templates from 'contract_templates' table
-    let systemQuery = supabase
-      .from("contract_templates")
-      .select("*")
-      .eq("is_active", true);
-
-    // Apply filters to system templates
-    if (type) {
-      systemQuery = systemQuery.eq("contract_type", type);
-    }
-    if (jurisdiction) {
-      systemQuery = systemQuery.eq("jurisdiction", jurisdiction);
-    }
-    if (search) {
-      systemQuery = systemQuery.ilike("title", `%${search}%`);
-    }
-
-    // Execute queries - only fetch system templates if not filtering for "My Templates"
-    const shouldIncludeSystemTemplates = publicFilter !== "false";
-
-    const [userResult, systemResult] = await Promise.all([
-      userQuery,
-      shouldIncludeSystemTemplates ? systemQuery : Promise.resolve({ data: [], error: null }),
-    ]);
-
-    if (userResult.error) {
-      console.error("Error fetching user templates:", userResult.error);
-    }
-    if (systemResult.error) {
-      console.error("Error fetching system templates:", systemResult.error);
-    }
-
-    const userTemplates = userResult.data || [];
-    const systemTemplates = (systemResult.data || []).map((st) => ({
-      // Map system template to match user template shape
-      id: `system_${st.id}`,
-      name: st.title,
-      description: `Pre-built ${st.title} template for ${formatJurisdictionName(st.jurisdiction)}`,
-      type: st.contract_type,
-      jurisdiction: st.jurisdiction,
-      content: {
-        preamble: st.preamble,
-        recitals: st.recitals,
-        clauses: st.clauses,
-        signatureBlock: st.signature_block,
-        placeholders: st.placeholders,
-      },
-      is_public: true,
-      is_system: true, // Flag to identify system templates
-      created_by_id: null,
-      created_at: st.created_at,
-      updated_at: st.updated_at,
-      usage_count: 0,
-    }));
-
-    // Combine: system templates first, then user templates
-    const allTemplates = [...systemTemplates, ...userTemplates];
-
-    return NextResponse.json({
-      templates: allTemplates,
-      total: (userResult.count || 0) + systemTemplates.length,
+    const lexicalResult = await listTemplatesLexical({
+      supabase,
+      userId: user.id,
+      type: type || null,
+      jurisdiction: jurisdiction || null,
+      search: trimmedSearch || null,
+      publicFilter,
       limit,
       offset,
     });
+
+    return NextResponse.json(lexicalResult);
   } catch (error) {
     console.error("Templates GET error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
+}
+
+type ListTemplatesArgs = {
+  supabase: any;
+  userId: string;
+  type: string | null;
+  jurisdiction: string | null;
+  search: string | null;
+  publicFilter: "true" | "false" | "all";
+  limit: number;
+  offset: number;
+};
+
+type SemanticRankRow = {
+  source: "user" | "system";
+  template_id: string;
+  score: number;
+};
+
+function mapSystemTemplateToTemplateShape(systemTemplate: {
+  id: string;
+  title: string;
+  contract_type: string;
+  jurisdiction: string;
+  preamble: string;
+  recitals: string;
+  clauses: unknown;
+  signature_block: string;
+  placeholders: unknown;
+  created_at: string;
+  updated_at: string;
+}) {
+  return {
+    id: `system_${systemTemplate.id}`,
+    name: systemTemplate.title,
+    description: `Pre-built ${systemTemplate.title} template for ${formatJurisdictionName(systemTemplate.jurisdiction)}`,
+    type: systemTemplate.contract_type,
+    jurisdiction: systemTemplate.jurisdiction,
+    content: {
+      preamble: systemTemplate.preamble,
+      recitals: systemTemplate.recitals,
+      clauses: systemTemplate.clauses,
+      signatureBlock: systemTemplate.signature_block,
+      placeholders: systemTemplate.placeholders,
+    },
+    is_public: true,
+    is_system: true,
+    created_by_id: null,
+    created_at: systemTemplate.created_at,
+    updated_at: systemTemplate.updated_at,
+    usage_count: 0,
+  };
+}
+
+function applyUserTemplateVisibilityFilter(
+  query: any,
+  userId: string,
+  publicFilter: "true" | "false" | "all"
+) {
+  if (publicFilter === "true") {
+    return query.eq("is_public", true);
+  }
+  if (publicFilter === "false") {
+    return query.eq("created_by_id", userId);
+  }
+  return query.or(`created_by_id.eq.${userId},is_public.eq.true`);
+}
+
+async function listTemplatesLexical({
+  supabase,
+  userId,
+  type,
+  jurisdiction,
+  search,
+  publicFilter,
+  limit,
+  offset,
+}: ListTemplatesArgs) {
+  let userQuery = supabase
+    .from("templates")
+    .select("*", { count: "exact" });
+
+  userQuery = applyUserTemplateVisibilityFilter(userQuery, userId, publicFilter);
+
+  if (type) {
+    userQuery = userQuery.eq("type", type);
+  }
+  if (jurisdiction) {
+    userQuery = userQuery.eq("jurisdiction", jurisdiction);
+  }
+  if (search) {
+    userQuery = userQuery.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+  }
+
+  userQuery = userQuery
+    .order("usage_count", { ascending: false })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  let systemQuery = supabase
+    .from("contract_templates")
+    .select("*")
+    .eq("is_active", true);
+
+  if (type) {
+    systemQuery = systemQuery.eq("contract_type", type);
+  }
+  if (jurisdiction) {
+    systemQuery = systemQuery.eq("jurisdiction", jurisdiction);
+  }
+  if (search) {
+    systemQuery = systemQuery.ilike("title", `%${search}%`);
+  }
+
+  const shouldIncludeSystemTemplates = publicFilter !== "false";
+  const [userResult, systemResult] = await Promise.all([
+    userQuery,
+    shouldIncludeSystemTemplates ? systemQuery : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (userResult.error) {
+    console.error("Error fetching user templates:", userResult.error);
+  }
+  if (systemResult.error) {
+    console.error("Error fetching system templates:", systemResult.error);
+  }
+
+  const userTemplates = userResult.data || [];
+  const systemTemplates = ((systemResult.data || []) as Array<{
+    id: string;
+    title: string;
+    contract_type: string;
+    jurisdiction: string;
+    preamble: string;
+    recitals: string;
+    clauses: unknown;
+    signature_block: string;
+    placeholders: unknown;
+    created_at: string;
+    updated_at: string;
+  }>).map(mapSystemTemplateToTemplateShape);
+
+  const allTemplates = [...systemTemplates, ...userTemplates];
+
+  return {
+    templates: allTemplates,
+    total: (userResult.count || 0) + systemTemplates.length,
+    limit,
+    offset,
+  };
+}
+
+async function listTemplatesSemantic({
+  supabase,
+  userId,
+  type,
+  jurisdiction,
+  search,
+  publicFilter,
+  limit,
+  offset,
+}: ListTemplatesArgs): Promise<{ templates: unknown[]; total: number; limit: number; offset: number } | null> {
+  const queryEmbedding = await createEmbedding(search || "");
+  if (!queryEmbedding) {
+    return null;
+  }
+
+  await hydrateMissingTemplateEmbeddings({
+    supabase,
+    userId,
+    type,
+    jurisdiction,
+    search,
+    publicFilter,
+  });
+
+  const { data: ranked, error: rankedError } = await supabase.rpc("search_templates_semantic", {
+    p_user_id: userId,
+    p_query_embedding: toPgVector(queryEmbedding),
+    p_type: type,
+    p_jurisdiction: jurisdiction,
+    p_public_filter: publicFilter,
+    p_limit: limit,
+    p_offset: offset,
+  });
+
+  if (rankedError) {
+    console.warn("Semantic template search unavailable; falling back to lexical search.", rankedError);
+    return null;
+  }
+
+  const rows = (ranked || []) as SemanticRankRow[];
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const userIds = rows.filter((row) => row.source === "user").map((row) => row.template_id);
+  const systemIds = rows.filter((row) => row.source === "system").map((row) => row.template_id);
+
+  const [userTemplatesResult, systemTemplatesResult] = await Promise.all([
+    userIds.length > 0
+      ? supabase.from("templates").select("*").in("id", userIds)
+      : Promise.resolve({ data: [], error: null }),
+    systemIds.length > 0
+      ? supabase
+        .from("contract_templates")
+        .select("*")
+        .eq("is_active", true)
+        .in("id", systemIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (userTemplatesResult.error) {
+    console.error("Error fetching semantic-ranked user templates:", userTemplatesResult.error);
+  }
+  if (systemTemplatesResult.error) {
+    console.error("Error fetching semantic-ranked system templates:", systemTemplatesResult.error);
+  }
+
+  const userById = new Map(
+    (userTemplatesResult.data || []).map((template: { id: string }) => [template.id, template])
+  );
+  const systemById = new Map(
+    ((systemTemplatesResult.data || []) as Array<{
+      id: string;
+      title: string;
+      contract_type: string;
+      jurisdiction: string;
+      preamble: string;
+      recitals: string;
+      clauses: unknown;
+      signature_block: string;
+      placeholders: unknown;
+      created_at: string;
+      updated_at: string;
+    }>).map((template) => [template.id, mapSystemTemplateToTemplateShape(template)])
+  );
+
+  const orderedTemplates = rows
+    .map((row) => (row.source === "user" ? userById.get(row.template_id) : systemById.get(row.template_id)))
+    .filter(Boolean);
+
+  if (orderedTemplates.length < limit) {
+    const lexical = await listTemplatesLexical({
+      supabase,
+      userId,
+      type,
+      jurisdiction,
+      search,
+      publicFilter,
+      limit,
+      offset: 0,
+    });
+
+    const seenIds = new Set(
+      orderedTemplates.map((template) => String((template as { id?: string }).id || ""))
+    );
+
+    for (const template of lexical.templates) {
+      const id = String((template as { id?: string }).id || "");
+      if (!id || seenIds.has(id)) continue;
+      orderedTemplates.push(template);
+      seenIds.add(id);
+      if (orderedTemplates.length >= limit) break;
+    }
+  }
+
+  return {
+    templates: orderedTemplates.slice(0, limit),
+    total: orderedTemplates.length,
+    limit,
+    offset,
+  };
+}
+
+async function hydrateMissingTemplateEmbeddings(args: {
+  supabase: any;
+  userId: string;
+  type: string | null;
+  jurisdiction: string | null;
+  search: string | null;
+  publicFilter: "true" | "false" | "all";
+}) {
+  const { supabase, userId, type, jurisdiction, search, publicFilter } = args;
+  const searchTerm = search || "";
+
+  let userCandidatesQuery = supabase
+    .from("templates")
+    .select("id, name, description, type, jurisdiction, content, semantic_embedding");
+
+  userCandidatesQuery = applyUserTemplateVisibilityFilter(userCandidatesQuery, userId, publicFilter);
+
+  if (type) {
+    userCandidatesQuery = userCandidatesQuery.eq("type", type);
+  }
+  if (jurisdiction) {
+    userCandidatesQuery = userCandidatesQuery.eq("jurisdiction", jurisdiction);
+  }
+  if (searchTerm) {
+    userCandidatesQuery = userCandidatesQuery.or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
+  }
+
+  let systemCandidatesQuery = supabase
+    .from("contract_templates")
+    .select("id, title, contract_type, jurisdiction, preamble, recitals, clauses, signature_block, semantic_embedding")
+    .eq("is_active", true);
+
+  if (type) {
+    systemCandidatesQuery = systemCandidatesQuery.eq("contract_type", type);
+  }
+  if (jurisdiction) {
+    systemCandidatesQuery = systemCandidatesQuery.eq("jurisdiction", jurisdiction);
+  }
+  if (searchTerm) {
+    systemCandidatesQuery = systemCandidatesQuery.ilike("title", `%${searchTerm}%`);
+  }
+
+  const shouldIncludeSystemTemplates = publicFilter !== "false";
+  const [userCandidatesResult, systemCandidatesResult] = await Promise.all([
+    userCandidatesQuery.limit(60),
+    shouldIncludeSystemTemplates ? systemCandidatesQuery.limit(60) : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (userCandidatesResult.error) {
+    console.warn("Unable to fetch user template candidates for semantic hydration:", userCandidatesResult.error);
+    return;
+  }
+  if (systemCandidatesResult.error) {
+    console.warn("Unable to fetch system template candidates for semantic hydration:", systemCandidatesResult.error);
+  }
+
+  const missingRows: Array<
+    | { source: "user"; id: string; semanticText: string }
+    | { source: "system"; id: string; semanticText: string }
+  > = [];
+
+  for (const template of (userCandidatesResult.data || []) as Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    type: string;
+    jurisdiction: string;
+    content: unknown;
+    semantic_embedding: unknown;
+  }>) {
+    if (template.semantic_embedding) continue;
+    missingRows.push({
+      source: "user",
+      id: template.id,
+      semanticText: buildTemplateSemanticText({
+        name: template.name,
+        description: template.description,
+        type: template.type,
+        jurisdiction: template.jurisdiction,
+        content: template.content,
+      }),
+    });
+  }
+
+  for (const template of (systemCandidatesResult.data || []) as Array<{
+    id: string;
+    title: string;
+    contract_type: string;
+    jurisdiction: string;
+    preamble: string | null;
+    recitals: string | null;
+    clauses: unknown;
+    signature_block: string | null;
+    semantic_embedding: unknown;
+  }>) {
+    if (template.semantic_embedding) continue;
+    missingRows.push({
+      source: "system",
+      id: template.id,
+      semanticText: buildSystemTemplateSemanticText(template),
+    });
+  }
+
+  if (missingRows.length === 0) return;
+
+  const embeddings = await createEmbeddings(missingRows.map((row) => row.semanticText));
+  if (!embeddings || embeddings.length !== missingRows.length) {
+    return;
+  }
+
+  let adminClient: ReturnType<typeof createAdminClient> | null = null;
+  try {
+    adminClient = createAdminClient();
+  } catch {
+    adminClient = null;
+  }
+
+  await Promise.all(
+    missingRows.map(async (row, index) => {
+      const vector = embeddings[index];
+      if (!vector) return;
+
+      if (row.source === "user") {
+        await persistUserTemplateEmbedding({
+          supabase,
+          templateId: row.id,
+          semanticText: row.semanticText,
+          embedding: vector,
+        });
+        return;
+      }
+
+      if (!adminClient) return;
+
+      const { error } = await adminClient
+        .from("contract_templates")
+        .update({
+          semantic_text: row.semanticText,
+          semantic_embedding: toPgVector(vector),
+        })
+        .eq("id", row.id);
+
+      if (error) {
+        console.warn("Failed to persist system template semantic embedding:", error);
+      }
+    })
+  );
 }
 
 // Helper to format jurisdiction names
@@ -276,6 +641,23 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error("Error creating template:", error);
       return NextResponse.json({ error: "Failed to create template" }, { status: 500 });
+    }
+
+    const semanticText = buildTemplateSemanticText({
+      name,
+      description,
+      type: mappedType,
+      jurisdiction: mappedJurisdiction,
+      content: templateContent,
+    });
+    const embedding = await createEmbedding(semanticText);
+    if (embedding) {
+      await persistUserTemplateEmbedding({
+        supabase,
+        templateId: template.id,
+        semanticText,
+        embedding,
+      });
     }
 
     return NextResponse.json({ template }, { status: 201 });

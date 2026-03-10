@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -14,6 +14,7 @@ import {
   Sparkles,
   Loader2,
   Check,
+  Clock,
   DollarSign,
   Info,
   RefreshCw,
@@ -35,12 +36,74 @@ import { ContractPreviewModal } from "@/components/contract-preview-modal";
 import { EnhancedPlaceholderModal } from "@/components/contracts/EnhancedPlaceholderModal";
 import { useOnboarding, type UserType } from "@/components/onboarding";
 
+type CreationMode = "smart" | "manual" | "template";
+type ManualCategory = "all" | "confidentiality" | "services" | "fundraising" | "company" | "commercial";
+
 // Recommended contracts by user type
 const RECOMMENDED_BY_USER_TYPE: Record<NonNullable<UserType>, ContractType[]> = {
   startup_founder: ["safe_note", "nda_mutual", "consulting_agreement"],
   freelancer: ["freelance_service", "nda_one_way", "nda_mutual"],
   agency: ["consulting_agreement", "independent_contractor", "nda_mutual"],
 };
+
+const MANUAL_TYPE_CATEGORIES: Array<{
+  id: ManualCategory;
+  label: string;
+  typeIds: ContractType[];
+}> = [
+  {
+    id: "all",
+    label: "All",
+    typeIds: [],
+  },
+  {
+    id: "confidentiality",
+    label: "Confidentiality",
+    typeIds: ["nda_mutual", "nda_one_way"],
+  },
+  {
+    id: "services",
+    label: "Services",
+    typeIds: ["independent_contractor", "consulting_agreement", "freelance_service"],
+  },
+  {
+    id: "fundraising",
+    label: "Fundraising",
+    typeIds: ["safe_note", "letter_of_intent"],
+  },
+  {
+    id: "company",
+    label: "Company",
+    typeIds: ["cofounder_agreement"],
+  },
+  {
+    id: "commercial",
+    label: "Commercial",
+    typeIds: ["sales_contract"],
+  },
+];
+
+const CONTRACT_DRAFT_STORAGE_KEY = "lexport:new-contract-draft:v1";
+const RECENT_TYPES_STORAGE_KEY = "lexport:recent-contract-types:v1";
+
+interface ContractDraftSnapshot {
+  step: number;
+  creationMode: CreationMode;
+  selectedType: ContractType | null;
+  jurisdiction: Jurisdiction;
+  intakeDescription: string;
+  followUpAnswers: Record<string, string>;
+  formData: Record<string, unknown>;
+  paymentRequired: boolean;
+  paymentCurrency: string;
+  paymentStructure: "full" | "deposit_balance" | "bnpl";
+  showAdvancedOptions: boolean;
+  templateSearch: string;
+  templateJurisdiction: string;
+  manualSearch: string;
+  manualCategory: ManualCategory;
+  savedAt: number;
+}
 
 // Placeholder type for system templates
 interface Placeholder {
@@ -62,31 +125,35 @@ import {
 import { ContactInput } from "@/components/contacts/ContactAutocomplete";
 import { DynamicSignersSection, type SignerGroup, createSignerGroups } from "@/components/dynamic-signers";
 import type { Template } from "@/db/types";
+import {
+  buildContractMetadata,
+  isWizardSupportedType,
+  isCustomContractFlow,
+  resolveWizardTypeOrCustom,
+  validateContractFormData,
+} from "./flow-config";
+import {
+  parseRecentContractTypeHistory,
+  pickRecentUniqueTypes,
+  type RecentContractTypeEntry,
+  upsertRecentContractType,
+} from "./recent-types";
 
-// Step indicators
-const STEPS = [
+const SMART_STEPS = [
   { id: 1, name: "Describe", description: "Tell us what you need" },
   { id: 2, name: "Details", description: "Enter the specifics" },
   { id: 3, name: "Review", description: "Generate with AI" },
 ];
 
-const WIZARD_SUPPORTED_TYPES: ContractType[] = [
-  "nda_mutual",
-  "nda_one_way",
-  "independent_contractor",
-  "consulting_agreement",
-  "safe_note",
-  "freelance_service",
-  "letter_of_intent",
-  "cofounder_agreement",
-  "sales_contract",
-  "custom",
+const MANUAL_STEPS = [
+  { id: 1, name: "Type", description: "Choose contract type" },
+  { id: 2, name: "Details", description: "Enter the specifics" },
+  { id: 3, name: "Review", description: "Generate with AI" },
 ];
 
-const WIZARD_SUPPORTED_TYPE_SET = new Set<ContractType>(WIZARD_SUPPORTED_TYPES);
-
-const isWizardSupportedType = (type: ContractType): boolean =>
-  WIZARD_SUPPORTED_TYPE_SET.has(type);
+const TEMPLATE_STEPS = [
+  { id: 1, name: "Template", description: "Choose a template" },
+];
 
 // Intake analysis result type
 interface IntakeAnalysis {
@@ -123,9 +190,40 @@ const CONTRACT_ICONS: Record<string, typeof Shield> = {
   "shopping-cart": ShoppingCart,
 };
 
+function isValidCreationMode(value: string | null): value is CreationMode {
+  return value === "smart" || value === "manual" || value === "template";
+}
+
+function isValidManualCategory(value: string | null): value is ManualCategory {
+  return MANUAL_TYPE_CATEGORIES.some((category) => category.id === value);
+}
+
+function isValidContractType(value: string | null): value is ContractType {
+  if (!value) return false;
+  return Object.prototype.hasOwnProperty.call(CONTRACT_TYPES, value);
+}
+
+function isValidJurisdiction(value: string | null): value is Jurisdiction {
+  if (!value) return false;
+  return Object.prototype.hasOwnProperty.call(JURISDICTION_NAMES, value);
+}
+
+function formatSavedTimeAgo(savedAt: number): string {
+  const seconds = Math.max(1, Math.floor((Date.now() - savedAt) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 export default function NewContractPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { completeStep, userType } = useOnboarding();
+  const hasInitialized = useRef(false);
   const [step, setStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,12 +237,18 @@ export default function NewContractPage() {
   const [showPreview, setShowPreview] = useState(false);
 
   // Creation mode state - default to smart intake
-  const [creationMode, setCreationMode] = useState<"smart" | "manual" | "template">("smart");
+  const [creationMode, setCreationMode] = useState<CreationMode>("smart");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [templateSearch, setTemplateSearch] = useState("");
   const [templateJurisdiction, setTemplateJurisdiction] = useState<string>("");
   const [isUsingTemplate, setIsUsingTemplate] = useState(false);
+  const [manualSearch, setManualSearch] = useState("");
+  const [manualCategory, setManualCategory] = useState<ManualCategory>("all");
+  const [recentTypeHistory, setRecentTypeHistory] = useState<RecentContractTypeEntry[]>([]);
+  const [showAltCreationOptions, setShowAltCreationOptions] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   // Smart intake state
   const [intakeDescription, setIntakeDescription] = useState("");
@@ -178,6 +282,7 @@ export default function NewContractPage() {
   const [paymentRequired, setPaymentRequired] = useState(false);
   const [paymentCurrency, setPaymentCurrency] = useState("usd");
   const [paymentStructure, setPaymentStructure] = useState<"full" | "deposit_balance" | "bnpl">("full");
+  const [depositPercent, setDepositPercent] = useState(30);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
   // Derive payment amount from form data (totalAmount or paymentAmount fields)
@@ -192,8 +297,7 @@ export default function NewContractPage() {
   const derivedDepositAmount = (() => {
     const deposit = formData.depositAmount as number | undefined;
     if (deposit) return deposit;
-    // Calculate default 30% deposit if not specified
-    return Math.round(derivedPaymentAmount * 0.3);
+    return Math.round(derivedPaymentAmount * (depositPercent / 100));
   })();
 
   // Calculate deposit percentage from amounts
@@ -201,9 +305,342 @@ export default function NewContractPage() {
     ? Math.round((derivedDepositAmount / derivedPaymentAmount) * 100)
     : 30;
 
-  const handleTypeSelect = (type: ContractType) => {
+  const wizardManualTypes = useMemo(
+    () =>
+      Object.values(CONTRACT_TYPES).filter(
+        (type) => isWizardSupportedType(type.id) && type.id !== "custom"
+      ),
+    []
+  );
+
+  const recentContractTypes = useMemo(
+    () =>
+      pickRecentUniqueTypes(recentTypeHistory)
+        .map((typeId) => CONTRACT_TYPES[typeId as ContractType])
+        .filter(
+          (type): type is (typeof CONTRACT_TYPES)[ContractType] =>
+            Boolean(type) && isWizardSupportedType(type.id) && type.id !== "custom"
+        ),
+    [recentTypeHistory]
+  );
+
+  const recommendedTypeIds = useMemo(
+    () =>
+      new Set(
+        userType
+          ? (RECOMMENDED_BY_USER_TYPE[userType] || []).filter((typeId) =>
+              isWizardSupportedType(typeId)
+            )
+          : []
+      ),
+    [userType]
+  );
+
+  const manualCategoryTypeIds = useMemo(() => {
+    const category = MANUAL_TYPE_CATEGORIES.find((item) => item.id === manualCategory);
+    return new Set(category?.typeIds || []);
+  }, [manualCategory]);
+
+  const manualFilteredTypes = useMemo(() => {
+    const query = manualSearch.trim().toLowerCase();
+    return wizardManualTypes
+      .filter((type) =>
+        manualCategory === "all" ? true : manualCategoryTypeIds.has(type.id)
+      )
+      .filter((type) =>
+        query
+          ? type.name.toLowerCase().includes(query) ||
+            type.description.toLowerCase().includes(query)
+          : true
+      )
+      .filter((type) => !recommendedTypeIds.has(type.id));
+  }, [
+    manualSearch,
+    manualCategory,
+    manualCategoryTypeIds,
+    wizardManualTypes,
+    recommendedTypeIds,
+  ]);
+
+  const errorMessages = useMemo(
+    () => Array.from(new Set(Object.values(formErrors))).slice(0, 5),
+    [formErrors]
+  );
+
+  const flowSteps = useMemo(() => {
+    if (creationMode === "manual") return MANUAL_STEPS;
+    if (creationMode === "template") return TEMPLATE_STEPS;
+    return SMART_STEPS;
+  }, [creationMode]);
+
+  const maxStep = flowSteps.length;
+
+  useEffect(() => {
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+
+    const modeParam = searchParams.get("mode");
+    const typeParam = searchParams.get("type");
+    const jurisdictionParam = searchParams.get("jurisdiction");
+    const categoryParam = searchParams.get("category");
+    const hasDeepLink = Boolean(modeParam || typeParam || jurisdictionParam || categoryParam);
+
+    try {
+      const entries = parseRecentContractTypeHistory(
+        localStorage.getItem(RECENT_TYPES_STORAGE_KEY),
+        isValidContractType
+      );
+      setRecentTypeHistory(entries);
+    } catch {
+      // Ignore malformed local storage values.
+    }
+
+    if (!hasDeepLink) {
+      try {
+        const rawDraft = localStorage.getItem(CONTRACT_DRAFT_STORAGE_KEY);
+        if (rawDraft) {
+          const draft = JSON.parse(rawDraft) as Partial<ContractDraftSnapshot>;
+          if (typeof draft.step === "number") {
+            setStep(Math.max(1, Math.min(3, draft.step)));
+          }
+          const draftMode = draft.creationMode ?? null;
+          if (isValidCreationMode(draftMode)) {
+            setCreationMode(draftMode);
+          }
+          const draftType = draft.selectedType ?? null;
+          if (
+            isValidContractType(draftType) &&
+            (isWizardSupportedType(draftType) || draftType === "custom")
+          ) {
+            setSelectedType(draftType);
+          } else if (draftType) {
+            // Older drafts may contain types not supported in this wizard flow.
+            // Reset to step 1 to avoid sending invalid generation payloads.
+            setSelectedType(null);
+            setStep(1);
+          }
+          const draftJurisdiction = draft.jurisdiction ?? null;
+          if (isValidJurisdiction(draftJurisdiction)) {
+            setJurisdiction(draftJurisdiction);
+          }
+          if (typeof draft.intakeDescription === "string") {
+            setIntakeDescription(draft.intakeDescription);
+          }
+          if (draft.followUpAnswers && typeof draft.followUpAnswers === "object") {
+            setFollowUpAnswers(draft.followUpAnswers);
+          }
+          if (draft.formData && typeof draft.formData === "object") {
+            setFormData(draft.formData);
+          }
+          if (typeof draft.paymentRequired === "boolean") {
+            setPaymentRequired(draft.paymentRequired);
+          }
+          if (typeof draft.paymentCurrency === "string") {
+            setPaymentCurrency(draft.paymentCurrency);
+          }
+          if (
+            draft.paymentStructure === "full" ||
+            draft.paymentStructure === "deposit_balance" ||
+            draft.paymentStructure === "bnpl"
+          ) {
+            setPaymentStructure(draft.paymentStructure);
+          }
+          if (typeof draft.showAdvancedOptions === "boolean") {
+            setShowAdvancedOptions(draft.showAdvancedOptions);
+          }
+          if (typeof draft.templateSearch === "string") {
+            setTemplateSearch(draft.templateSearch);
+          }
+          if (typeof draft.templateJurisdiction === "string") {
+            setTemplateJurisdiction(draft.templateJurisdiction);
+          }
+          if (typeof draft.manualSearch === "string") {
+            setManualSearch(draft.manualSearch);
+          }
+          const draftManualCategory = draft.manualCategory ?? null;
+          if (isValidManualCategory(draftManualCategory)) {
+            setManualCategory(draftManualCategory);
+          }
+          if (typeof draft.savedAt === "number") {
+            setLastSavedAt(draft.savedAt);
+          }
+        }
+      } catch {
+        // Ignore malformed local storage values.
+      }
+    }
+
+    if (isValidCreationMode(modeParam)) {
+      setCreationMode(modeParam);
+    }
+
+    if (isValidManualCategory(categoryParam)) {
+      setManualCategory(categoryParam);
+    }
+
+    if (isValidContractType(typeParam) && isWizardSupportedType(typeParam) && typeParam !== "custom") {
+      setCreationMode("manual");
+      setSelectedType(typeParam);
+      setStep(2);
+    }
+
+    if (isValidJurisdiction(jurisdictionParam)) {
+      setJurisdiction(jurisdictionParam);
+    }
+
+    setIsHydrated(true);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    const hasDraftContent =
+      step > 1 ||
+      Boolean(selectedType) ||
+      Boolean(intakeDescription.trim()) ||
+      Object.keys(followUpAnswers).length > 0 ||
+      Object.keys(formData).length > 0 ||
+      Boolean(templateSearch.trim()) ||
+      Boolean(templateJurisdiction) ||
+      Boolean(manualSearch.trim());
+
+    if (!hasDraftContent) {
+      localStorage.removeItem(CONTRACT_DRAFT_STORAGE_KEY);
+      if (lastSavedAt !== null) {
+        setLastSavedAt(null);
+      }
+      return;
+    }
+
+    const savedAt = Date.now();
+    const draft: ContractDraftSnapshot = {
+      step,
+      creationMode,
+      selectedType,
+      jurisdiction,
+      intakeDescription,
+      followUpAnswers,
+      formData,
+      paymentRequired,
+      paymentCurrency,
+      paymentStructure,
+      showAdvancedOptions,
+      templateSearch,
+      templateJurisdiction,
+      manualSearch,
+      manualCategory,
+      savedAt,
+    };
+
+    const timeout = window.setTimeout(() => {
+      localStorage.setItem(CONTRACT_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+      setLastSavedAt(savedAt);
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    isHydrated,
+    step,
+    creationMode,
+    selectedType,
+    jurisdiction,
+    intakeDescription,
+    followUpAnswers,
+    formData,
+    paymentRequired,
+    paymentCurrency,
+    paymentStructure,
+    showAdvancedOptions,
+    templateSearch,
+    templateJurisdiction,
+    manualSearch,
+    manualCategory,
+  ]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    localStorage.setItem(RECENT_TYPES_STORAGE_KEY, JSON.stringify(recentTypeHistory));
+  }, [isHydrated, recentTypeHistory]);
+
+  useEffect(() => {
+    if (step > maxStep) {
+      setStep(maxStep);
+    }
+  }, [maxStep, step]);
+
+  const handleTypeSelect = (
+    type: ContractType,
+    options?: { advanceToDetails?: boolean }
+  ) => {
     setSelectedType(type);
-    setFormData({}); // Reset form data when type changes
+    setFormData((previous) => (selectedType === type ? previous : {}));
+    setFormErrors({});
+    setError(null);
+    if (options?.advanceToDetails) {
+      setStep(2);
+    }
+  };
+
+  const trackRecentType = (args: {
+    type: string | ContractType | null | undefined;
+    contractId: string | null | undefined;
+  }) => {
+    const { type, contractId } = args;
+    if (!type || !isValidContractType(type)) return;
+    if (!isWizardSupportedType(type) || type === "custom") return;
+    if (!contractId || contractId.trim().length === 0) return;
+
+    setRecentTypeHistory((previous) =>
+      upsertRecentContractType(previous, {
+        type,
+        contractId,
+      })
+    );
+  };
+
+  const switchCreationMode = (mode: CreationMode) => {
+    setCreationMode(mode);
+    setStep(1);
+    setError(null);
+    setFormErrors({});
+    setShowAltCreationOptions(false);
+
+    if (mode !== "smart") {
+      setIntakeAnalysis(null);
+      setMatchingTemplate(null);
+      setFollowUpAnswers({});
+    }
+
+    if (mode !== "manual") {
+      setSelectedType(null);
+    }
+
+    router.push(`/contracts/new?mode=${mode}`);
+  };
+
+  const handleClearSavedDraft = () => {
+    localStorage.removeItem(CONTRACT_DRAFT_STORAGE_KEY);
+    setStep(1);
+    setCreationMode("smart");
+    setIntakeDescription("");
+    setIntakeAnalysis(null);
+    setMatchingTemplate(null);
+    setFollowUpAnswers({});
+    setSelectedType(null);
+    setJurisdiction("us_california");
+    setFormData({});
+    setFormErrors({});
+    setPaymentRequired(false);
+    setPaymentCurrency("usd");
+    setPaymentStructure("full");
+    setShowAdvancedOptions(false);
+    setTemplateSearch("");
+    setTemplateJurisdiction("");
+    setManualSearch("");
+    setManualCategory("all");
+    setShowAltCreationOptions(false);
+    setError(null);
+    setLastSavedAt(null);
   };
 
   // Smart intake analysis
@@ -243,12 +680,7 @@ export default function NewContractPage() {
 
       // Only route into the structured wizard for types we fully support in this flow.
       // Everything else is treated as custom generation.
-      const suggestedType = data.analysis.suggestedType as ContractType;
-      if (CONTRACT_TYPES[suggestedType] && isWizardSupportedType(suggestedType)) {
-        setSelectedType(suggestedType);
-      } else {
-        setSelectedType("custom");
-      }
+      setSelectedType(resolveWizardTypeOrCustom(data.analysis.suggestedType));
       if (data.analysis.jurisdiction) {
         setJurisdiction(data.analysis.jurisdiction as Jurisdiction);
       }
@@ -288,273 +720,18 @@ export default function NewContractPage() {
     setFollowUpAnswers({});
     setSelectedType(null);
     setFormData({});
+    setFormErrors({});
+    setError(null);
   };
 
   // Validate form data based on contract type
   const validateFormData = (): boolean => {
-    const errors: Record<string, string> = {};
-
-    // Email validation helper
-    const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-    // Get signer groups from form data
-    const signerGroups = formData.signerGroups as SignerGroup[] | undefined;
-
-    // For custom contracts (low confidence), only validate signers
-    const isCustomContract = selectedType === "custom" || Boolean(intakeAnalysis && intakeAnalysis.confidence <= 50);
-    if (isCustomContract) {
-      // Only validate signers for custom contracts
-      if (signerGroups) {
-        signerGroups.forEach((group, groupIndex) => {
-          group.signers.forEach((signer, signerIndex) => {
-            if (!signer.name?.trim()) {
-              errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
-            }
-            if (!signer.email?.trim()) {
-              errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
-            } else if (!isValidEmail(signer.email)) {
-              errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
-            }
-          });
-        });
-      }
-      setFormErrors(errors);
-      return Object.keys(errors).length === 0;
-    }
-
-    // Validate based on contract type
-    switch (selectedType) {
-      case "nda_mutual":
-      case "nda_one_way": {
-        // Validate signers
-        if (signerGroups) {
-          signerGroups.forEach((group, groupIndex) => {
-            group.signers.forEach((signer, signerIndex) => {
-              if (!signer.name?.trim()) {
-                errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
-              }
-              if (!signer.email?.trim()) {
-                errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
-              } else if (!isValidEmail(signer.email)) {
-                errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
-              }
-            });
-          });
-        } else {
-          // Check legacy party fields
-          const disclosingParty = formData.disclosingParty as Record<string, string> | undefined;
-          const receivingParty = formData.receivingParty as Record<string, string> | undefined;
-
-          if (!disclosingParty?.name?.trim()) errors.disclosingPartyName = "Disclosing party name is required";
-          if (!disclosingParty?.email?.trim()) {
-            errors.disclosingPartyEmail = "Disclosing party email is required";
-          } else if (!isValidEmail(disclosingParty.email)) {
-            errors.disclosingPartyEmail = "Invalid email address";
-          }
-
-          if (!receivingParty?.name?.trim()) errors.receivingPartyName = "Receiving party name is required";
-          if (!receivingParty?.email?.trim()) {
-            errors.receivingPartyEmail = "Receiving party email is required";
-          } else if (!isValidEmail(receivingParty.email)) {
-            errors.receivingPartyEmail = "Invalid email address";
-          }
-        }
-
-        // Purpose is required
-        if (!formData.purpose || !(formData.purpose as string).trim()) {
-          errors.purpose = "Purpose of disclosure is required";
-        }
-        break;
-      }
-
-      case "consulting_agreement": {
-        // Validate signers
-        if (signerGroups) {
-          signerGroups.forEach((group, groupIndex) => {
-            group.signers.forEach((signer, signerIndex) => {
-              if (!signer.name?.trim()) {
-                errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
-              }
-              if (!signer.email?.trim()) {
-                errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
-              } else if (!isValidEmail(signer.email)) {
-                errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
-              }
-            });
-          });
-        }
-
-        // Consulting scope is required
-        if (!formData.consultingScope || !(formData.consultingScope as string).trim()) {
-          errors.consultingScope = "Consulting scope is required";
-        }
-        break;
-      }
-
-      case "freelance_service": {
-        // Validate signers
-        if (signerGroups) {
-          signerGroups.forEach((group, groupIndex) => {
-            group.signers.forEach((signer, signerIndex) => {
-              if (!signer.name?.trim()) {
-                errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
-              }
-              if (!signer.email?.trim()) {
-                errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
-              } else if (!isValidEmail(signer.email)) {
-                errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
-              }
-            });
-          });
-        }
-
-        // Project name is required
-        if (!formData.projectName || !(formData.projectName as string).trim()) {
-          errors.projectName = "Project name is required";
-        }
-        // Project description is required
-        if (!formData.projectDescription || !(formData.projectDescription as string).trim()) {
-          errors.projectDescription = "Project description is required";
-        }
-        break;
-      }
-
-      case "independent_contractor": {
-        // Validate signers
-        if (signerGroups) {
-          signerGroups.forEach((group, groupIndex) => {
-            group.signers.forEach((signer, signerIndex) => {
-              if (!signer.name?.trim()) {
-                errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
-              }
-              if (!signer.email?.trim()) {
-                errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
-              } else if (!isValidEmail(signer.email)) {
-                errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
-              }
-            });
-          });
-        }
-
-        // Services description is required
-        if (!formData.servicesDescription || !(formData.servicesDescription as string).trim()) {
-          errors.servicesDescription = "Description of services is required";
-        }
-        break;
-      }
-
-      case "safe_note": {
-        // Validate signers
-        if (signerGroups) {
-          signerGroups.forEach((group, groupIndex) => {
-            group.signers.forEach((signer, signerIndex) => {
-              if (!signer.name?.trim()) {
-                errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
-              }
-              if (!signer.email?.trim()) {
-                errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
-              } else if (!isValidEmail(signer.email)) {
-                errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
-              }
-            });
-          });
-        }
-
-        // Investment amount is required
-        if (!formData.investmentAmount || (formData.investmentAmount as number) <= 0) {
-          errors.investmentAmount = "Investment amount is required";
-        }
-        break;
-      }
-
-      case "letter_of_intent": {
-        // Validate signers
-        if (signerGroups) {
-          signerGroups.forEach((group, groupIndex) => {
-            group.signers.forEach((signer, signerIndex) => {
-              if (!signer.name?.trim()) {
-                errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
-              }
-              if (!signer.email?.trim()) {
-                errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
-              } else if (!isValidEmail(signer.email)) {
-                errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
-              }
-            });
-          });
-        }
-
-        // Transaction description is required
-        if (!formData.transactionDescription || !(formData.transactionDescription as string).trim()) {
-          errors.transactionDescription = "Transaction description is required";
-        }
-        break;
-      }
-
-      case "cofounder_agreement": {
-        // Company name is required
-        if (!formData.companyName || !(formData.companyName as string).trim()) {
-          errors.companyName = "Company name is required";
-        }
-
-        // Validate co-founders (at least 2 required)
-        const cofounders = formData.cofounders as Array<{ name?: string; email?: string; equityPercentage?: number; role?: string }> | undefined;
-        if (!cofounders || cofounders.length < 2) {
-          errors.cofounders = "At least 2 co-founders are required";
-        } else {
-          cofounders.forEach((cofounder, index) => {
-            if (!cofounder.name?.trim()) {
-              errors[`cofounder_${index}_name`] = `Co-founder ${index + 1} name is required`;
-            }
-            if (!cofounder.email?.trim()) {
-              errors[`cofounder_${index}_email`] = `Co-founder ${index + 1} email is required`;
-            } else if (!isValidEmail(cofounder.email)) {
-              errors[`cofounder_${index}_email`] = "Invalid email address";
-            }
-            if (cofounder.equityPercentage === undefined || cofounder.equityPercentage < 0) {
-              errors[`cofounder_${index}_equity`] = `Co-founder ${index + 1} equity percentage is required`;
-            }
-          });
-
-          // Validate equity percentages sum to 100
-          const totalEquity = cofounders.reduce((sum, c) => sum + (c.equityPercentage || 0), 0);
-          if (totalEquity !== 100) {
-            errors.totalEquity = `Equity percentages must sum to 100% (currently ${totalEquity}%)`;
-          }
-        }
-        break;
-      }
-
-      case "sales_contract": {
-        // Validate signers
-        if (signerGroups) {
-          signerGroups.forEach((group, groupIndex) => {
-            group.signers.forEach((signer, signerIndex) => {
-              if (!signer.name?.trim()) {
-                errors[`signer_${groupIndex}_${signerIndex}_name`] = `${group.roleLabel} name is required`;
-              }
-              if (!signer.email?.trim()) {
-                errors[`signer_${groupIndex}_${signerIndex}_email`] = `${group.roleLabel} email is required`;
-              } else if (!isValidEmail(signer.email)) {
-                errors[`signer_${groupIndex}_${signerIndex}_email`] = "Invalid email address";
-              }
-            });
-          });
-        }
-
-        // Product description is required
-        if (!formData.productDescription || !(formData.productDescription as string).trim()) {
-          errors.productDescription = "Product description is required";
-        }
-
-        // Total amount is required
-        if (!formData.totalAmount || (formData.totalAmount as number) <= 0) {
-          errors.totalAmount = "Total amount is required";
-        }
-        break;
-      }
-    }
-
+    const isCustomContract = isCustomContractFlow(selectedType, intakeAnalysis?.confidence);
+    const errors = validateContractFormData({
+      selectedType,
+      formData,
+      isCustomContract,
+    });
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -569,11 +746,6 @@ export default function NewContractPage() {
         handleConfirmIntake();
         return;
       }
-
-      if (creationMode === "template") {
-        setError("Select a template to continue, or switch to Describe Need / Pick Type.");
-        return;
-      }
     }
 
     // Validate before moving from step 2 to step 3
@@ -585,7 +757,7 @@ export default function NewContractPage() {
       }
       setError(null);
     }
-    if (step < 3) setStep(step + 1);
+    if (step < maxStep) setStep(step + 1);
   };
 
   const handleBack = () => {
@@ -594,6 +766,12 @@ export default function NewContractPage() {
 
   const handleGenerate = async () => {
     if (!selectedType) return;
+    if (!isWizardSupportedType(selectedType)) {
+      setError("This contract type is not supported in this creation flow. Please choose a type again.");
+      setStep(1);
+      setSelectedType(null);
+      return;
+    }
 
     setIsGenerating(true);
     setError(null);
@@ -602,10 +780,14 @@ export default function NewContractPage() {
 
     try {
       // Check if this should run through custom generation
-      const isCustomContract = selectedType === "custom" || Boolean(intakeAnalysis && intakeAnalysis.confidence <= 50);
+      const isCustomContract = isCustomContractFlow(selectedType, intakeAnalysis?.confidence);
 
       // Build the metadata based on contract type
-      let metadata = buildMetadata(selectedType, jurisdiction, formData);
+      let metadata = buildContractMetadata({
+        contractType: selectedType,
+        jurisdiction,
+        formData,
+      });
 
       // For custom contracts, add the custom contract name and intake data
       if (isCustomContract) {
@@ -684,9 +866,20 @@ export default function NewContractPage() {
               case "complete":
                 // Mark onboarding step complete
                 completeStep("first_contract");
+                trackRecentType({
+                  type: selectedType,
+                  contractId: typeof data.contractId === "string" ? data.contractId : null,
+                });
                 router.push(`/contracts/${data.contractId}/edit`);
                 return;
               case "error":
+                if (data.details?.fieldErrors && typeof data.details.fieldErrors === "object") {
+                  const firstField = Object.values(data.details.fieldErrors).find(
+                    (messages): messages is string[] => Array.isArray(messages) && messages.length > 0
+                  );
+                  const firstMessage = firstField?.[0];
+                  throw new Error(firstMessage ? `${data.message || "Generation failed"}: ${firstMessage}` : (data.message || "Generation failed"));
+                }
                 throw new Error(data.message || "Generation failed");
               case "heartbeat":
                 // Just keep the connection alive
@@ -747,12 +940,16 @@ export default function NewContractPage() {
       setShowPlaceholderModal(true);
     } else {
       // For user templates or templates without placeholders, create directly
-      createContractFromTemplate(template.id);
+      createContractFromTemplate(template.id, undefined, template.type);
     }
   };
 
   // Actually create the contract from template (with optional placeholder values)
-  const createContractFromTemplate = async (templateId: string, values?: Record<string, string>) => {
+  const createContractFromTemplate = async (
+    templateId: string,
+    values?: Record<string, string>,
+    templateType?: string
+  ) => {
     setIsUsingTemplate(true);
     setError(null);
 
@@ -789,6 +986,13 @@ export default function NewContractPage() {
       setShowPlaceholderModal(false);
       // Mark onboarding step complete
       completeStep("first_contract");
+      trackRecentType({
+        type: templateType,
+        contractId:
+          data?.contract?.id && typeof data.contract.id === "string"
+            ? data.contract.id
+            : null,
+      });
       router.push(`/contracts/${data.contract.id}/edit`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -799,7 +1003,7 @@ export default function NewContractPage() {
   // Handle submitting the placeholder form
   const handlePlaceholderSubmit = () => {
     if (!selectedTemplate) return;
-    createContractFromTemplate(selectedTemplate.id, placeholderValues);
+    createContractFromTemplate(selectedTemplate.id, placeholderValues, selectedTemplate.type);
   };
 
   // Handle using the matching template from smart intake (instant, $0 cost)
@@ -826,6 +1030,13 @@ export default function NewContractPage() {
       const data = await response.json();
       // Mark onboarding step complete
       completeStep("first_contract");
+      trackRecentType({
+        type: matchingTemplate.contractType,
+        contractId:
+          data?.contract?.id && typeof data.contract.id === "string"
+            ? data.contract.id
+            : null,
+      });
       router.push(`/contracts/${data.contract.id}/edit`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -838,19 +1049,17 @@ export default function NewContractPage() {
     (creationMode === "manual"
       ? !selectedType
       : creationMode === "smart"
-        ? intakeAnalysis ? !selectedType : isAnalyzing || intakeDescription.length < 10
+        ? intakeAnalysis
+          ? !selectedType
+          : isAnalyzing || intakeDescription.length < 10
         : true);
 
   const stepOneContinueLabel =
     step === 1 && creationMode === "smart" && !intakeAnalysis
       ? "Analyze & Continue"
-      : step === 1 && creationMode === "template"
-        ? "Select Template Above"
-        : "Continue";
+      : "Continue";
 
-  const isCustomGenerationFlow = Boolean(
-    selectedType === "custom" || (intakeAnalysis && intakeAnalysis.confidence <= 50)
-  );
+  const isCustomGenerationFlow = isCustomContractFlow(selectedType, intakeAnalysis?.confidence);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -874,103 +1083,137 @@ export default function NewContractPage() {
       </header>
 
       {/* Progress Steps */}
-      <div className="bg-white border-b border-slate-200">
-        <div className="max-w-5xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-center">
-            {STEPS.map((s, index) => (
-              <div key={s.id} className="flex items-center">
-                <div className="flex items-center">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                      step > s.id
-                        ? "bg-emerald-500 text-white"
-                        : step === s.id
-                          ? "bg-[#202e46] text-white"
-                          : "bg-slate-200 text-slate-600"
-                    }`}
-                  >
-                    {step > s.id ? <Check className="w-4 h-4" /> : s.id}
-                  </div>
-                  <div className="ml-3 hidden sm:block">
-                    <p
-                      className={`text-sm font-medium ${step >= s.id ? "text-slate-900" : "text-slate-500"}`}
+      {flowSteps.length > 1 && step > 1 && (
+        <div className="bg-white border-b border-slate-200">
+          <div className="max-w-5xl mx-auto px-4 py-4">
+            <div className="flex items-center justify-center">
+              {flowSteps.map((s, index) => (
+                <div key={s.id} className="flex items-center">
+                  <div className="flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (s.id < step) {
+                          setStep(s.id);
+                          setError(null);
+                        }
+                      }}
+                      disabled={s.id > step}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                        step > s.id
+                          ? "bg-emerald-500 text-white"
+                          : step === s.id
+                            ? "bg-[#202e46] text-white"
+                            : "bg-slate-200 text-slate-600"
+                      } ${s.id < step ? "cursor-pointer hover:opacity-90" : "cursor-default"}`}
+                      aria-label={`Step ${s.id}: ${s.name}`}
                     >
-                      {s.name}
-                    </p>
-                    <p className="text-xs text-slate-500">{s.description}</p>
+                      {step > s.id ? <Check className="w-4 h-4" /> : s.id}
+                    </button>
+                    <div className="ml-3 hidden sm:block">
+                      <p
+                        className={`text-sm font-medium ${step >= s.id ? "text-slate-900" : "text-slate-500"}`}
+                      >
+                        {s.name}
+                      </p>
+                      <p className="text-xs text-slate-500">{s.description}</p>
+                    </div>
                   </div>
+                  {index < flowSteps.length - 1 && (
+                    <div
+                      className={`w-16 sm:w-24 h-0.5 mx-4 ${step > s.id ? "bg-emerald-500" : "bg-slate-200"}`}
+                    />
+                  )}
                 </div>
-                {index < STEPS.length - 1 && (
-                  <div
-                    className={`w-16 sm:w-24 h-0.5 mx-4 ${step > s.id ? "bg-emerald-500" : "bg-slate-200"}`}
-                  />
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content */}
       <main className="max-w-5xl mx-auto px-4 py-8">
         {/* Step 1: Smart Intake / Choose Contract Type */}
         {step === 1 && (
           <div className="space-y-6">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-slate-900">
+            <div className="max-w-3xl mx-auto mb-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Step 1 of {maxStep}
+              </p>
+              <h2 className="text-2xl font-bold text-slate-900 mt-1">
                 {creationMode === "smart"
-                  ? "What kind of agreement do you need?"
+                  ? "Create a contract"
                   : creationMode === "manual"
-                    ? "Select a contract type"
-                    : "Choose a template to start"}
+                    ? "Pick a contract type"
+                    : "Use a template"}
               </h2>
               <p className="text-slate-600 mt-2">
                 {creationMode === "smart"
-                  ? "Describe your situation and we'll create the perfect contract for you."
+                  ? "Describe your situation in plain English and let AI choose the right contract."
                   : creationMode === "manual"
-                    ? "Pick from our standard contract types."
-                    : "Start from a saved template and customize it for your needs."}
+                    ? "Choose a contract type to start."
+                    : "Start from an existing template."}
               </p>
+              {lastSavedAt && (
+                <div className="mt-3 inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500">
+                  <span>Auto-saved {formatSavedTimeAgo(lastSavedAt)}</span>
+                  <button
+                    type="button"
+                    onClick={handleClearSavedDraft}
+                    className="font-medium text-slate-700 hover:text-slate-900"
+                  >
+                    Reset draft
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Mode Toggle */}
-            <div className="flex justify-center mb-6">
-              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
+            {creationMode === "smart" ? (
+              <div className="max-w-3xl mx-auto space-y-2">
                 <button
-                  onClick={() => { setCreationMode("smart"); handleResetIntake(); }}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                    creationMode === "smart"
-                      ? "bg-[#529ec6]/10 text-[#202e46]"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
+                  type="button"
+                  onClick={() => setShowAltCreationOptions((previous) => !previous)}
+                  className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900"
                 >
-                  <Sparkles className="w-4 h-4" />
-                  Describe Need
+                  Need another starting point?
+                  {showAltCreationOptions ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
                 </button>
+                {showAltCreationOptions && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3">
+                    <button
+                      type="button"
+                      onClick={() => switchCreationMode("manual")}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <Briefcase className="h-3.5 w-3.5" />
+                      Pick contract type
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => switchCreationMode("template")}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <FileStack className="h-3.5 w-3.5" />
+                      Use template
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="max-w-3xl mx-auto">
                 <button
-                  onClick={() => { setCreationMode("manual"); handleResetIntake(); }}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                    creationMode === "manual"
-                      ? "bg-[#529ec6]/10 text-[#202e46]"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
+                  type="button"
+                  onClick={() => switchCreationMode("smart")}
+                  className="text-sm text-[#529ec6] hover:text-[#3d7a9e] font-medium"
                 >
-                  <Briefcase className="w-4 h-4" />
-                  Pick Type
-                </button>
-                <button
-                  onClick={() => setCreationMode("template")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                    creationMode === "template"
-                      ? "bg-[#529ec6]/10 text-[#202e46]"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <FileStack className="w-4 h-4" />
-                  Use Template
+                  ← Back to AI describe flow
                 </button>
               </div>
-            </div>
+            )}
 
             {/* Error Display */}
             {error && step === 1 && (
@@ -990,38 +1233,26 @@ export default function NewContractPage() {
 
             {/* Smart Intake Mode */}
             {creationMode === "smart" && !intakeAnalysis && (
-              <div className="max-w-2xl mx-auto">
-                <div className="bg-white rounded-xl border border-slate-200 p-6">
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-[#529ec6]/10 to-[#529ec6]/15 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Sparkles className="w-6 h-6 text-[#529ec6]" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-slate-900">Describe what you need</h3>
-                      <p className="text-sm text-slate-500 mt-1">
-                        Tell us about your situation in plain English. Include details like who&apos;s involved,
-                        what work is being done, payment amounts, and location.
-                      </p>
-                    </div>
-                  </div>
-
+              <div className="max-w-3xl mx-auto">
+                <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Describe what you need
+                  </label>
                   <textarea
                     value={intakeDescription}
                     onChange={(e) => setIntakeDescription(e.target.value)}
                     placeholder="Example: I'm hiring a freelance designer in California for a 3-month project to redesign our company website. The total budget is $15,000 with a 30% deposit upfront..."
-                    rows={5}
+                    rows={4}
                     className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6]/20 focus:border-[#529ec6] resize-none text-slate-900 placeholder:text-slate-400"
                     disabled={isAnalyzing}
                   />
 
-                  <div className="flex items-center justify-between mt-4">
-                    <p className="text-sm text-slate-500">
-                      {intakeDescription.length} characters
-                      {intakeDescription.length < 10 && intakeDescription.length > 0 && (
-                        <span className="text-amber-600 ml-2">(minimum 10)</span>
-                      )}
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <p className="text-xs text-slate-500">
+                      {intakeDescription.trim().length} characters (minimum 10)
                     </p>
                     <button
+                      type="button"
                       onClick={handleAnalyzeIntake}
                       disabled={isAnalyzing || intakeDescription.length < 10}
                       className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium bg-gradient-to-r from-[#202e46] to-[#2a3d5c] text-white hover:from-[#1a2539] hover:to-[#202e46] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1039,26 +1270,28 @@ export default function NewContractPage() {
                       )}
                     </button>
                   </div>
-                </div>
 
-                {/* Example prompts */}
-                <div className="mt-6">
-                  <p className="text-sm text-slate-500 mb-3 text-center">Or try an example:</p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {[
-                      "I need an NDA to share confidential business plans with a potential investor",
-                      "Hiring a contractor to build a mobile app for $25,000 over 4 months",
-                      "Need a consulting agreement for advisory services at $200/hour",
-                    ].map((example, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setIntakeDescription(example)}
-                        className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors"
-                      >
-                        {example.length > 50 ? example.substring(0, 50) + "..." : example}
-                      </button>
-                    ))}
-                  </div>
+                  <details className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                    <summary className="cursor-pointer text-sm font-medium text-slate-700">
+                      Need an example prompt?
+                    </summary>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {[
+                        "NDA with investor",
+                        "Freelance web redesign project",
+                        "Consulting at $200/hour",
+                      ].map((example) => (
+                        <button
+                          key={example}
+                          type="button"
+                          onClick={() => setIntakeDescription(example)}
+                          className="text-xs px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-600 rounded-full border border-slate-200 transition-colors"
+                        >
+                          {example}
+                        </button>
+                      ))}
+                    </div>
+                  </details>
                 </div>
               </div>
             )}
@@ -1225,7 +1458,7 @@ export default function NewContractPage() {
                       ← Start over
                     </button>
                     <button
-                      onClick={() => setCreationMode("manual")}
+                      onClick={() => switchCreationMode("manual")}
                       className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
                     >
                       Pick different type
@@ -1238,8 +1471,91 @@ export default function NewContractPage() {
             {/* Manual Mode - Contract Type Selection */}
             {creationMode === "manual" && (
               <div className="space-y-8">
+                <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+                  <div className="grid md:grid-cols-[1fr_auto] gap-3">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Search contract types..."
+                        value={manualSearch}
+                        onChange={(event) => setManualSearch(event.target.value)}
+                        className="w-full rounded-lg border border-slate-200 py-2.5 pl-9 pr-3 focus:outline-none focus:ring-2 focus:ring-[#529ec6]/20 focus:border-[#529ec6]"
+                      />
+                      <svg
+                        className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 106.04 6.04a7.5 7.5 0 0010.61 10.61z"
+                        />
+                      </svg>
+                    </div>
+                    {(manualSearch || manualCategory !== "all") && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setManualSearch("");
+                          setManualCategory("all");
+                        }}
+                        className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50"
+                      >
+                        Clear filters
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {MANUAL_TYPE_CATEGORIES.map((category) => (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => setManualCategory(category.id)}
+                        className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                          manualCategory === category.id
+                            ? "border-[#529ec6]/30 bg-[#529ec6]/10 text-[#202e46]"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {category.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {manualFilteredTypes.length} matching type
+                    {manualFilteredTypes.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+
+                {/* Recent Section */}
+                {recentContractTypes.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <Clock className="w-5 h-5 text-slate-500" />
+                      <h3 className="text-lg font-semibold text-slate-900">Recently used</h3>
+                    </div>
+                    <div className="grid md:grid-cols-3 gap-4">
+                      {recentContractTypes.map((type) => (
+                        <ContractTypeSelectionCard
+                          key={type.id}
+                          type={type}
+                          isSelected={selectedType === type.id}
+                          onSelect={() => handleTypeSelect(type.id, { advanceToDetails: true })}
+                          onPreview={() => {
+                            setPreviewType(type.id);
+                            setShowPreview(true);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Recommended for You Section */}
-                {userType && RECOMMENDED_BY_USER_TYPE[userType] && (
+                {userType && recommendedTypeIds.size > 0 && !manualSearch && manualCategory === "all" && (
                   <div>
                     <div className="flex items-center gap-2 mb-4">
                       <Star className="w-5 h-5 text-amber-500" />
@@ -1249,135 +1565,62 @@ export default function NewContractPage() {
                       </span>
                     </div>
                     <div className="grid md:grid-cols-3 gap-4">
-                      {RECOMMENDED_BY_USER_TYPE[userType]
-                        .filter((typeId) => isWizardSupportedType(typeId))
-                        .map((typeId) => {
+                      {Array.from(recommendedTypeIds).map((typeId) => {
                         const type = CONTRACT_TYPES[typeId];
                         if (!type) return null;
-                        const Icon = CONTRACT_ICONS[type.icon] || Shield;
-                        const isSelected = selectedType === type.id;
-
                         return (
-                          <div
+                          <ContractTypeSelectionCard
                             key={type.id}
-                            className={`relative p-5 rounded-xl border-2 text-left transition-all ${
-                              isSelected
-                                ? "border-[#529ec6] bg-[#529ec6]/5 ring-2 ring-[#529ec6]/20"
-                                : "border-amber-200 bg-gradient-to-br from-amber-50/50 to-white hover:border-[#529ec6]/30"
-                            }`}
-                          >
-                            {/* Recommended badge */}
-                            <div className="absolute -top-2 -right-2 bg-amber-500 text-white text-xs font-medium px-2 py-0.5 rounded-full">
-                              Top Pick
-                            </div>
-                            <button
-                              onClick={() => handleTypeSelect(type.id)}
-                              className="w-full text-left"
-                            >
-                              <div
-                                className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${
-                                  isSelected ? "bg-[#529ec6]/10" : "bg-amber-100"
-                                }`}
-                              >
-                                <Icon
-                                  className={`w-5 h-5 ${isSelected ? "text-[#529ec6]" : "text-amber-700"}`}
-                                />
-                              </div>
-                              <h3 className="font-semibold text-slate-900 mb-1">
-                                {type.name}
-                              </h3>
-                              <p className="text-sm text-slate-600 mb-2 line-clamp-2">
-                                {type.description}
-                              </p>
-                            </button>
-                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
-                              <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                                <Sparkles className="w-3 h-3" />
-                                <span>~{type.estimatedTime}</span>
-                              </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPreviewType(type.id);
-                                  setShowPreview(true);
-                                }}
-                                className="flex items-center gap-1 text-xs text-[#529ec6] hover:text-[#3d7a9e] font-medium"
-                              >
-                                <Eye className="w-3 h-3" />
-                                Preview
-                              </button>
-                            </div>
-                          </div>
+                            type={type}
+                            isSelected={selectedType === type.id}
+                            onSelect={() => handleTypeSelect(type.id, { advanceToDetails: true })}
+                            onPreview={() => {
+                              setPreviewType(type.id);
+                              setShowPreview(true);
+                            }}
+                            accent="recommended"
+                            badgeLabel="Top Pick"
+                          />
                         );
-                        })}
+                      })}
                     </div>
                   </div>
                 )}
 
-                {/* All Contract Types */}
+                {/* Filtered Contract Types */}
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-4">
-                    {userType ? "All Contract Types" : "Choose a Contract Type"}
+                    {manualSearch || manualCategory !== "all"
+                      ? "Matching Contract Types"
+                      : userType
+                        ? "All Contract Types"
+                        : "Choose a Contract Type"}
                   </h3>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {Object.values(CONTRACT_TYPES)
-                      .filter((type) => isWizardSupportedType(type.id) && type.id !== "custom")
-                      .filter((type) => !userType || !RECOMMENDED_BY_USER_TYPE[userType]?.includes(type.id))
-                      .map((type) => {
-                        const Icon = CONTRACT_ICONS[type.icon] || Shield;
-                        const isSelected = selectedType === type.id;
-
-                        return (
-                          <div
-                            key={type.id}
-                            className={`p-5 rounded-xl border-2 text-left transition-all ${
-                              isSelected
-                                ? "border-[#529ec6] bg-[#529ec6]/5"
-                                : "border-slate-200 bg-white hover:border-[#529ec6]/30"
-                            }`}
-                          >
-                            <button
-                              onClick={() => handleTypeSelect(type.id)}
-                              className="w-full text-left"
-                            >
-                              <div
-                                className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${
-                                  isSelected ? "bg-[#529ec6]/10" : "bg-slate-100"
-                                }`}
-                              >
-                                <Icon
-                                  className={`w-5 h-5 ${isSelected ? "text-[#529ec6]" : "text-slate-600"}`}
-                                />
-                              </div>
-                              <h3 className="font-semibold text-slate-900 mb-1">
-                                {type.name}
-                              </h3>
-                              <p className="text-sm text-slate-600 mb-2 line-clamp-2">
-                                {type.description}
-                              </p>
-                            </button>
-                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
-                              <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                                <Sparkles className="w-3 h-3" />
-                                <span>~{type.estimatedTime}</span>
-                              </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPreviewType(type.id);
-                                  setShowPreview(true);
-                                }}
-                                className="flex items-center gap-1 text-xs text-[#529ec6] hover:text-[#3d7a9e] font-medium"
-                              >
-                                <Eye className="w-3 h-3" />
-                                Preview
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
+                  {manualFilteredTypes.length === 0 ? (
+                    <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
+                      <p className="font-medium text-slate-900">No contract types match those filters</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Try clearing filters or switching to Describe Need mode.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {manualFilteredTypes.map((type) => (
+                        <ContractTypeSelectionCard
+                          key={type.id}
+                          type={type}
+                          isSelected={selectedType === type.id}
+                          onSelect={() => handleTypeSelect(type.id, { advanceToDetails: true })}
+                          onPreview={() => {
+                            setPreviewType(type.id);
+                            setShowPreview(true);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
+
               </div>
             )}
 
@@ -1463,7 +1706,7 @@ export default function NewContractPage() {
                       </button>
                     )}
                     <button
-                      onClick={() => setCreationMode("smart")}
+                      onClick={() => switchCreationMode("smart")}
                       className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#529ec6] bg-[#529ec6]/5 rounded-lg hover:bg-[#529ec6]/10 transition-colors"
                     >
                       <Sparkles className="w-4 h-4" />
@@ -1601,6 +1844,19 @@ export default function NewContractPage() {
           <div className="space-y-6">
             {/* Smart Templates Banner */}
             <SmartTemplatesBanner />
+
+            {errorMessages.length > 0 && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-semibold text-amber-900">
+                  Complete the missing fields before continuing
+                </p>
+                <ul className="mt-2 space-y-1 text-sm text-amber-800">
+                  {errorMessages.map((message) => (
+                    <li key={message}>• {message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <ContractDetailsForm
               contractType={selectedType}
@@ -1741,10 +1997,34 @@ export default function NewContractPage() {
 
                         {/* Deposit Details (only for deposit_balance) */}
                         {paymentStructure === "deposit_balance" && (
-                          <div className="p-4 bg-emerald-50 rounded-lg">
-                            <label className="block text-sm font-medium text-slate-700 mb-2">
-                              Payment Split
-                            </label>
+                          <div className="p-4 bg-emerald-50 rounded-lg space-y-4">
+                            <div className="flex items-center justify-between">
+                              <label className="text-sm font-medium text-slate-700">
+                                Payment Split
+                              </label>
+                              <span className="text-sm font-semibold text-emerald-700">
+                                {depositPercent}% deposit / {100 - depositPercent}% balance
+                              </span>
+                            </div>
+
+                            {/* Percentage slider */}
+                            <div className="space-y-1.5">
+                              <input
+                                type="range"
+                                min={10}
+                                max={90}
+                                step={5}
+                                value={depositPercent}
+                                onChange={(e) => setDepositPercent(Number(e.target.value))}
+                                className="w-full h-2 bg-emerald-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                              />
+                              <div className="flex justify-between text-xs text-slate-400">
+                                <span>10%</span>
+                                <span>50%</span>
+                                <span>90%</span>
+                              </div>
+                            </div>
+
                             {derivedPaymentAmount > 0 ? (
                               <div className="grid md:grid-cols-2 gap-4">
                                 <div className="bg-white rounded-lg p-3 border border-emerald-200">
@@ -1763,7 +2043,7 @@ export default function NewContractPage() {
                                 </div>
                               </div>
                             ) : (
-                              <p className="text-sm text-slate-500">Enter Total Amount and Deposit in project details above</p>
+                              <p className="text-sm text-slate-500">Enter a total amount above to see the split</p>
                             )}
                           </div>
                         )}
@@ -1934,62 +2214,64 @@ export default function NewContractPage() {
         )}
 
         {/* Navigation Buttons */}
-        <div className="flex justify-between mt-8 pt-6 border-t border-slate-200">
-          <button
-            onClick={handleBack}
-            disabled={step === 1}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
-              step === 1
-                ? "text-slate-400 cursor-not-allowed"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </button>
-
-          {step < 3 ? (
+        {!(creationMode === "template" && step === 1) && (
+          <div className="flex justify-between mt-8 pt-6 border-t border-slate-200">
             <button
-              onClick={handleNext}
-              disabled={stepOneContinueDisabled}
+              onClick={handleBack}
+              disabled={step === 1}
               className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
-                stepOneContinueDisabled
-                  ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                  : "bg-[#202e46] text-white hover:bg-[#1a2539]"
+                step === 1
+                  ? "text-slate-400 cursor-not-allowed"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
-              {step === 1 && creationMode === "smart" && isAnalyzing ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  {stepOneContinueLabel}
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
+              <ArrowLeft className="w-4 h-4" />
+              Back
             </button>
-          ) : (
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className="flex items-center gap-2 px-8 py-3 rounded-lg font-medium bg-gradient-to-r from-[#202e46] to-[#2a3d5c] text-white hover:from-[#1a2539] hover:to-[#202e46] transition-all disabled:opacity-50"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Generate Contract
-                </>
-              )}
-            </button>
-          )}
-        </div>
+
+            {step < maxStep ? (
+              <button
+                onClick={handleNext}
+                disabled={stepOneContinueDisabled}
+                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
+                  stepOneContinueDisabled
+                    ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                    : "bg-[#202e46] text-white hover:bg-[#1a2539]"
+                }`}
+              >
+                {step === 1 && creationMode === "smart" && isAnalyzing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    {stepOneContinueLabel}
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                className="flex items-center gap-2 px-8 py-3 rounded-lg font-medium bg-gradient-to-r from-[#202e46] to-[#2a3d5c] text-white hover:from-[#1a2539] hover:to-[#202e46] transition-all disabled:opacity-50"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Generate Contract
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        )}
       </main>
 
       {/* Placeholder Fill-in Modal for System Templates */}
@@ -2029,7 +2311,7 @@ export default function NewContractPage() {
           contractName={CONTRACT_TYPES[previewType]?.name || previewType}
           onUseThis={() => {
             setShowPreview(false);
-            handleTypeSelect(previewType);
+            handleTypeSelect(previewType, { advanceToDetails: true });
             setPreviewType(null);
           }}
         />
@@ -2194,7 +2476,7 @@ function NDAForm({
   errors?: Record<string, string>;
 }) {
   // Initialize signer groups from form data or create defaults
-  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+  const signerGroups = getOrCreateSignerGroups(formData, [
     {
       role: "disclosingParty",
       roleLabel: isMutual ? "Party A" : "Disclosing Party",
@@ -2212,31 +2494,16 @@ function NDAForm({
   ]);
 
   const handleSignerGroupsChange = (groups: SignerGroup[]) => {
-    // Combine all updates into a single onChange call to avoid state race conditions
-    const disclosing = groups.find(g => g.role === "disclosingParty");
-    const receiving = groups.find(g => g.role === "receivingParty");
-
-    const updates: Record<string, unknown> = {
-      ...formData,
-      signerGroups: groups,
-    };
-
-    if (disclosing?.signers[0]) {
-      updates.disclosingParty = {
-        name: disclosing.signers[0].name,
-        email: disclosing.signers[0].email,
-        company: disclosing.signers[0].title || "",
-      };
-    }
-    if (receiving?.signers[0]) {
-      updates.receivingParty = {
-        name: receiving.signers[0].name,
-        email: receiving.signers[0].email,
-        company: receiving.signers[0].title || "",
-      };
-    }
-
-    onChange(updates);
+    onChange(
+      buildSignerGroupFormUpdates({
+        formData,
+        groups,
+        mappings: [
+          { role: "disclosingParty", targetField: "disclosingParty", titleField: "company" },
+          { role: "receivingParty", targetField: "receivingParty", titleField: "company" },
+        ],
+      })
+    );
   };
 
   return (
@@ -2338,7 +2605,7 @@ function ContractorForm({
   errors?: Record<string, string>;
 }) {
   // Initialize signer groups from form data or create defaults
-  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+  const signerGroups = getOrCreateSignerGroups(formData, [
     {
       role: "client",
       roleLabel: "Client (Company)",
@@ -2354,29 +2621,16 @@ function ContractorForm({
   ]);
 
   const handleSignerGroupsChange = (groups: SignerGroup[]) => {
-    // Combine all updates into a single onChange call to avoid state race conditions
-    const clientGroup = groups.find(g => g.role === "client");
-    const contractorGroup = groups.find(g => g.role === "contractor");
-
-    const updates: Record<string, unknown> = {
-      ...formData,
-      signerGroups: groups,
-    };
-
-    if (clientGroup?.signers[0]) {
-      updates.client = {
-        name: clientGroup.signers[0].name,
-        email: clientGroup.signers[0].email,
-      };
-    }
-    if (contractorGroup?.signers[0]) {
-      updates.contractor = {
-        name: contractorGroup.signers[0].name,
-        email: contractorGroup.signers[0].email,
-      };
-    }
-
-    onChange(updates);
+    onChange(
+      buildSignerGroupFormUpdates({
+        formData,
+        groups,
+        mappings: [
+          { role: "client", targetField: "client" },
+          { role: "contractor", targetField: "contractor" },
+        ],
+      })
+    );
   };
 
   return (
@@ -2475,7 +2729,7 @@ function ConsultingForm({
   errors?: Record<string, string>;
 }) {
   // Initialize signer groups from form data or create defaults
-  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+  const signerGroups = getOrCreateSignerGroups(formData, [
     {
       role: "client",
       roleLabel: "Client",
@@ -2491,29 +2745,16 @@ function ConsultingForm({
   ]);
 
   const handleSignerGroupsChange = (groups: SignerGroup[]) => {
-    // Combine all updates into a single onChange call to avoid state race conditions
-    const clientGroup = groups.find(g => g.role === "client");
-    const consultantGroup = groups.find(g => g.role === "consultant");
-
-    const updates: Record<string, unknown> = {
-      ...formData,
-      signerGroups: groups,
-    };
-
-    if (clientGroup?.signers[0]) {
-      updates.client = {
-        name: clientGroup.signers[0].name,
-        email: clientGroup.signers[0].email,
-      };
-    }
-    if (consultantGroup?.signers[0]) {
-      updates.consultant = {
-        name: consultantGroup.signers[0].name,
-        email: consultantGroup.signers[0].email,
-      };
-    }
-
-    onChange(updates);
+    onChange(
+      buildSignerGroupFormUpdates({
+        formData,
+        groups,
+        mappings: [
+          { role: "client", targetField: "client" },
+          { role: "consultant", targetField: "consultant" },
+        ],
+      })
+    );
   };
 
   return (
@@ -2582,7 +2823,7 @@ function SAFEForm({
   errors?: Record<string, string>;
 }) {
   // Initialize signer groups from form data or create defaults
-  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+  const signerGroups = getOrCreateSignerGroups(formData, [
     {
       role: "company",
       roleLabel: "Company",
@@ -2598,29 +2839,16 @@ function SAFEForm({
   ]);
 
   const handleSignerGroupsChange = (groups: SignerGroup[]) => {
-    // Combine all updates into a single onChange call to avoid state race conditions
-    const companyGroup = groups.find(g => g.role === "company");
-    const investorGroup = groups.find(g => g.role === "investor");
-
-    const updates: Record<string, unknown> = {
-      ...formData,
-      signerGroups: groups,
-    };
-
-    if (companyGroup?.signers[0]) {
-      updates.company = {
-        name: companyGroup.signers[0].name,
-        email: companyGroup.signers[0].email,
-      };
-    }
-    if (investorGroup?.signers[0]) {
-      updates.investor = {
-        name: investorGroup.signers[0].name,
-        email: investorGroup.signers[0].email,
-      };
-    }
-
-    onChange(updates);
+    onChange(
+      buildSignerGroupFormUpdates({
+        formData,
+        groups,
+        mappings: [
+          { role: "company", targetField: "company" },
+          { role: "investor", targetField: "investor" },
+        ],
+      })
+    );
   };
 
   return (
@@ -2705,7 +2933,7 @@ function CustomContractForm({
   customTitle: string;
 }) {
   // Initialize signer groups from form data or create defaults with generic labels
-  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+  const signerGroups = getOrCreateSignerGroups(formData, [
     {
       role: "partyA",
       roleLabel: "First Party",
@@ -2721,32 +2949,26 @@ function CustomContractForm({
   ]);
 
   const handleSignerGroupsChange = (groups: SignerGroup[]) => {
-    const partyA = groups.find(g => g.role === "partyA");
-    const partyB = groups.find(g => g.role === "partyB");
-
-    const updates: Record<string, unknown> = {
-      ...formData,
-      signerGroups: groups,
-    };
-
-    if (partyA?.signers[0]) {
-      updates.partyA = {
-        name: partyA.signers[0].name,
-        email: partyA.signers[0].email,
-        title: partyA.signers[0].title || "",
-        role: "party_a",
-      };
-    }
-    if (partyB?.signers[0]) {
-      updates.partyB = {
-        name: partyB.signers[0].name,
-        email: partyB.signers[0].email,
-        title: partyB.signers[0].title || "",
-        role: "party_b",
-      };
-    }
-
-    onChange(updates);
+    onChange(
+      buildSignerGroupFormUpdates({
+        formData,
+        groups,
+        mappings: [
+          {
+            role: "partyA",
+            targetField: "partyA",
+            titleField: "title",
+            staticFields: { role: "party_a" },
+          },
+          {
+            role: "partyB",
+            targetField: "partyB",
+            titleField: "title",
+            staticFields: { role: "party_b" },
+          },
+        ],
+      })
+    );
   };
 
   return (
@@ -2797,7 +3019,7 @@ function FreelanceForm({
   errors?: Record<string, string>;
 }) {
   // Initialize signer groups from form data or create defaults
-  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+  const signerGroups = getOrCreateSignerGroups(formData, [
     {
       role: "client",
       roleLabel: "Client",
@@ -2813,29 +3035,16 @@ function FreelanceForm({
   ]);
 
   const handleSignerGroupsChange = (groups: SignerGroup[]) => {
-    // Combine all updates into a single onChange call to avoid state race conditions
-    const clientGroup = groups.find(g => g.role === "client");
-    const freelancerGroup = groups.find(g => g.role === "freelancer");
-
-    const updates: Record<string, unknown> = {
-      ...formData,
-      signerGroups: groups,
-    };
-
-    if (clientGroup?.signers[0]) {
-      updates.client = {
-        name: clientGroup.signers[0].name,
-        email: clientGroup.signers[0].email,
-      };
-    }
-    if (freelancerGroup?.signers[0]) {
-      updates.freelancer = {
-        name: freelancerGroup.signers[0].name,
-        email: freelancerGroup.signers[0].email,
-      };
-    }
-
-    onChange(updates);
+    onChange(
+      buildSignerGroupFormUpdates({
+        formData,
+        groups,
+        mappings: [
+          { role: "client", targetField: "client" },
+          { role: "freelancer", targetField: "freelancer" },
+        ],
+      })
+    );
   };
 
   return (
@@ -2937,7 +3146,7 @@ function LOIForm({
   errors?: Record<string, string>;
 }) {
   // Initialize signer groups from form data or create defaults
-  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+  const signerGroups = getOrCreateSignerGroups(formData, [
     {
       role: "proposingParty",
       roleLabel: "Proposing Party",
@@ -2953,32 +3162,26 @@ function LOIForm({
   ]);
 
   const handleSignerGroupsChange = (groups: SignerGroup[]) => {
-    const proposing = groups.find(g => g.role === "proposingParty");
-    const receiving = groups.find(g => g.role === "receivingParty");
-
-    const updates: Record<string, unknown> = {
-      ...formData,
-      signerGroups: groups,
-    };
-
-    if (proposing?.signers[0]) {
-      updates.proposingParty = {
-        name: proposing.signers[0].name,
-        email: proposing.signers[0].email,
-        company: proposing.signers[0].title || "",
-        role: "proposing_party",
-      };
-    }
-    if (receiving?.signers[0]) {
-      updates.receivingParty = {
-        name: receiving.signers[0].name,
-        email: receiving.signers[0].email,
-        company: receiving.signers[0].title || "",
-        role: "receiving_party",
-      };
-    }
-
-    onChange(updates);
+    onChange(
+      buildSignerGroupFormUpdates({
+        formData,
+        groups,
+        mappings: [
+          {
+            role: "proposingParty",
+            targetField: "proposingParty",
+            titleField: "company",
+            staticFields: { role: "proposing_party" },
+          },
+          {
+            role: "receivingParty",
+            targetField: "receivingParty",
+            titleField: "company",
+            staticFields: { role: "receiving_party" },
+          },
+        ],
+      })
+    );
   };
 
   return (
@@ -3358,7 +3561,7 @@ function SalesContractForm({
   errors?: Record<string, string>;
 }) {
   // Initialize signer groups from form data or create defaults
-  const signerGroups: SignerGroup[] = (formData.signerGroups as SignerGroup[]) || createSignerGroups([
+  const signerGroups = getOrCreateSignerGroups(formData, [
     {
       role: "seller",
       roleLabel: "Seller",
@@ -3374,32 +3577,26 @@ function SalesContractForm({
   ]);
 
   const handleSignerGroupsChange = (groups: SignerGroup[]) => {
-    const sellerGroup = groups.find(g => g.role === "seller");
-    const buyerGroup = groups.find(g => g.role === "buyer");
-
-    const updates: Record<string, unknown> = {
-      ...formData,
-      signerGroups: groups,
-    };
-
-    if (sellerGroup?.signers[0]) {
-      updates.seller = {
-        name: sellerGroup.signers[0].name,
-        email: sellerGroup.signers[0].email,
-        company: sellerGroup.signers[0].title || "",
-        role: "seller",
-      };
-    }
-    if (buyerGroup?.signers[0]) {
-      updates.buyer = {
-        name: buyerGroup.signers[0].name,
-        email: buyerGroup.signers[0].email,
-        company: buyerGroup.signers[0].title || "",
-        role: "buyer",
-      };
-    }
-
-    onChange(updates);
+    onChange(
+      buildSignerGroupFormUpdates({
+        formData,
+        groups,
+        mappings: [
+          {
+            role: "seller",
+            targetField: "seller",
+            titleField: "company",
+            staticFields: { role: "seller" },
+          },
+          {
+            role: "buyer",
+            targetField: "buyer",
+            titleField: "company",
+            staticFields: { role: "buyer" },
+          },
+        ],
+      })
+    );
   };
 
   // Product items
@@ -3671,6 +3868,85 @@ function SmartTemplatesBanner() {
   );
 }
 
+function ContractTypeSelectionCard({
+  type,
+  isSelected,
+  onSelect,
+  onPreview,
+  accent = "default",
+  badgeLabel,
+}: {
+  type: (typeof CONTRACT_TYPES)[ContractType];
+  isSelected: boolean;
+  onSelect: () => void;
+  onPreview: () => void;
+  accent?: "default" | "recommended";
+  badgeLabel?: string;
+}) {
+  const Icon = CONTRACT_ICONS[type.icon] || Shield;
+  const isRecommended = accent === "recommended";
+
+  return (
+    <div
+      className={`relative rounded-xl border-2 p-5 text-left transition-all ${
+        isSelected
+          ? "border-[#529ec6] bg-[#529ec6]/5 ring-2 ring-[#529ec6]/20"
+          : isRecommended
+            ? "border-amber-200 bg-gradient-to-br from-amber-50/50 to-white hover:border-[#529ec6]/30"
+            : "border-slate-200 bg-white hover:border-[#529ec6]/30"
+      }`}
+    >
+      {badgeLabel && (
+        <div className="absolute -right-2 -top-2 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-medium text-white">
+          {badgeLabel}
+        </div>
+      )}
+
+      <button type="button" onClick={onSelect} className="w-full text-left">
+        <div
+          className={`mb-3 flex h-10 w-10 items-center justify-center rounded-lg ${
+            isSelected
+              ? "bg-[#529ec6]/10"
+              : isRecommended
+                ? "bg-amber-100"
+                : "bg-slate-100"
+          }`}
+        >
+          <Icon
+            className={`h-5 w-5 ${
+              isSelected
+                ? "text-[#529ec6]"
+                : isRecommended
+                  ? "text-amber-700"
+                  : "text-slate-600"
+            }`}
+          />
+        </div>
+        <h3 className="mb-1 font-semibold text-slate-900">{type.name}</h3>
+        <p className="line-clamp-2 text-sm text-slate-600">{type.description}</p>
+      </button>
+
+      <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+          <Sparkles className="h-3 w-3" />
+          <span>~{type.estimatedTime}</span>
+        </div>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onPreview();
+          }}
+          className="flex items-center gap-1 text-xs font-medium text-[#529ec6] hover:text-[#3d7a9e]"
+        >
+          <Eye className="h-3 w-3" />
+          Preview
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ============================================================================
 // Form Components
 // ============================================================================
@@ -3813,294 +4089,6 @@ function FormCheckbox({
 // Helper Functions
 // ============================================================================
 
-function buildMetadata(
-  contractType: ContractType,
-  jurisdiction: Jurisdiction,
-  formData: Record<string, unknown>
-): Record<string, unknown> {
-  const today = new Date().toISOString().split("T")[0];
-
-  // Get signer groups if present (for multi-signatory support)
-  const signerGroups = formData.signerGroups as SignerGroup[] | undefined;
-
-  // Base metadata with defaults
-  const base = {
-    contractType,
-    jurisdiction,
-    effectiveDate: (formData.effectiveDate as string) || today,
-    // Include signerGroups for the generation API to use
-    signerGroups: signerGroups || undefined,
-  };
-
-  switch (contractType) {
-    case "nda_mutual":
-    case "nda_one_way":
-      return {
-        ...base,
-        disclosingParty: {
-          name: (formData.disclosingParty as Record<string, string>)?.name || "Party A",
-          email: (formData.disclosingParty as Record<string, string>)?.email || "party.a@example.com",
-          company: (formData.disclosingParty as Record<string, string>)?.company || "",
-          role: "discloser",
-        },
-        receivingParty: {
-          name: (formData.receivingParty as Record<string, string>)?.name || "Party B",
-          email: (formData.receivingParty as Record<string, string>)?.email || "party.b@example.com",
-          company: (formData.receivingParty as Record<string, string>)?.company || "",
-          role: "recipient",
-        },
-        purpose: (formData.purpose as string) || "To discuss potential business collaboration",
-        confidentialityPeriod: (formData.confidentialityPeriod as number) || 2,
-        includeNonSolicit: (formData.includeNonSolicit as boolean) || false,
-        includeNonCompete: (formData.includeNonCompete as boolean) || false,
-        nonCompetePeriod: (formData.nonCompetePeriod as number) || 12,
-      };
-
-    case "independent_contractor":
-      return {
-        ...base,
-        client: {
-          name: (formData.client as Record<string, string>)?.name || "Client Co",
-          email: (formData.client as Record<string, string>)?.email || "client@example.com",
-          role: "client",
-        },
-        contractor: {
-          name: (formData.contractor as Record<string, string>)?.name || "Contractor",
-          email: (formData.contractor as Record<string, string>)?.email || "contractor@example.com",
-          role: "contractor",
-        },
-        servicesDescription: (formData.servicesDescription as string) || "Professional services as agreed",
-        paymentAmount: (formData.paymentAmount as number) || 5000,
-        paymentFrequency: (formData.paymentFrequency as string) || "monthly",
-        paymentTerms: (formData.paymentTerms as number) || 30,
-        terminationNoticeDays: 14,
-        includeIPAssignment: true,
-        includeConfidentiality: true,
-      };
-
-    case "consulting_agreement":
-      return {
-        ...base,
-        client: {
-          name: (formData.client as Record<string, string>)?.name || "Client Co",
-          email: (formData.client as Record<string, string>)?.email || "client@example.com",
-          role: "client",
-        },
-        consultant: {
-          name: (formData.consultant as Record<string, string>)?.name || "Consultant",
-          email: (formData.consultant as Record<string, string>)?.email || "consultant@example.com",
-          role: "consultant",
-        },
-        consultingScope: (formData.consultingScope as string) || "Strategic consulting services",
-        hourlyRate: (formData.hourlyRate as number) || undefined,
-        retainerAmount: (formData.retainerAmount as number) || undefined,
-        paymentTerms: 30,
-        includeIPAssignment: true,
-        includeConfidentiality: true,
-        includeNonCompete: false,
-      };
-
-    case "safe_note":
-      return {
-        ...base,
-        company: {
-          name: (formData.company as Record<string, string>)?.name || "Startup Inc",
-          email: (formData.company as Record<string, string>)?.email || "founders@startup.com",
-          role: "company",
-        },
-        investor: {
-          name: (formData.investor as Record<string, string>)?.name || "Angel Investor",
-          email: (formData.investor as Record<string, string>)?.email || "investor@example.com",
-          role: "investor",
-        },
-        investmentAmount: (formData.investmentAmount as number) || 50000,
-        safeType: (formData.safeType as string) || "valuation_cap",
-        valuationCap: (formData.valuationCap as number) || undefined,
-        discountRate: (formData.discountRate as number) || undefined,
-        proRataRights: (formData.proRataRights as boolean) || false,
-      };
-
-    case "freelance_service":
-      return {
-        ...base,
-        client: {
-          name: (formData.client as Record<string, string>)?.name || "Client",
-          email: (formData.client as Record<string, string>)?.email || "client@example.com",
-          role: "client",
-        },
-        freelancer: {
-          name: (formData.freelancer as Record<string, string>)?.name || "Freelancer",
-          email: (formData.freelancer as Record<string, string>)?.email || "freelancer@example.com",
-          role: "contractor",
-        },
-        projectName: (formData.projectName as string) || "Project",
-        projectDescription: (formData.projectDescription as string) || "Freelance project work",
-        totalAmount: (formData.totalAmount as number) || 1000,
-        depositAmount: (formData.depositAmount as number) || undefined,
-        paymentSchedule: "milestone",
-        revisionRounds: (formData.revisionRounds as number) === -1 ? "unlimited" : ((formData.revisionRounds as number) || 2),
-        deliverables: [
-          {
-            description: (formData.projectDescription as string) || "Project deliverable",
-          },
-        ],
-        includeIPAssignment: true,
-      };
-
-    case "letter_of_intent":
-      return {
-        ...base,
-        proposingParty: {
-          name: (formData.proposingParty as Record<string, string>)?.name || "Proposing Party",
-          email: (formData.proposingParty as Record<string, string>)?.email || "proposer@example.com",
-          company: (formData.proposingParty as Record<string, string>)?.company || "",
-          title: (formData.proposingParty as Record<string, string>)?.title || "",
-          role: "proposing_party",
-        },
-        receivingParty: {
-          name: (formData.receivingParty as Record<string, string>)?.name || "Receiving Party",
-          email: (formData.receivingParty as Record<string, string>)?.email || "receiver@example.com",
-          company: (formData.receivingParty as Record<string, string>)?.company || "",
-          title: (formData.receivingParty as Record<string, string>)?.title || "",
-          role: "receiving_party",
-        },
-        transactionType: (formData.transactionType as string) || "acquisition",
-        transactionDescription: (formData.transactionDescription as string) || "Proposed business transaction",
-        proposedTerms: {
-          purchasePrice: (formData.proposedPrice as number) || undefined,
-          keyConditions: (formData.keyConditions as string[]) || [],
-        },
-        exclusivityPeriod: (formData.exclusivityPeriod as number) || 60,
-        dueDiligencePeriod: (formData.dueDiligencePeriod as number) || 45,
-        expirationDate: (formData.expirationDate as string) || undefined,
-        isBindingTerms: (formData.bindingProvisions as string[]) || ["confidentiality"],
-      };
-
-    case "cofounder_agreement": {
-      // Build cofounders array from form data
-      const cofoundersData = formData.cofounders as Array<{
-        name?: string;
-        email?: string;
-        role?: string;
-        equityPercentage?: number;
-        vestingMonths?: number;
-        cliffMonths?: number;
-        responsibilities?: string;
-        initialContribution?: { cash?: number; ipDescription?: string };
-      }> | undefined;
-
-      const cofounders = (cofoundersData || []).map((cf, index) => ({
-        party: {
-          name: cf.name || `Co-Founder ${index + 1}`,
-          email: cf.email || `cofounder${index + 1}@example.com`,
-          role: "cofounder",
-          title: cf.role || "",
-        },
-        equityPercentage: cf.equityPercentage || 0,
-        vestingSchedule: {
-          totalMonths: cf.vestingMonths || 48,
-          cliffMonths: cf.cliffMonths || 12,
-          accelerationOnChange: true,
-        },
-        role: cf.role || "",
-        responsibilities: cf.responsibilities || "",
-        initialContribution: cf.initialContribution || {},
-      }));
-
-      return {
-        ...base,
-        companyName: (formData.companyName as string) || "NewCo Inc",
-        companyType: (formData.companyType as string) || "corporation",
-        cofounders,
-        decisionMaking: {
-          majorDecisionThreshold: (formData.majorDecisionThreshold as number) || 66,
-          deadlockResolution: (formData.deadlockResolution as string) || "mediation",
-        },
-        salaryProvisions: {
-          initialSalaries: (formData.initialSalaries as boolean) || false,
-          salaryDetails: (formData.salaryDetails as string) || "",
-        },
-        ipAssignment: true,
-        nonCompetePeriod: 24,
-        exitProvisions: {
-          rightOfFirstRefusal: (formData.rightOfFirstRefusal as boolean) ?? true,
-          dragAlong: (formData.dragAlong as boolean) ?? true,
-          tagAlong: (formData.tagAlong as boolean) ?? true,
-        },
-      };
-    }
-
-    case "sales_contract": {
-      // Build products array from form data
-      const productsData = formData.products as Array<{
-        name?: string;
-        description?: string;
-        quantity?: number;
-        unitPrice?: number;
-        specifications?: string;
-      }> | undefined;
-
-      const products = (productsData || []).map((p, index) => ({
-        name: p.name || `Product ${index + 1}`,
-        description: p.description || "",
-        quantity: p.quantity || 1,
-        unitPrice: p.unitPrice || 0,
-        specifications: p.specifications || "",
-      }));
-
-      // Calculate total if not provided
-      const totalAmount = (formData.totalAmount as number) ||
-        products.reduce((sum, p) => sum + (p.quantity * p.unitPrice), 0);
-
-      return {
-        ...base,
-        seller: {
-          name: (formData.seller as Record<string, string>)?.name || "Seller",
-          email: (formData.seller as Record<string, string>)?.email || "seller@example.com",
-          company: (formData.seller as Record<string, string>)?.company || "",
-          address: (formData.seller as Record<string, string>)?.address || "",
-          role: "seller",
-        },
-        buyer: {
-          name: (formData.buyer as Record<string, string>)?.name || "Buyer",
-          email: (formData.buyer as Record<string, string>)?.email || "buyer@example.com",
-          company: (formData.buyer as Record<string, string>)?.company || "",
-          address: (formData.buyer as Record<string, string>)?.address || "",
-          role: "buyer",
-        },
-        productDescription: (formData.productDescription as string) || "Goods and services as described",
-        products,
-        totalAmount,
-        currency: "usd",
-        paymentTerms: {
-          method: (formData.paymentMethod as string) || "full_upfront",
-          depositPercentage: (formData.depositAmount as number) ?
-            Math.round(((formData.depositAmount as number) / totalAmount) * 100) : undefined,
-          installmentSchedule: (formData.installmentSchedule as string) || "",
-        },
-        deliveryTerms: {
-          method: (formData.deliveryMethod as string) || "delivery",
-          location: (formData.deliveryLocation as string) || "",
-          estimatedDate: (formData.deliveryDate as string) || "",
-          shippingTerms: "fob_destination",
-          riskOfLoss: "on_delivery",
-        },
-        warranty: {
-          included: (formData.includeWarranty as boolean) ?? true,
-          periodMonths: (formData.warrantyPeriod as number) || 12,
-          scope: "Standard manufacturer warranty",
-        },
-        returnPolicy: {
-          allowed: false,
-        },
-      };
-    }
-
-    default:
-      return base;
-  }
-}
-
 function formatFieldLabel(key: string): string {
   return key
     .replace(/([A-Z])/g, " $1")
@@ -4117,190 +4105,50 @@ function formatFieldValue(value: unknown): string {
   return String(value);
 }
 
-// ============================================================================
-// Template Placeholder Modal
-// ============================================================================
+type SignerSyncMapping = {
+  role: string;
+  targetField: string;
+  titleField?: "company" | "title";
+  staticFields?: Record<string, unknown>;
+};
 
-interface TemplatePlaceholderModalProps {
-  template: Template & { content?: { placeholders?: Placeholder[] } };
-  placeholderValues: Record<string, string>;
-  onValuesChange: (values: Record<string, string>) => void;
-  onSubmit: () => void;
-  onClose: () => void;
-  isSubmitting: boolean;
+function getOrCreateSignerGroups(
+  formData: Record<string, unknown>,
+  defaults: Parameters<typeof createSignerGroups>[0]
+): SignerGroup[] {
+  return (formData.signerGroups as SignerGroup[]) || createSignerGroups(defaults);
 }
 
-function TemplatePlaceholderModal({
-  template,
-  placeholderValues,
-  onValuesChange,
-  onSubmit,
-  onClose,
-  isSubmitting,
-}: TemplatePlaceholderModalProps) {
-  const placeholders = template.content?.placeholders || [];
-
-  // Group placeholders by category
-  const groupedPlaceholders = placeholders.reduce((acc, p) => {
-    const category = p.category || "other";
-    if (!acc[category]) acc[category] = [];
-    acc[category].push(p);
-    return acc;
-  }, {} as Record<string, Placeholder[]>);
-
-  // Category display names
-  const categoryNames: Record<string, string> = {
-    party_a: "Your Information",
-    party_b: "Other Party",
-    project: "Project Details",
-    dates: "Important Dates",
-    terms: "Agreement Terms",
-    financial: "Financial Terms",
-    insurance: "Insurance Requirements",
-    privacy: "Privacy & Data Protection",
-    compliance: "Compliance",
-    legal: "Legal Terms",
-    optional: "Optional Provisions",
-    other: "Other Details",
+function buildSignerGroupFormUpdates({
+  formData,
+  groups,
+  mappings,
+}: {
+  formData: Record<string, unknown>;
+  groups: SignerGroup[];
+  mappings: SignerSyncMapping[];
+}): Record<string, unknown> {
+  const updates: Record<string, unknown> = {
+    ...formData,
+    signerGroups: groups,
   };
 
-  // Category order
-  const categoryOrder = ["party_a", "party_b", "project", "dates", "terms", "financial", "insurance", "privacy", "compliance", "legal", "optional", "other"];
+  mappings.forEach((mapping) => {
+    const signer = groups.find((group) => group.role === mapping.role)?.signers[0];
+    if (!signer) return;
 
-  // Get ordered categories
-  const orderedCategories = categoryOrder.filter(c => groupedPlaceholders[c]?.length);
+    const party: Record<string, unknown> = {
+      name: signer.name,
+      email: signer.email,
+      ...mapping.staticFields,
+    };
 
-  // Count required fields
-  const requiredFields = placeholders.filter(p => p.required);
-  const filledRequired = requiredFields.filter(p => placeholderValues[p.id]?.trim());
+    if (mapping.titleField) {
+      party[mapping.titleField] = signer.title || "";
+    }
 
-  const updateValue = (id: string, value: string) => {
-    onValuesChange({ ...placeholderValues, [id]: value });
-  };
+    updates[mapping.targetField] = party;
+  });
 
-  const canSubmit = requiredFields.every(p => placeholderValues[p.id]?.trim());
-
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50 transition-opacity"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
-      <div className="flex min-h-full items-center justify-center p-4">
-        <div className="relative bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-green-50">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900">
-                Fill in Contract Details
-              </h2>
-              <p className="text-sm text-slate-600 mt-0.5">
-                {template.name}
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Progress indicator */}
-          <div className="px-6 py-3 bg-slate-50 border-b border-slate-100">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-600">
-                {filledRequired.length} of {requiredFields.length} required fields completed
-              </span>
-              <div className="w-48 h-2 bg-slate-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 transition-all duration-300"
-                  style={{ width: `${requiredFields.length ? (filledRequired.length / requiredFields.length) * 100 : 100}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Form content */}
-          <div className="px-6 py-6 overflow-y-auto max-h-[calc(90vh-220px)]">
-            <div className="space-y-8">
-              {orderedCategories.map((category) => (
-                <div key={category}>
-                  <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <span className="w-2 h-2 bg-emerald-500 rounded-full" />
-                    {categoryNames[category] || category}
-                  </h3>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {groupedPlaceholders[category].map((placeholder) => (
-                      <div key={placeholder.id} className={placeholder.type === "textarea" ? "md:col-span-2" : ""}>
-                        <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                          {placeholder.label}
-                          {placeholder.required && (
-                            <span className="text-red-500 ml-1">*</span>
-                          )}
-                        </label>
-                        {placeholder.description && (
-                          <p className="text-xs text-slate-500 mb-1.5">
-                            {placeholder.description}
-                          </p>
-                        )}
-                        {placeholder.type === "textarea" ? (
-                          <textarea
-                            value={placeholderValues[placeholder.id] || ""}
-                            onChange={(e) => updateValue(placeholder.id, e.target.value)}
-                            placeholder={`Enter ${placeholder.label.toLowerCase()}`}
-                            rows={3}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none"
-                          />
-                        ) : (
-                          <input
-                            type={placeholder.type === "number" ? "number" : placeholder.type === "date" ? "date" : placeholder.type === "email" ? "email" : "text"}
-                            value={placeholderValues[placeholder.id] || ""}
-                            onChange={(e) => updateValue(placeholder.id, e.target.value)}
-                            placeholder={`Enter ${placeholder.label.toLowerCase()}`}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-50">
-            <button
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onSubmit}
-              disabled={!canSubmit || isSubmitting}
-              className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Create Contract
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return updates;
 }

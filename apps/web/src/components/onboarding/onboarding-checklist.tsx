@@ -16,7 +16,7 @@ export function OnboardingChecklist() {
     isLoading,
   } = useOnboarding();
 
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Don't show if loading, checklist dismissed, or all steps complete
   if (isLoading || !showChecklist || completedCount >= totalCount) {

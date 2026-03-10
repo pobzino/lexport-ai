@@ -1094,12 +1094,38 @@ export default function ContractEditorPage() {
     setDbSignatureFields((prev) => prev.filter((f) => f.id !== fieldId));
   };
 
+  const refreshSignatureData = async () => {
+    const response = await fetch(`/api/contracts/${contractId}`);
+    if (!response.ok) return;
+    const data = await response.json();
+
+    if (Array.isArray(data.signatureRequests)) {
+      setSignatureRequests(data.signatureRequests);
+    }
+    if (Array.isArray(data.signatures)) {
+      setSignatures(data.signatures);
+    }
+    if (Array.isArray(data.fieldValues)) {
+      setFieldValues(data.fieldValues);
+    }
+  };
+
   // Resend signature request
   const handleResendRequest = async (requestId: string): Promise<void> => {
-    const response = await fetch(`/api/contracts/${contractId}/signature-requests/${requestId}/resend`, {
+    const response = await fetch(`/api/contracts/${contractId}/reminders/${requestId}`, {
       method: "POST",
     });
-    if (!response.ok) throw new Error("Failed to resend");
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      const message =
+        data?.message ||
+        data?.error ||
+        "Failed to resend signing request";
+      throw new Error(message);
+    }
+
+    await refreshSignatureData();
   };
 
   // Explain a clause

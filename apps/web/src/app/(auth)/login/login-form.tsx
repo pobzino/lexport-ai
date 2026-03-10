@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ValidatedInput } from "@/components/forms";
 import { FormError, FormSuccess } from "@/components/forms";
 import { Mail, ArrowLeft, RefreshCw } from "lucide-react";
 import { required, email, minLength, all } from "@/lib/validation";
+import { getAuthCallbackUrl } from "@/lib/auth-urls";
 
 type LoginMode = "default" | "magic-link" | "forgot-password";
 
@@ -23,7 +23,6 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ initialError }: LoginFormProps) {
-  const router = useRouter();
   const [emailValue, setEmailValue] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(initialError || null);
@@ -62,20 +61,47 @@ export function LoginForm({ initialError }: LoginFormProps) {
     setLoading(true);
     setError(null);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email: emailValue,
-      password,
-    });
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+    const isPlaceholderSupabaseConfig =
+      !supabaseUrl ||
+      !supabaseAnonKey ||
+      supabaseUrl.includes("your-project.supabase.co") ||
+      supabaseAnonKey.includes("your-anon-key");
 
-    if (error) {
-      setError(error.message);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithPassword({
+        email: emailValue,
+        password,
+      });
+
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        setError("Sign-in succeeded but no local session was established. Refresh and try again.");
+        setLoading(false);
+        return;
+      }
+
+      // Use hard navigation so middleware sees fresh auth cookies immediately.
+      window.location.assign("/dashboard");
+    } catch (authError) {
+      console.error("Login failed:", authError);
+      setError(
+        isPlaceholderSupabaseConfig
+          ? "Supabase is not configured locally. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in apps/web/.env.local, then restart the dev server."
+          : "Unable to reach Supabase. Check local environment values and network connectivity, then try again."
+      );
       setLoading(false);
-      return;
     }
-
-    router.push("/dashboard");
-    router.refresh();
   };
 
   const handleGoogleLogin = async () => {
@@ -85,7 +111,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: getAuthCallbackUrl(),
       },
     });
 
@@ -115,7 +141,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
     const { error } = await supabase.auth.signInWithOtp({
       email: emailValue,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: getAuthCallbackUrl(),
       },
     });
 
@@ -147,7 +173,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
 
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(emailValue, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/settings`,
+      redirectTo: getAuthCallbackUrl("/settings"),
     });
 
     if (error) {
@@ -188,7 +214,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
     const { error } = await supabase.auth.signInWithOtp({
       email: emailValue,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: getAuthCallbackUrl(),
       },
     });
 
@@ -211,7 +237,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
 
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(emailValue, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/settings`,
+      redirectTo: getAuthCallbackUrl("/settings"),
     });
 
     if (error) {

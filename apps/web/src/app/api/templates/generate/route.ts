@@ -6,6 +6,11 @@ import {
   validateGeneratedTemplate,
 } from "@/lib/contracts/template-generator";
 import { ContractTypeEnum, JurisdictionEnum } from "@/lib/contracts/schemas";
+import {
+  buildTemplateSemanticText,
+  createEmbedding,
+  persistUserTemplateEmbedding,
+} from "@/lib/templates/semantic-search";
 
 const GenerateTemplateSchema = z.object({
   contractType: ContractTypeEnum,
@@ -112,6 +117,28 @@ export async function POST(request: NextRequest) {
         { error: "Failed to save template" },
         { status: 500 }
       );
+    }
+
+    const semanticText = buildTemplateSemanticText({
+      name,
+      description: description || `AI-generated ${generatedContent.title}`,
+      type: contractType,
+      jurisdiction,
+      content: {
+        preamble: generatedContent.preamble,
+        recitals: generatedContent.recitals,
+        clauses: generatedContent.clauses,
+        signatureBlock: generatedContent.signatureBlock,
+      },
+    });
+    const embedding = await createEmbedding(semanticText);
+    if (embedding) {
+      await persistUserTemplateEmbedding({
+        supabase,
+        templateId: template.id,
+        semanticText,
+        embedding,
+      });
     }
 
     return NextResponse.json(

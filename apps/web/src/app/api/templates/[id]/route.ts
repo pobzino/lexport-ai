@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import {
+  buildTemplateSemanticText,
+  createEmbedding,
+  persistUserTemplateEmbedding,
+} from "@/lib/templates/semantic-search";
 
 const UpdateTemplateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -106,6 +111,23 @@ export async function PUT(
     if (error) {
       console.error("Error updating template:", error);
       return NextResponse.json({ error: "Failed to update template" }, { status: 500 });
+    }
+
+    const semanticText = buildTemplateSemanticText({
+      name: template.name,
+      description: template.description,
+      type: template.type,
+      jurisdiction: template.jurisdiction,
+      content: template.content,
+    });
+    const embedding = await createEmbedding(semanticText);
+    if (embedding) {
+      await persistUserTemplateEmbedding({
+        supabase,
+        templateId: template.id,
+        semanticText,
+        embedding,
+      });
     }
 
     return NextResponse.json({ template });

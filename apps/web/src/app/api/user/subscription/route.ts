@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { EffectiveSubscription, SubscriptionTier } from "@/db/types";
 
@@ -110,7 +109,7 @@ export async function GET() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Try to get effective subscription using RPC (which considers org override)
@@ -134,7 +133,7 @@ export async function GET() {
       // 42703 = column not found, PGRST116 = no rows found
       if (userError && (userError.code === "42703" || userError.code === "PGRST116")) {
         const config = TIER_CONFIG.free;
-        return NextResponse.json({
+        return Response.json({
           tier: "free" as SubscriptionTier,
           status: "active",
           source: "user",
@@ -178,7 +177,7 @@ export async function GET() {
       const signaturesUsed = wasReset ? 0 : (userData?.signatures_used ?? 0);
       const chatMessagesUsed = wasReset ? 0 : (userData?.ai_chat_messages_used ?? 0);
 
-      return NextResponse.json({
+      return Response.json({
         tier,
         status: userData?.subscription_status || "active",
         source: "user",
@@ -230,7 +229,7 @@ export async function GET() {
     const contractsUsed = wasReset ? 0 : (effectiveData?.contracts_used ?? 0);
     const signaturesUsed = wasReset ? 0 : (effectiveData?.signatures_used ?? 0);
 
-    return NextResponse.json({
+    return Response.json({
       tier,
       status: effectiveData?.effective_status || "active",
       source: effectiveData?.source || "user",
@@ -259,7 +258,7 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Error fetching subscription:", error);
-    return NextResponse.json(
+    return Response.json(
       { error: "Failed to fetch subscription" },
       { status: 500 }
     );

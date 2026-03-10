@@ -178,15 +178,12 @@ export async function POST(
       );
     }
 
-    // Check if request has expired
-    if (new Date(signatureRequest.expires_at) < new Date()) {
-      return NextResponse.json(
-        { error: "Cannot send reminder", message: "Signature request has expired" },
-        { status: 400 }
-      );
-    }
-
     const now = new Date();
+    const expiresAtDate = new Date(signatureRequest.expires_at);
+    const wasExpired = expiresAtDate < now;
+    const effectiveExpiresAt = wasExpired
+      ? new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
+      : signatureRequest.expires_at;
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const signingUrl = `${baseUrl}/sign/${signatureRequest.token}`;
 
@@ -200,7 +197,7 @@ export async function POST(
         signerName: signatureRequest.signer_name,
         contractTitle: contract.title,
         signingUrl,
-        expiresAt: signatureRequest.expires_at,
+        expiresAt: effectiveExpiresAt,
       });
       emailSent = true;
       emailId = result.id;
@@ -221,6 +218,7 @@ export async function POST(
         last_reminder_sent_at: now.toISOString(),
         reminder_count: currentCount + 1,
         next_reminder_at: nextReminderAt.toISOString(),
+        ...(wasExpired ? { expires_at: effectiveExpiresAt } : {}),
         updated_at: now.toISOString(),
       })
       .eq("id", requestId);
@@ -263,7 +261,9 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: `Reminder sent to ${signatureRequest.signer_name}`,
+      message: wasExpired
+        ? `Signing request renewed and reminder sent to ${signatureRequest.signer_name}`
+        : `Reminder sent to ${signatureRequest.signer_name}`,
       signer: {
         email: signatureRequest.signer_email,
         name: signatureRequest.signer_name,
@@ -271,6 +271,7 @@ export async function POST(
       },
       reminderCount: currentCount + 1,
       nextReminderAt: nextReminderAt.toISOString(),
+      expiresAt: effectiveExpiresAt,
     });
   } catch (error) {
     console.error("Error sending reminder to signer:", error);

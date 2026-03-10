@@ -28,16 +28,18 @@ interface ReminderSettingsPanelProps {
   contractId: string;
   signatureRequests: SignatureRequest[];
   onUpdate?: () => void;
+  onResendRequest?: (signatureRequestId: string) => Promise<void>;
 }
 
 export function ReminderSettingsPanel({
   contractId,
   signatureRequests,
   onUpdate,
+  onResendRequest,
 }: ReminderSettingsPanelProps) {
   const [reminderHistory, setReminderHistory] = useState<ReminderHistory[]>([]);
-  const [loading, setLoading] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [resending, setResending] = useState<string | null>(null);
 
   useEffect(() => {
     fetchReminderHistory();
@@ -86,6 +88,22 @@ export function ReminderSettingsPanel({
       alert("Failed to update reminder setting");
     } finally {
       setToggling(null);
+    }
+  };
+
+  const handleResendRequest = async (signatureRequestId: string) => {
+    if (!onResendRequest) return;
+
+    setResending(signatureRequestId);
+    try {
+      await onResendRequest(signatureRequestId);
+      onUpdate?.();
+      await fetchReminderHistory();
+    } catch (error) {
+      console.error("Failed to resend signing request:", error);
+      alert("Failed to resend signing request");
+    } finally {
+      setResending(null);
     }
   };
 
@@ -212,10 +230,24 @@ export function ReminderSettingsPanel({
 
                 {request.status === "expired" && (
                   <div className="mt-3 pt-3 border-t border-slate-200">
-                    <button className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700">
-                      <Send className="w-4 h-4" />
-                      Re-send Signing Request
-                    </button>
+                    {onResendRequest ? (
+                      <button
+                        onClick={() => handleResendRequest(request.id)}
+                        disabled={resending === request.id}
+                        className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                      >
+                        {resending === request.id ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                        Re-send Signing Request
+                      </button>
+                    ) : (
+                      <p className="text-sm text-slate-500">
+                        Request expired. Re-send from the signing actions panel.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

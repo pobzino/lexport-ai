@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 
-export default function ContractPage({
+export default async function ContractPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   // Redirect to the edit page
-  redirect(`/contracts/${params.id}/edit`);
+  redirect(`/contracts/${id}/edit`);
 }

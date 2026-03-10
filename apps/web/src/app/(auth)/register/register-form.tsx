@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ValidatedInput, FormError } from "@/components/forms";
 import { RefreshCw } from "lucide-react";
 import { required, email as emailValidator, minLength, all } from "@/lib/validation";
+import { getAuthCallbackUrl } from "@/lib/auth-urls";
 
 // Google OAuth is enabled in Supabase
 const GOOGLE_OAUTH_ENABLED = true;
@@ -18,7 +18,6 @@ const registerEmailValidator = all(required("Email is required"), emailValidator
 const passwordValidatorFn = all(required("Password is required"), minLength(6, "Password must be at least 6 characters"));
 
 export function RegisterForm() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -86,7 +85,7 @@ export function RegisterForm() {
         data: {
           full_name: name,
         },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: getAuthCallbackUrl(),
       },
     });
 
@@ -107,7 +106,7 @@ export function RegisterForm() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: getAuthCallbackUrl(),
       },
     });
 

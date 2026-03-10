@@ -2,22 +2,41 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 import path from "path";
 
+const isDevelopment = process.env.NODE_ENV === "development";
+const isProduction = process.env.NODE_ENV === "production";
+const localSupabaseConnectSources: string[] = [];
+
+if (!isProduction) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (supabaseUrl) {
+    try {
+      const parsed = new URL(supabaseUrl);
+      localSupabaseConnectSources.push(parsed.origin);
+      localSupabaseConnectSources.push(
+        parsed.protocol === "https:" ? `wss://${parsed.host}` : `ws://${parsed.host}`
+      );
+    } catch {
+      // Keep defaults if NEXT_PUBLIC_SUPABASE_URL is malformed.
+    }
+  }
+}
+
 // Content Security Policy
 // Note: 'unsafe-inline' for styles is required by Next.js and Tailwind
 // 'unsafe-eval' is only needed in development for hot reload
 const ContentSecurityPolicy = `
   default-src 'self';
-  script-src 'self' https://js.stripe.com https://app.posthog.com https://*.sentry.io ${process.env.NODE_ENV === "development" ? "'unsafe-eval'" : ""};
+  script-src 'self' https://js.stripe.com https://app.posthog.com https://*.sentry.io ${isDevelopment ? "'unsafe-eval'" : ""};
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src 'self' https://fonts.gstatic.com;
   img-src 'self' data: blob: https: http:;
-  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.openai.com https://app.posthog.com https://us.i.posthog.com https://*.sentry.io;
+  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.openai.com https://app.posthog.com https://us.i.posthog.com https://*.sentry.io ${localSupabaseConnectSources.join(" ")};
   frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com;
   frame-ancestors 'self' https://loxdigital.com https://www.loxdigital.com https://loxdigital.netlify.app;
   form-action 'self';
   base-uri 'self';
   object-src 'none';
-  upgrade-insecure-requests;
+  ${isProduction ? "upgrade-insecure-requests;" : ""}
 `.replace(/\n/g, " ").trim();
 
 const securityHeaders = [
@@ -25,10 +44,14 @@ const securityHeaders = [
     key: "X-DNS-Prefetch-Control",
     value: "on",
   },
-  {
-    key: "Strict-Transport-Security",
-    value: "max-age=31536000; includeSubDomains; preload",
-  },
+  ...(isProduction
+    ? [
+        {
+          key: "Strict-Transport-Security",
+          value: "max-age=31536000; includeSubDomains; preload",
+        },
+      ]
+    : []),
   {
     key: "X-Frame-Options",
     value: "ALLOW-FROM https://loxdigital.com",
@@ -92,6 +115,10 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  // Turbopack is the default bundler in Next.js 16.  An empty config
+  // silences the "webpack config present but no turbopack config" error.
+  turbopack: {},
 
   webpack: (config) => {
     config.ignoreWarnings = config.ignoreWarnings || [];

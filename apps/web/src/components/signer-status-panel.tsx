@@ -236,25 +236,27 @@ export function SignerStatusPanel({
                 </div>
 
                 {/* Actions */}
-                {request.status === "pending" && !expired && (
+                {request.status === "pending" && (
                   <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => copySigningLink(request.token, request.id)}
-                      className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                      title="Copy signing link"
-                    >
-                      {copiedId === request.id ? (
-                        <Check className="w-4 h-4 text-emerald-500" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </button>
+                    {!expired && (
+                      <button
+                        onClick={() => copySigningLink(request.token, request.id)}
+                        className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                        title="Copy signing link"
+                      >
+                        {copiedId === request.id ? (
+                          <Check className="w-4 h-4 text-emerald-500" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    )}
                     {onResend && (
                       <button
                         onClick={() => handleResend(request.id)}
                         disabled={resending === request.id}
                         className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                        title="Resend invitation"
+                        title={expired ? "Renew and resend request" : "Resend invitation"}
                       >
                         <RefreshCw
                           className={`w-4 h-4 ${
