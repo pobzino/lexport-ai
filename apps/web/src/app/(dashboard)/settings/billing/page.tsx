@@ -94,9 +94,48 @@ export default function BillingPage() {
   const searchParams = useSearchParams();
   const [upgrading, setUpgrading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
   // Get promo code from URL (e.g., /settings/billing?promo=FIRST50)
   const promoCode = searchParams.get("promo");
+  const isSuccess = searchParams.get("success") === "true";
+  const sessionId = searchParams.get("session_id");
+  const isCanceled = searchParams.get("canceled") === "true";
+
+  // Verify session on success redirect — ensures subscription is active even if webhook was slow
+  useEffect(() => {
+    if (!isSuccess || !sessionId || verifying || successMessage) return;
+
+    async function verifySession() {
+      setVerifying(true);
+      try {
+        const res = await fetch("/api/billing/verify-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setSuccessMessage(
+            data.status === "already_active"
+              ? "Your subscription is active!"
+              : "Your subscription has been activated successfully!"
+          );
+          // Refresh subscription data
+          subscription.refetch();
+        } else {
+          setError(data.error || "Failed to verify subscription. Please refresh the page.");
+        }
+      } catch {
+        setError("Failed to verify subscription. Please refresh the page.");
+      } finally {
+        setVerifying(false);
+      }
+    }
+
+    verifySession();
+  }, [isSuccess, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleUpgrade = async (planId: string) => {
     if (planId === subscription.tier) return;
@@ -169,6 +208,30 @@ export default function BillingPage() {
         <h1 className="text-2xl font-bold text-slate-900">Billing & Subscription</h1>
         <p className="text-slate-600 mt-1">Manage your subscription and billing details</p>
       </div>
+
+      {verifying && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-3">
+          <Loader2 className="w-5 h-5 text-blue-500 animate-spin flex-shrink-0" />
+          <p className="text-blue-800 font-medium">Verifying your subscription...</p>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3">
+          <Check className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-emerald-800 font-medium">{successMessage}</p>
+            <p className="text-emerald-700 text-sm">Your account has been upgraded. Enjoy your new features!</p>
+          </div>
+        </div>
+      )}
+
+      {isCanceled && !successMessage && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <p className="text-amber-800 font-medium">Checkout was canceled. No charges were made.</p>
+        </div>
+      )}
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">

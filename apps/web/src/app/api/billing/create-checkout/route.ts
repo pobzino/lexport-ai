@@ -78,10 +78,11 @@ export async function POST(request: NextRequest) {
         customerId = customer.id;
 
         // Save customer ID to organization record
-        await supabase
+        const { error: orgUpdateError } = await supabase
           .from("organizations")
           .update({ stripe_customer_id: customerId })
           .eq("id", organizationId);
+        if (orgUpdateError) console.error("[checkout] Failed to save org stripe_customer_id:", orgUpdateError);
       }
 
       // Create checkout session for organization
@@ -103,6 +104,7 @@ export async function POST(request: NextRequest) {
           metadata: {
             organization_id: organizationId,
             plan_id: planId,
+            user_id: user.id,
             created_by_user_id: user.id,
           },
           trial_period_days: 7,
@@ -135,10 +137,11 @@ export async function POST(request: NextRequest) {
       customerId = customer.id;
 
       // Save customer ID to user record
-      await supabase
+      const { error: custUpdateError } = await supabase
         .from("users")
         .update({ stripe_customer_id: customerId })
         .eq("id", user.id);
+      if (custUpdateError) console.error("[checkout] Failed to save user stripe_customer_id:", custUpdateError);
     }
 
     // Create checkout session for individual user
