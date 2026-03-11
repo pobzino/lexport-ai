@@ -107,9 +107,9 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error("Error fetching review request:", error);
+    console.error("[review GET] Error:", error instanceof Error ? error.message : error);
     return NextResponse.json(
-      { error: "Failed to fetch review request" },
+      { error: "Failed to fetch review request", detail: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
   }

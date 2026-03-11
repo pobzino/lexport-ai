@@ -263,9 +263,9 @@ export async function GET(
       identityConfirmationText,
     });
   } catch (error) {
-    console.error("Error fetching signature request:", error);
+    console.error("[sign GET] Error:", error instanceof Error ? error.message : error);
     return NextResponse.json(
-      { error: "Failed to fetch signature request" },
+      { error: "Failed to fetch signature request", detail: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
   }
