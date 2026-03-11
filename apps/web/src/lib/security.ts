@@ -93,8 +93,14 @@ export function getRateLimitKey(request: Request, prefix: string = "rl"): string
 }
 
 /**
- * Simple in-memory rate limiter
- * In production, use Redis or similar
+ * Simple in-memory rate limiter.
+ *
+ * LIMITATION: On serverless platforms (Netlify Functions, Vercel, etc.),
+ * this map resets on every cold start. It still provides protection during
+ * warm function invocations within the same instance.
+ *
+ * TODO: Migrate to Upstash Redis (@upstash/ratelimit) for persistent
+ * cross-instance rate limiting before scaling beyond MVP.
  */
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 

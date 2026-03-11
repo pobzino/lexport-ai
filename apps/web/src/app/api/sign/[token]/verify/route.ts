@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
 import { randomInt } from "crypto";
 import { sendVerificationCodeEmail } from "@/lib/email";
@@ -25,7 +25,7 @@ export async function POST(
 ) {
   try {
     const { token } = await params;
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // Get signature request
     const { data: signatureRequest, error: srError } = await supabase
@@ -88,7 +88,7 @@ export async function POST(
 }
 
 async function handleSendCode(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: ReturnType<typeof createAdminClient>,
   signatureRequest: {
     id: string;
     signer_email: string;
@@ -152,7 +152,7 @@ async function handleSendCode(
 }
 
 async function handleVerifyCode(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: ReturnType<typeof createAdminClient>,
   signatureRequest: {
     id: string;
     signer_email: string;

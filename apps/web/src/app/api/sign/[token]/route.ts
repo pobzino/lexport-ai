@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
 import { generateContentHash, generateIdentityConfirmationText } from "@/lib/document-integrity";
 import { auditLogger, getRequestContextFromRequest } from "@/lib/audit";
@@ -17,7 +17,7 @@ export async function GET(
 ) {
   try {
     const { token } = await params;
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // Find the signature request with contract
     const { data: signatureRequest, error } = await supabase
@@ -297,7 +297,7 @@ export async function POST(
 ) {
   try {
     const { token } = await params;
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // Parse request body
     const body = await request.json();
@@ -611,7 +611,7 @@ export async function POST(
  * Generate certificate PDF and send to all parties (owner + signers)
  */
 async function generateAndSendCertificate(contractId: string) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   // Fetch contract with all related data
   const { data: contract, error: contractError } = await supabase

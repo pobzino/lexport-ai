@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
 
 // POST - Add a comment to the review
@@ -15,7 +15,7 @@ export async function POST(
 ) {
   try {
     const { token } = await params;
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // Parse request body
     const body = await request.json();
@@ -114,7 +114,7 @@ export async function GET(
 ) {
   try {
     const { token } = await params;
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // Find the review request
     const { data: reviewRequest, error } = await supabase
