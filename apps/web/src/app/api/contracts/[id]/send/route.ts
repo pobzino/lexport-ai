@@ -47,7 +47,7 @@ export async function POST(
 
     const tier = userData?.subscription_tier || "free";
     const signaturesUsed = userData?.signatures_used || 0;
-    const signaturesLimit = userData?.signatures_limit || 3;
+    const signaturesLimit = userData?.signatures_limit || 2;
 
     // Parse request
     const body = await request.json();
@@ -225,6 +225,26 @@ export async function POST(
       signers.map(s => s.email),
       context
     );
+
+    // Auto-save signers as contacts (fire-and-forget)
+    Promise.resolve().then(async () => {
+      try {
+        for (const signer of signers) {
+          await supabase.from("contacts").upsert(
+            {
+              user_id: user.id,
+              name: signer.name,
+              email: signer.email.toLowerCase(),
+              role: signer.role || null,
+              last_used_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id,email" }
+          );
+        }
+      } catch (err) {
+        console.error("Failed to auto-save contacts:", err);
+      }
+    });
 
     return NextResponse.json({
       success: true,

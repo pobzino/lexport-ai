@@ -85,6 +85,7 @@ const MANUAL_TYPE_CATEGORIES: Array<{
 
 const CONTRACT_DRAFT_STORAGE_KEY = "lexport:new-contract-draft:v1";
 const RECENT_TYPES_STORAGE_KEY = "lexport:recent-contract-types:v1";
+const JURISDICTION_STORAGE_KEY = "lexport:last-jurisdiction";
 
 interface ContractDraftSnapshot {
   step: number;
@@ -231,6 +232,7 @@ export default function NewContractPage() {
   // Streaming progress state
   const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
   const [generationStatus, setGenerationStatus] = useState<string | undefined>(undefined);
+  const [generationLastEventAt, setGenerationLastEventAt] = useState<number | undefined>(undefined);
 
   // Preview modal state
   const [previewType, setPreviewType] = useState<ContractType | null>(null);
@@ -383,7 +385,8 @@ export default function NewContractPage() {
     const typeParam = searchParams.get("type");
     const jurisdictionParam = searchParams.get("jurisdiction");
     const categoryParam = searchParams.get("category");
-    const hasDeepLink = Boolean(modeParam || typeParam || jurisdictionParam || categoryParam);
+    const promptParam = searchParams.get("prompt");
+    const hasDeepLink = Boolean(modeParam || typeParam || jurisdictionParam || categoryParam || promptParam);
 
     try {
       const entries = parseRecentContractTypeHistory(
@@ -393,6 +396,16 @@ export default function NewContractPage() {
       setRecentTypeHistory(entries);
     } catch {
       // Ignore malformed local storage values.
+    }
+
+    // Restore last-used jurisdiction from localStorage as fallback
+    try {
+      const savedJurisdiction = localStorage.getItem(JURISDICTION_STORAGE_KEY);
+      if (isValidJurisdiction(savedJurisdiction)) {
+        setJurisdiction(savedJurisdiction);
+      }
+    } catch {
+      // Ignore
     }
 
     if (!hasDeepLink) {
@@ -488,6 +501,12 @@ export default function NewContractPage() {
       setJurisdiction(jurisdictionParam);
     }
 
+    // Pre-fill from prompt param (e.g., arriving from public /create flow after signup)
+    if (promptParam) {
+      setIntakeDescription(promptParam);
+      setCreationMode("smart");
+    }
+
     setIsHydrated(true);
   }, [searchParams]);
 
@@ -561,6 +580,12 @@ export default function NewContractPage() {
     if (!isHydrated) return;
     localStorage.setItem(RECENT_TYPES_STORAGE_KEY, JSON.stringify(recentTypeHistory));
   }, [isHydrated, recentTypeHistory]);
+
+  // Persist jurisdiction to localStorage so it's remembered across sessions
+  useEffect(() => {
+    if (!isHydrated) return;
+    try { localStorage.setItem(JURISDICTION_STORAGE_KEY, jurisdiction); } catch {}
+  }, [isHydrated, jurisdiction]);
 
   useEffect(() => {
     if (step > maxStep) {
@@ -777,6 +802,7 @@ export default function NewContractPage() {
     setError(null);
     setGenerationProgress(0);
     setGenerationStatus("Starting...");
+    setGenerationLastEventAt(Date.now());
 
     try {
       // Check if this should run through custom generation
@@ -826,7 +852,18 @@ export default function NewContractPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to start contract generation");
+        let message = "Failed to start contract generation";
+        try {
+          const payload = await response.json();
+          if (payload && typeof payload === "object") {
+            const data = payload as { error?: unknown; message?: unknown };
+            if (typeof data.error === "string") message = data.error;
+            else if (typeof data.message === "string") message = data.message;
+          }
+        } catch {
+          // Ignore non-JSON payloads and fall back to default message.
+        }
+        throw new Error(message);
       }
 
       // Process SSE stream
@@ -862,6 +899,7 @@ export default function NewContractPage() {
               case "progress":
                 setGenerationProgress(data.percent);
                 setGenerationStatus(data.status);
+                setGenerationLastEventAt(Date.now());
                 break;
               case "complete":
                 // Mark onboarding step complete
@@ -880,9 +918,24 @@ export default function NewContractPage() {
                   const firstMessage = firstField?.[0];
                   throw new Error(firstMessage ? `${data.message || "Generation failed"}: ${firstMessage}` : (data.message || "Generation failed"));
                 }
+                if (data.message === "Failed to save contract") {
+                  const reason = typeof data.details?.reason === "string" ? data.details.reason : null;
+                  const details = typeof data.details?.details === "string" ? data.details.details : null;
+                  const hint = typeof data.details?.hint === "string" ? data.details.hint : null;
+                  const code = typeof data.details?.code === "string" ? data.details.code : null;
+
+                  const parts = ["Couldn't save the generated contract to the database."];
+                  if (reason) parts.push(reason);
+                  else if (details) parts.push(details);
+                  if (hint) parts.push(hint);
+                  if (code) parts.push(`Error code: ${code}.`);
+                  parts.push("Please retry. If it keeps happening, refresh and try again.");
+                  throw new Error(parts.join(" "));
+                }
                 throw new Error(data.message || "Generation failed");
               case "heartbeat":
                 // Just keep the connection alive
+                setGenerationLastEventAt(Date.now());
                 break;
             }
           }
@@ -897,6 +950,7 @@ export default function NewContractPage() {
       setIsGenerating(false);
       setGenerationProgress(undefined);
       setGenerationStatus(undefined);
+      setGenerationLastEventAt(undefined);
     }
   };
 
@@ -1063,91 +1117,27 @@ export default function NewContractPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-5xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 text-slate-600 hover:text-slate-900"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to Dashboard</span>
-            </Link>
-            <h1 className="text-lg font-semibold text-slate-900">
-              Create New Contract
-            </h1>
-            <div className="w-32" /> {/* Spacer for centering */}
-          </div>
-        </div>
-      </header>
-
-      {/* Progress Steps */}
-      {flowSteps.length > 1 && step > 1 && (
-        <div className="bg-white border-b border-slate-200">
-          <div className="max-w-5xl mx-auto px-4 py-4">
-            <div className="flex items-center justify-center">
-              {flowSteps.map((s, index) => (
-                <div key={s.id} className="flex items-center">
-                  <div className="flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (s.id < step) {
-                          setStep(s.id);
-                          setError(null);
-                        }
-                      }}
-                      disabled={s.id > step}
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                        step > s.id
-                          ? "bg-emerald-500 text-white"
-                          : step === s.id
-                            ? "bg-[#202e46] text-white"
-                            : "bg-slate-200 text-slate-600"
-                      } ${s.id < step ? "cursor-pointer hover:opacity-90" : "cursor-default"}`}
-                      aria-label={`Step ${s.id}: ${s.name}`}
-                    >
-                      {step > s.id ? <Check className="w-4 h-4" /> : s.id}
-                    </button>
-                    <div className="ml-3 hidden sm:block">
-                      <p
-                        className={`text-sm font-medium ${step >= s.id ? "text-slate-900" : "text-slate-500"}`}
-                      >
-                        {s.name}
-                      </p>
-                      <p className="text-xs text-slate-500">{s.description}</p>
-                    </div>
-                  </div>
-                  {index < flowSteps.length - 1 && (
-                    <div
-                      className={`w-16 sm:w-24 h-0.5 mx-4 ${step > s.id ? "bg-emerald-500" : "bg-slate-200"}`}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Main Content */}
       <main className="max-w-5xl mx-auto px-4 py-8">
         {/* Step 1: Smart Intake / Choose Contract Type */}
         {step === 1 && (
           <div className="space-y-6">
             <div className="max-w-3xl mx-auto mb-6">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Step 1 of {maxStep}
-              </p>
-              <h2 className="text-2xl font-bold text-slate-900 mt-1">
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors mb-4"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Dashboard
+              </Link>
+              <h2 className="text-2xl font-bold text-slate-900">
                 {creationMode === "smart"
                   ? "Create a contract"
                   : creationMode === "manual"
                     ? "Pick a contract type"
                     : "Use a template"}
               </h2>
-              <p className="text-slate-600 mt-2">
+              <p className="text-slate-600 mt-1">
                 {creationMode === "smart"
                   ? "Describe your situation in plain English and let AI choose the right contract."
                   : creationMode === "manual"
@@ -1792,7 +1782,7 @@ export default function NewContractPage() {
                 {!templatesLoading && templates.length > 0 && (
                   <div className="text-center pt-4">
                     <Link
-                      href="/templates"
+                      href="/my-templates"
                       className="text-sm text-[#529ec6] hover:text-[#202e46] font-medium"
                     >
                       Browse all templates →
@@ -1842,8 +1832,42 @@ export default function NewContractPage() {
         {/* Step 2: Enter Details */}
         {step === 2 && selectedType && (
           <div className="space-y-6">
-            {/* Smart Templates Banner */}
-            <SmartTemplatesBanner />
+            {/* Navigation breadcrumb + steps */}
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => { setStep(1); setError(null); }}
+                className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Back
+              </button>
+              <div className="flex items-center gap-1.5">
+                {flowSteps.map((s, index) => (
+                  <div key={s.id} className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => { if (s.id < step) { setStep(s.id); setError(null); } }}
+                      disabled={s.id > step}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                        step > s.id
+                          ? "bg-emerald-50 text-emerald-700 cursor-pointer hover:bg-emerald-100"
+                          : step === s.id
+                            ? "bg-[#202e46] text-white"
+                            : "bg-slate-100 text-slate-400 cursor-default"
+                      }`}
+                    >
+                      {step > s.id ? <Check className="w-3 h-3" /> : s.id}
+                      <span className="hidden sm:inline">{s.name}</span>
+                    </button>
+                    {index < flowSteps.length - 1 && (
+                      <div className={`w-4 h-px ${step > s.id ? "bg-emerald-300" : "bg-slate-200"}`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
 
             {errorMessages.length > 0 && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
@@ -2072,6 +2096,42 @@ export default function NewContractPage() {
         {/* Step 3: Review & Generate */}
         {step === 3 && selectedType && (
           <div className="space-y-6">
+            {/* Navigation breadcrumb + steps */}
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => { setStep(2); setError(null); }}
+                className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Back
+              </button>
+              <div className="flex items-center gap-1.5">
+                {flowSteps.map((s, index) => (
+                  <div key={s.id} className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => { if (s.id < step) { setStep(s.id); setError(null); } }}
+                      disabled={s.id > step}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                        step > s.id
+                          ? "bg-emerald-50 text-emerald-700 cursor-pointer hover:bg-emerald-100"
+                          : step === s.id
+                            ? "bg-[#202e46] text-white"
+                            : "bg-slate-100 text-slate-400 cursor-default"
+                      }`}
+                    >
+                      {step > s.id ? <Check className="w-3 h-3" /> : s.id}
+                      <span className="hidden sm:inline">{s.name}</span>
+                    </button>
+                    {index < flowSteps.length - 1 && (
+                      <div className={`w-4 h-px ${step > s.id ? "bg-emerald-300" : "bg-slate-200"}`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold text-slate-900">
                 Ready to generate your contract
@@ -2213,8 +2273,9 @@ export default function NewContractPage() {
           </div>
         )}
 
-        {/* Navigation Buttons */}
-        {!(creationMode === "template" && step === 1) && (
+        {/* Navigation Buttons — hidden only while step 1 still needs inline intake analysis */}
+        {!(creationMode === "template" && step === 1) &&
+          !(creationMode === "smart" && step === 1 && !intakeAnalysis) && (
           <div className="flex justify-between mt-8 pt-6 border-t border-slate-200">
             <button
               onClick={handleBack}
@@ -2297,6 +2358,7 @@ export default function NewContractPage() {
         contractType={selectedType || undefined}
         serverProgress={generationProgress}
         serverStatus={generationStatus}
+        lastServerEventAt={generationLastEventAt}
       />
 
       {/* Contract Preview Modal */}

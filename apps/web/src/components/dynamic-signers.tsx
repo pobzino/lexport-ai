@@ -1,6 +1,16 @@
 "use client";
 
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Plus, X, User, Mail, Briefcase } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ui/toast";
+
+interface ContactSuggestion {
+  id: string;
+  name: string;
+  email: string;
+  company?: string;
+}
 
 export interface Signer {
   id: string;
@@ -31,6 +41,98 @@ export function DynamicSignersSection({
   availableRoles = [],
 }: DynamicSignersSectionProps) {
   const generateId = () => `signer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  // Contact autocomplete state
+  const [suggestions, setSuggestions] = useState<ContactSuggestion[]>([]);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Toast for sync notifications
+  const toast = useToast();
+
+  // Auto-sync contacts and pre-fill current user as first signer on mount
+  const didAutoFill = useRef(false);
+  useEffect(() => {
+    fetch("/api/contacts/sync", { method: "POST" })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.created > 0) {
+          toast.info(`Found ${data.created} new contact${data.created !== 1 ? "s" : ""} from your past contracts`);
+        }
+      })
+      .catch(() => {});
+
+    // Pre-fill first signer with current user's info if empty
+    if (didAutoFill.current) return;
+    const firstSigner = signerGroups[0]?.signers[0];
+    if (firstSigner && !firstSigner.name && !firstSigner.email) {
+      didAutoFill.current = true;
+      const supabase = createClient();
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user) {
+          const name = user.user_metadata?.full_name || user.email?.split("@")[0] || "";
+          const newGroups = [...signerGroups];
+          newGroups[0].signers[0] = {
+            ...newGroups[0].signers[0],
+            name,
+            email: user.email || "",
+          };
+          onChange(newGroups);
+        }
+      });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setActiveKey(null);
+        setSuggestions([]);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Debounced contact search (triggers immediately on focus, filters as user types)
+  useEffect(() => {
+    if (!activeKey) {
+      setSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const params = searchTerm ? `search=${encodeURIComponent(searchTerm)}&limit=5` : "limit=5";
+        const res = await fetch(`/api/contacts?${params}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSuggestions(data.contacts || []);
+        }
+      } catch {
+        // ignore
+      }
+    }, searchTerm ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [searchTerm, activeKey]);
+
+  const handleSelectContact = useCallback(
+    (groupIndex: number, signerIndex: number, contact: ContactSuggestion) => {
+      const newGroups = [...signerGroups];
+      newGroups[groupIndex].signers[signerIndex] = {
+        ...newGroups[groupIndex].signers[signerIndex],
+        name: contact.name,
+        email: contact.email,
+      };
+      onChange(newGroups);
+      setActiveKey(null);
+      setSuggestions([]);
+      // Track usage
+      fetch(`/api/contacts/${contact.id}`, { method: "POST" }).catch(() => {});
+    },
+    [signerGroups, onChange]
+  );
 
   const updateSigner = (groupIndex: number, signerIndex: number, field: keyof Signer, value: string) => {
     const newGroups = [...signerGroups];
@@ -146,8 +248,8 @@ export function DynamicSignersSection({
                   className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg"
                 >
                   <div className="flex-1 grid md:grid-cols-3 gap-3">
-                    {/* Name */}
-                    <div>
+                    {/* Name with contact autocomplete */}
+                    <div className="relative" ref={activeKey === `name-${groupIndex}-${signerIndex}` ? suggestionsRef : undefined}>
                       <label className="block text-xs font-medium text-slate-600 mb-1">
                         Name
                       </label>
@@ -156,17 +258,45 @@ export function DynamicSignersSection({
                         <input
                           type="text"
                           value={signer.name}
-                          onChange={(e) =>
-                            updateSigner(groupIndex, signerIndex, "name", e.target.value)
-                          }
+                          onChange={(e) => {
+                            updateSigner(groupIndex, signerIndex, "name", e.target.value);
+                            setActiveKey(`name-${groupIndex}-${signerIndex}`);
+                            setSearchTerm(e.target.value);
+                          }}
+                          onFocus={() => {
+                            setActiveKey(`name-${groupIndex}-${signerIndex}`);
+                            setSearchTerm(signer.name);
+                          }}
                           placeholder="John Smith"
                           className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6]/20 focus:border-[#529ec6]"
                         />
                       </div>
+                      {activeKey === `name-${groupIndex}-${signerIndex}` && suggestions.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+                          {suggestions.map((contact) => (
+                            <button
+                              key={contact.id}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handleSelectContact(groupIndex, signerIndex, contact)}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 text-left text-sm"
+                            >
+                              <div className="w-6 h-6 rounded-full bg-[#529ec6]/10 flex items-center justify-center flex-shrink-0">
+                                <User className="w-3 h-3 text-[#529ec6]" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-slate-900 truncate">{contact.name}</p>
+                                <p className="text-xs text-slate-500 truncate">{contact.email}</p>
+                                {contact.company && <p className="text-xs text-slate-400 truncate">{contact.company}</p>}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Email */}
-                    <div>
+                    {/* Email with contact autocomplete */}
+                    <div className="relative" ref={activeKey === `email-${groupIndex}-${signerIndex}` ? suggestionsRef : undefined}>
                       <label className="block text-xs font-medium text-slate-600 mb-1">
                         Email
                       </label>
@@ -175,13 +305,41 @@ export function DynamicSignersSection({
                         <input
                           type="email"
                           value={signer.email}
-                          onChange={(e) =>
-                            updateSigner(groupIndex, signerIndex, "email", e.target.value)
-                          }
+                          onChange={(e) => {
+                            updateSigner(groupIndex, signerIndex, "email", e.target.value);
+                            setActiveKey(`email-${groupIndex}-${signerIndex}`);
+                            setSearchTerm(e.target.value);
+                          }}
+                          onFocus={() => {
+                            setActiveKey(`email-${groupIndex}-${signerIndex}`);
+                            setSearchTerm(signer.email);
+                          }}
                           placeholder="john@company.com"
                           className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6]/20 focus:border-[#529ec6]"
                         />
                       </div>
+                      {activeKey === `email-${groupIndex}-${signerIndex}` && suggestions.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+                          {suggestions.map((contact) => (
+                            <button
+                              key={contact.id}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handleSelectContact(groupIndex, signerIndex, contact)}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 text-left text-sm"
+                            >
+                              <div className="w-6 h-6 rounded-full bg-[#529ec6]/10 flex items-center justify-center flex-shrink-0">
+                                <User className="w-3 h-3 text-[#529ec6]" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-slate-900 truncate">{contact.name}</p>
+                                <p className="text-xs text-slate-500 truncate">{contact.email}</p>
+                                {contact.company && <p className="text-xs text-slate-400 truncate">{contact.company}</p>}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Title (optional) */}

@@ -3,6 +3,26 @@ import { createClient } from "@/lib/supabase/server";
 import type { InvoiceLineItem, InvoiceStatus } from "@/db/types";
 import { generateInvoiceNumber, getInvoiceSettings } from "@/lib/invoices/generate-number";
 
+function formatInvoiceInsertError(error: {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+} | null) {
+  if (!error) {
+    return "Failed to create invoice";
+  }
+
+  const parts = [
+    error.message,
+    error.details,
+    error.hint,
+    error.code ? `Code: ${error.code}` : null,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" ") : "Failed to create invoice";
+}
+
 // GET - List all invoices for the authenticated user
 export async function GET(request: NextRequest) {
   try {
@@ -250,7 +270,7 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       console.error("Error creating invoice:", insertError);
       return NextResponse.json(
-        { error: "Failed to create invoice" },
+        { error: formatInvoiceInsertError(insertError) },
         { status: 500 }
       );
     }
@@ -272,11 +292,34 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Auto-save recipient as contact (fire-and-forget)
+    Promise.resolve().then(async () => {
+      try {
+        await supabase.from("contacts").upsert(
+          {
+            user_id: user.id,
+            name: recipient_name,
+            email: recipient_email.toLowerCase(),
+            ...(recipient_address ? { address: { address: recipient_address } } : {}),
+            last_used_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,email" }
+        );
+      } catch (err) {
+        console.error("Failed to auto-save invoice recipient as contact:", err);
+      }
+    });
+
     return NextResponse.json({ invoice }, { status: 201 });
   } catch (error) {
     console.error("Error creating invoice:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Internal server error",
+      },
       { status: 500 }
     );
   }

@@ -102,21 +102,33 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Insert or update contacts
+    // Filter out the user's own email
+    const userEmail = user.email?.toLowerCase();
+    const extractedEmails = [...contactsMap.keys()].filter((e) => e !== userEmail);
+
+    if (extractedEmails.length === 0) {
+      return NextResponse.json({ success: true, created: 0, updated: 0, total: 0 });
+    }
+
+    // Batch fetch existing contacts in one query
+    const { data: existingContacts } = await supabase
+      .from("contacts")
+      .select("id, email, usage_count")
+      .eq("user_id", user.id)
+      .in("email", extractedEmails);
+
+    const existingByEmail = new Map(
+      (existingContacts || []).map((c) => [c.email, c])
+    );
+
     let created = 0;
     let updated = 0;
+    const toInsert: Array<Record<string, unknown>> = [];
+    const now = new Date().toISOString();
 
-    for (const [email, contactData] of contactsMap) {
-      // Skip the user's own email
-      if (email === user.email?.toLowerCase()) continue;
-
-      // Check if contact exists
-      const { data: existing } = await supabase
-        .from("contacts")
-        .select("id, usage_count")
-        .eq("user_id", user.id)
-        .eq("email", email)
-        .single();
+    for (const email of extractedEmails) {
+      const contactData = contactsMap.get(email)!;
+      const existing = existingByEmail.get(email);
 
       if (existing) {
         // Update existing contact
@@ -124,28 +136,37 @@ export async function POST(request: NextRequest) {
           .from("contacts")
           .update({
             name: contactData.name,
-            company: contactData.company,
+            company: contactData.company || null,
             role: contactData.role,
-            usage_count: Math.max(existing.usage_count, contactData.count),
+            usage_count: Math.max(existing.usage_count || 0, contactData.count),
             last_used_at: contactData.lastSeen,
-            updated_at: new Date().toISOString(),
+            updated_at: now,
           })
           .eq("id", existing.id);
         updated++;
       } else {
-        // Create new contact
-        await supabase
-          .from("contacts")
-          .insert({
-            user_id: user.id,
-            name: contactData.name,
-            email,
-            company: contactData.company,
-            role: contactData.role,
-            usage_count: contactData.count,
-            last_used_at: contactData.lastSeen,
-          });
-        created++;
+        toInsert.push({
+          user_id: user.id,
+          name: contactData.name,
+          email,
+          company: contactData.company || null,
+          role: contactData.role,
+          usage_count: contactData.count,
+          last_used_at: contactData.lastSeen,
+        });
+      }
+    }
+
+    // Batch insert new contacts
+    if (toInsert.length > 0) {
+      const { error: insertError } = await supabase
+        .from("contacts")
+        .insert(toInsert);
+
+      if (insertError) {
+        console.error("Error batch inserting contacts:", insertError);
+      } else {
+        created = toInsert.length;
       }
     }
 
@@ -153,7 +174,7 @@ export async function POST(request: NextRequest) {
       success: true,
       created,
       updated,
-      total: contactsMap.size,
+      total: extractedEmails.length,
     });
   } catch (error) {
     console.error("Error in POST /api/contacts/sync:", error);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -75,7 +75,49 @@ export default function NewInvoicePage() {
   const [recipientName, setRecipientName] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
   const [recipientAddress, setRecipientAddress] = useState("");
-  const [currency, setCurrency] = useState("usd");
+
+  // Contact autocomplete for recipient
+  const [contactSuggestions, setContactSuggestions] = useState<Array<{ id: string; name: string; email: string; company?: string }>>([]);
+  const [activeRecipientField, setActiveRecipientField] = useState<"name" | "email" | null>(null);
+  const [recipientSearchTerm, setRecipientSearchTerm] = useState("");
+  const contactDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Auto-sync contacts on mount
+    fetch("/api/contacts/sync", { method: "POST" }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (contactDropdownRef.current && !contactDropdownRef.current.contains(e.target as Node)) {
+        setActiveRecipientField(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const fetchContactSuggestions = useCallback(async (search: string) => {
+    try {
+      const params = search ? `search=${encodeURIComponent(search)}&limit=5` : "limit=5";
+      const res = await fetch(`/api/contacts?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setContactSuggestions(data.contacts || []);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (!activeRecipientField) return;
+    const timer = setTimeout(() => fetchContactSuggestions(recipientSearchTerm), recipientSearchTerm ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [recipientSearchTerm, activeRecipientField, fetchContactSuggestions]);
+  const [currency, setCurrencyState] = useState("usd");
+  const setCurrency = useCallback((val: string) => {
+    setCurrencyState(val);
+    try { localStorage.setItem("lexport:last-currency", val); } catch {}
+  }, []);
   const [dueDate, setDueDate] = useState(() => {
     // Default to 30 days from now
     const date = new Date();
@@ -87,13 +129,24 @@ export default function NewInvoicePage() {
   // Line items using custom hook
   const { lineItems, setLineItems, subtotal, addPreset, reset } = useLineItems();
 
-  // Fetch invoice settings on mount
+  // Restore last-used currency from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("lexport:last-currency");
+      if (saved) setCurrencyState(saved);
+    } catch {}
+  }, []);
+
+  // Fetch invoice settings and pre-fill sender email from user profile
   useEffect(() => {
     async function fetchSettings() {
       try {
-        const response = await fetch("/api/invoices/settings");
-        if (response.ok) {
-          const data = await response.json();
+        const [settingsRes, { createClient }] = await Promise.all([
+          fetch("/api/invoices/settings"),
+          import("@/lib/supabase/client"),
+        ]);
+        if (settingsRes.ok) {
+          const data = await settingsRes.json();
           const settings = data.settings as InvoiceSettings;
           if (settings.company_name) setSenderName(settings.company_name);
           if (settings.company_address) setSenderAddress(settings.company_address);
@@ -105,6 +158,12 @@ export default function NewInvoicePage() {
             setDueDate(date.toISOString().split("T")[0]);
           }
         }
+        // Pre-fill sender email from user profile
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email && !senderEmail) {
+          setSenderEmail(user.email);
+        }
       } catch (err) {
         console.error("Failed to fetch invoice settings:", err);
       } finally {
@@ -112,7 +171,7 @@ export default function NewInvoicePage() {
       }
     }
     fetchSettings();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply template defaults when selected
   const handleTemplateSelect = (template: InvoiceTemplate | null) => {
@@ -407,29 +466,99 @@ export default function NewInvoicePage() {
               </div>
               <div className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
-                  <div>
+                  <div className="relative" ref={activeRecipientField === "name" ? contactDropdownRef : undefined}>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                       Recipient Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={recipientName}
-                      onChange={(e) => setRecipientName(e.target.value)}
+                      onChange={(e) => {
+                        setRecipientName(e.target.value);
+                        setActiveRecipientField("name");
+                        setRecipientSearchTerm(e.target.value);
+                      }}
+                      onFocus={() => {
+                        setActiveRecipientField("name");
+                        setRecipientSearchTerm(recipientName);
+                      }}
                       placeholder="John Smith or Company Inc."
                       className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6] focus:border-transparent"
                     />
+                    {activeRecipientField === "name" && contactSuggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+                        {contactSuggestions.map((contact) => (
+                          <button
+                            key={contact.id}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setRecipientName(contact.name);
+                              setRecipientEmail(contact.email);
+                              setActiveRecipientField(null);
+                              fetch(`/api/contacts/${contact.id}`, { method: "POST" }).catch(() => {});
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 text-left text-sm"
+                          >
+                            <div className="w-6 h-6 rounded-full bg-[#529ec6]/10 flex items-center justify-center flex-shrink-0">
+                              <User className="w-3 h-3 text-[#529ec6]" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-slate-900 truncate">{contact.name}</p>
+                              <p className="text-xs text-slate-500 truncate">{contact.email}</p>
+                              {contact.company && <p className="text-xs text-slate-400 truncate">{contact.company}</p>}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div>
+                  <div className="relative" ref={activeRecipientField === "email" ? contactDropdownRef : undefined}>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                       Recipient Email <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="email"
                       value={recipientEmail}
-                      onChange={(e) => setRecipientEmail(e.target.value)}
+                      onChange={(e) => {
+                        setRecipientEmail(e.target.value);
+                        setActiveRecipientField("email");
+                        setRecipientSearchTerm(e.target.value);
+                      }}
+                      onFocus={() => {
+                        setActiveRecipientField("email");
+                        setRecipientSearchTerm(recipientEmail);
+                      }}
                       placeholder="john@company.com"
                       className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6] focus:border-transparent"
                     />
+                    {activeRecipientField === "email" && contactSuggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+                        {contactSuggestions.map((contact) => (
+                          <button
+                            key={contact.id}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setRecipientName(contact.name);
+                              setRecipientEmail(contact.email);
+                              setActiveRecipientField(null);
+                              fetch(`/api/contacts/${contact.id}`, { method: "POST" }).catch(() => {});
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 text-left text-sm"
+                          >
+                            <div className="w-6 h-6 rounded-full bg-[#529ec6]/10 flex items-center justify-center flex-shrink-0">
+                              <User className="w-3 h-3 text-[#529ec6]" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-slate-900 truncate">{contact.name}</p>
+                              <p className="text-xs text-slate-500 truncate">{contact.email}</p>
+                              {contact.company && <p className="text-xs text-slate-400 truncate">{contact.company}</p>}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 

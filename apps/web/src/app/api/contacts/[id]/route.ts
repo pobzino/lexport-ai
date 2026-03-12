@@ -132,36 +132,33 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Fetch current contact to get usage_count
+    const { data: existing, error: fetchError } = await supabase
+      .from("contacts")
+      .select("id, usage_count")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (fetchError || !existing) {
+      return NextResponse.json({ error: "Contact not found" }, { status: 404 });
+    }
+
     // Increment usage count and update last_used_at
-    const { data: contact, error } = await supabase.rpc("increment_contact_usage", {
-      contact_id: id,
-    });
+    const { data: contact, error } = await supabase
+      .from("contacts")
+      .update({
+        usage_count: (existing.usage_count || 0) + 1,
+        last_used_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .select()
+      .single();
 
-    // Fallback if RPC doesn't exist - use raw update
     if (error) {
-      const { data: updatedContact, error: updateError } = await supabase
-        .from("contacts")
-        .update({
-          usage_count: supabase.rpc("increment_contact_usage_count", { row_id: id }),
-          last_used_at: new Date().toISOString(),
-        })
-        .eq("id", id)
-        .eq("user_id", user.id)
-        .select()
-        .single();
-
-      if (updateError) {
-        // Final fallback - just update last_used_at
-        await supabase
-          .from("contacts")
-          .update({
-            last_used_at: new Date().toISOString(),
-          })
-          .eq("id", id)
-          .eq("user_id", user.id);
-      }
-
-      return NextResponse.json({ success: true });
+      console.error("Error incrementing contact usage:", error);
+      return NextResponse.json({ error: "Failed to update contact" }, { status: 500 });
     }
 
     return NextResponse.json({ contact });
