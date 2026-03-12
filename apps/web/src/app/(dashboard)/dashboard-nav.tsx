@@ -29,24 +29,26 @@ interface DashboardNavProps {
     email?: string | null;
     image?: string | null;
   };
+  isInboxOwner?: boolean;
 }
 
-const navItems = [
+const baseNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/contracts", label: "Contracts", icon: FolderOpen },
   { href: "/invoices", label: "Invoices", icon: Receipt },
   { href: "/my-templates", label: "Templates", icon: FileStack },
   { href: "/signatures", label: "Signatures", icon: FileSignature },
   { href: "/payments", label: "Payments", icon: CreditCard },
-  { href: "/inbox", label: "Inbox", icon: Mail },
   { href: "/activity", label: "Activity", icon: Activity },
 ];
+
+const inboxNavItem = { href: "/inbox", label: "Inbox", icon: Mail };
 
 const bottomNavItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function DashboardNav({ user }: DashboardNavProps) {
+export function DashboardNav({ user, isInboxOwner }: DashboardNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -67,6 +69,10 @@ export function DashboardNav({ user }: DashboardNavProps) {
       document.body.style.overflow = "";
     };
   }, [mobileMenuOpen]);
+
+  const navItems = isInboxOwner
+    ? [...baseNavItems.slice(0, 6), inboxNavItem, ...baseNavItems.slice(6)]
+    : baseNavItems;
 
   const handleSignOut = async () => {
     const supabase = createClient();

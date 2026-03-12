@@ -27,6 +27,7 @@ export default async function DashboardLayout({
           email: user.email,
           image: user.user_metadata?.avatar_url,
         }}
+        isInboxOwner={user.email === "akpobor2000@gmail.com"}
       />
       {/* Main content: pt-16 on mobile for fixed header, lg:ml-64 for sidebar */}
       <main className="min-h-screen pt-16 lg:pt-0 lg:ml-64">
