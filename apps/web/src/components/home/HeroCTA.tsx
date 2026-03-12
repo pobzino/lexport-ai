@@ -1,27 +1,40 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUp } from "lucide-react";
 import { motion } from "framer-motion";
 
-type Mode = "create" | "review" | "ask";
-
-const PLACEHOLDERS: Record<Mode, string> = {
-  create: "Employment Agreement",
-  review: "Paste your contract here to review...",
-  ask: "What should I include in an NDA?",
-};
+const PLACEHOLDERS = [
+  "Create an NDA for my startup",
+  "Freelance contract for web development",
+  "Non-Disclosure Agreement",
+  "Independent Contractor Agreement",
+  "I need a consulting agreement for a 3-month project",
+  "SAFE Note for my seed round",
+  "Service agreement between my agency and a client",
+  "Mutual NDA between two companies",
+  "Employment offer letter for a software engineer",
+  "Partnership agreement for a joint venture",
+];
 
 export function HeroCTA() {
-  const [mode, setMode] = useState<Mode>("create");
   const [input, setInput] = useState("");
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
 
+  // Rotate placeholder text
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPlaceholderIndex((i) => (i + 1) % PLACEHOLDERS.length);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, []);
+
   const handleSubmit = () => {
-    const prompt = input.trim() || PLACEHOLDERS[mode];
-    router.push(`/create?mode=${mode}&prompt=${encodeURIComponent(prompt)}`);
+    const prompt = input.trim() || PLACEHOLDERS[placeholderIndex];
+    router.push(`/create?mode=create&prompt=${encodeURIComponent(prompt)}`);
   };
 
   return (
@@ -43,38 +56,23 @@ export function HeroCTA() {
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={PLACEHOLDERS[mode]}
+            placeholder={PLACEHOLDERS[placeholderIndex]}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 handleSubmit();
               }
             }}
-            rows={3}
+            rows={2}
             className="w-full resize-none border-0 bg-transparent text-slate-900 placeholder:text-slate-400 focus:outline-none text-base leading-relaxed"
           />
 
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
-            <div className="inline-flex items-center bg-slate-100 rounded-lg p-0.5">
-              {(["create", "review", "ask"] as Mode[]).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setMode(m)}
-                  className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition-all ${
-                    mode === m
-                      ? "bg-[#529ec6] text-white shadow-sm"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  {m === "create" ? "Create" : m === "review" ? "Review" : "Ask"}
-                </button>
-              ))}
-            </div>
-
+          <div className="flex items-center justify-end mt-3 pt-3 border-t border-slate-100">
             <button
               onClick={handleSubmit}
-              className="w-9 h-9 flex items-center justify-center rounded-full bg-[#529ec6] text-white hover:bg-[#4589ad] transition-all hover:shadow-lg"
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-[#529ec6] text-white text-sm font-medium hover:bg-[#4589ad] transition-all hover:shadow-lg"
             >
+              Create
               <ArrowUp className="w-4 h-4" />
             </button>
           </div>
