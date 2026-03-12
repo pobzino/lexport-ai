@@ -22,7 +22,7 @@ export async function GET(
     // Look up the received email (RLS ensures user can only access their own)
     const { data: receivedEmail, error } = await supabase
       .from("received_emails")
-      .select("resend_email_id, user_id")
+      .select("resend_email_id, user_id, thread_id")
       .eq("id", id)
       .single();
 
@@ -53,6 +53,7 @@ export async function GET(
     return NextResponse.json({
       id,
       resend_email_id: receivedEmail.resend_email_id,
+      thread_id: receivedEmail.thread_id,
       from: emailContent.from,
       to: emailContent.to,
       cc: emailContent.cc,

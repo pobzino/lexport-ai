@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getResendClient } from "@/lib/email";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeSubject } from "@/lib/email-threading";
 
 interface ReceivedEmailEventData {
   email_id: string;
@@ -136,6 +137,7 @@ export async function POST(request: NextRequest) {
             bcc: data.bcc || [],
             subject: data.subject || "(no subject)",
             message_id: data.message_id,
+            thread_id: normalizeSubject(data.subject || ""),
             has_attachments: data.attachments && data.attachments.length > 0,
             attachment_count: data.attachments?.length || 0,
             status: "received",

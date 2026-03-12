@@ -7,7 +7,7 @@ import { normalizeSubject } from "@/lib/email-threading";
 const REPLY_FROM = "Lexport <hello@lexportai.com>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
 
-function buildReplyHtml(body: string): string {
+function buildEmailHtml(body: string): string {
   return `
 <!DOCTYPE html>
 <html>
@@ -33,7 +33,7 @@ function buildReplyHtml(body: string): string {
 }
 
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -48,94 +48,103 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { body } = await request.json();
+    // Get the draft
+    const { data: draft, error: draftError } = await supabase
+      .from("email_drafts")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
 
-    if (!body || !body.trim()) {
+    if (draftError || !draft) {
+      return NextResponse.json({ error: "Draft not found" }, { status: 404 });
+    }
+
+    if (!draft.to_addresses || draft.to_addresses.length === 0) {
       return NextResponse.json(
-        { error: "Reply body is required" },
+        { error: "At least one recipient is required" },
         { status: 400 }
       );
     }
 
-    // Get the original email from DB
-    const { data: receivedEmail, error: dbError } = await supabase
-      .from("received_emails")
-      .select("id, resend_email_id, from_address, subject, message_id, thread_id")
-      .eq("id", id)
-      .single();
-
-    if (dbError || !receivedEmail) {
-      return NextResponse.json({ error: "Email not found" }, { status: 404 });
+    if (!draft.body?.trim()) {
+      return NextResponse.json(
+        { error: "Email body is required" },
+        { status: 400 }
+      );
     }
 
-    // Extract sender email address
-    const senderEmailMatch = receivedEmail.from_address.match(/<(.+?)>/);
-    const senderEmail = senderEmailMatch
-      ? senderEmailMatch[1]
-      : receivedEmail.from_address;
+    const subject = draft.subject || "(no subject)";
+    const html = buildEmailHtml(draft.body);
 
-    // Build subject line
-    const subject = receivedEmail.subject?.startsWith("Re:")
-      ? receivedEmail.subject
-      : `Re: ${receivedEmail.subject || "(no subject)"}`;
-
-    const replyHtml = buildReplyHtml(body);
-
-    // Send via Resend with threading headers
-    const resend = getResendClient();
-
+    // Build threading headers if this is a reply
     const headers: Record<string, string> = {};
-    if (receivedEmail.message_id) {
-      headers["In-Reply-To"] = receivedEmail.message_id;
-      headers["References"] = receivedEmail.message_id;
+    let inReplyTo: string | null = null;
+
+    if (draft.reply_to_received_email_id) {
+      const { data: originalEmail } = await supabase
+        .from("received_emails")
+        .select("message_id")
+        .eq("id", draft.reply_to_received_email_id)
+        .single();
+
+      if (originalEmail?.message_id) {
+        headers["In-Reply-To"] = originalEmail.message_id;
+        headers["References"] = originalEmail.message_id;
+        inReplyTo = originalEmail.message_id;
+      }
     }
 
+    // Send via Resend
+    const resend = getResendClient();
     const { data: sendResult, error: sendError } = await resend.emails.send({
       from: REPLY_FROM,
-      to: [senderEmail],
+      to: draft.to_addresses,
       subject,
-      html: replyHtml,
+      html,
       replyTo: "hello@lexportai.com",
-      headers,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
     });
 
     if (sendError) {
-      console.error("Error sending reply:", sendError);
+      console.error("Error sending draft:", sendError);
       return NextResponse.json(
-        { error: "Failed to send reply" },
+        { error: "Failed to send email" },
         { status: 500 }
       );
     }
 
-    // Persist the sent email
-    const threadId = receivedEmail.thread_id || normalizeSubject(subject);
+    // Persist as sent email
+    const threadId = draft.thread_id || normalizeSubject(subject);
     const adminClient = createAdminClient();
 
-    const { data: sentEmail } = await adminClient
-      .from("sent_emails")
-      .insert({
-        user_id: user.id,
-        resend_email_id: sendResult?.id || null,
-        from_address: REPLY_FROM,
-        to_addresses: [senderEmail],
-        subject,
-        html: replyHtml,
-        text_body: body,
-        in_reply_to: receivedEmail.message_id || null,
-        reply_to_received_email_id: receivedEmail.id,
-        thread_id: threadId,
-        status: "sent",
-      })
-      .select("id")
-      .single();
+    await adminClient.from("sent_emails").insert({
+      user_id: user.id,
+      resend_email_id: sendResult?.id || null,
+      from_address: REPLY_FROM,
+      to_addresses: draft.to_addresses,
+      subject,
+      html,
+      text_body: draft.body,
+      in_reply_to: inReplyTo,
+      reply_to_received_email_id: draft.reply_to_received_email_id,
+      thread_id: threadId,
+      status: "sent",
+    });
+
+    // Delete the draft
+    await supabase
+      .from("email_drafts")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
 
     return NextResponse.json({
       success: true,
       emailId: sendResult?.id,
-      sentEmailId: sentEmail?.id,
     });
   } catch (error) {
-    console.error("Error in reply route:", error);
+    console.error("Error in send draft route:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
