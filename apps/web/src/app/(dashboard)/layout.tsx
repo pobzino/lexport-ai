@@ -4,6 +4,7 @@ import { DashboardNav } from "./dashboard-nav";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts-provider";
 import { DashboardOnboarding } from "@/components/onboarding";
 import { DashboardHeader } from "@/components/dashboard-header";
+import { PostHogIdentify } from "@/components/posthog-identify";
 
 export default async function DashboardLayout({
   children,
@@ -37,6 +38,11 @@ export default async function DashboardLayout({
         </div>
       </main>
       <DashboardOnboarding />
+      <PostHogIdentify
+        userId={user.id}
+        email={user.email}
+        name={user.user_metadata?.full_name}
+      />
     </div>
   );
 }
