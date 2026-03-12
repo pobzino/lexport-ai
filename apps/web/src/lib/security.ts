@@ -71,6 +71,7 @@ const contentSecurityPolicyDirectives = [
     ]
         .filter(Boolean)
         .join(" ")}`,
+    "worker-src 'self' blob:",
     "frame-ancestors 'self'",
     "form-action 'self'",
     "base-uri 'self'",
