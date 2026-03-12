@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { InvoiceLineItem, InvoiceStatus } from "@/db/types";
-import { generateInvoiceNumber, getInvoiceSettings } from "@/lib/invoices/generate-number";
+import { getInvoiceSettings } from "@/lib/invoices/generate-number";
+import { insertInvoiceWithRetry } from "@/lib/invoices/create-invoice";
 
 function formatInvoiceInsertError(error: {
   code?: string;
@@ -219,9 +220,6 @@ export async function POST(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    // Generate sequential invoice number
-    const invoiceNumber = await generateInvoiceNumber(supabase, user.id);
-
     // Calculate due date
     const dueDays = settings.default_due_days || 30;
     const calculatedDueDate = due_date || new Date(
@@ -237,7 +235,6 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       contract_id: contract_id || null,
       template_id: template_id || null,
-      invoice_number: invoiceNumber,
       amount: total,
       currency,
       status: status as InvoiceStatus,
@@ -261,16 +258,27 @@ export async function POST(request: NextRequest) {
       notes: notes || settings.default_notes || null,
     };
 
-    const { data: invoice, error: insertError } = await supabase
-      .from("invoices")
-      .insert(invoiceData)
-      .select()
-      .single();
+    const { data: invoice, error: insertError } = await insertInvoiceWithRetry<{
+      id: string;
+      invoice_number: string;
+      amount: number;
+      currency: string;
+    }>(
+      supabase,
+      invoiceData
+    );
 
     if (insertError) {
       console.error("Error creating invoice:", insertError);
       return NextResponse.json(
         { error: formatInvoiceInsertError(insertError) },
+        { status: 500 }
+      );
+    }
+
+    if (!invoice) {
+      return NextResponse.json(
+        { error: "Failed to create invoice" },
         { status: 500 }
       );
     }

@@ -6,6 +6,30 @@ interface TemplatePreviewProps {
   previewText: string;
 }
 
+const PLACEHOLDER_LABELS: Record<string, string> = {
+  effective_date: "Effective Date",
+  party_a_name: "Your Name",
+  party_a_title: "Your Title",
+  party_a_company: "Your Company",
+  party_a_address: "Your Address",
+  party_b_name: "Other Party's Name",
+  party_b_title: "Other Party's Title",
+  party_b_company: "Other Party's Company",
+  party_b_address: "Other Party's Address",
+  term_length: "Term Length",
+  governing_state: "Governing State",
+  confidentiality_period: "Confidentiality Period",
+  payment_amount: "Payment Amount",
+  notice_period: "Notice Period",
+};
+
+function humanizePlaceholders(text: string): string {
+  return text.replace(/\{\{(\w+)\}?\}?/g, (_, key) => {
+    const label = PLACEHOLDER_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+    return `[${label}]`;
+  });
+}
+
 /**
  * A visual preview of a contract template that shows clause structure
  * with content blurred behind a signup overlay. Server component.
@@ -15,6 +39,8 @@ export function TemplatePreview({
   clauseTitles,
   previewText,
 }: TemplatePreviewProps) {
+  const cleanPreview = humanizePlaceholders(previewText);
+
   return (
     <div className="relative bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       {/* Document header */}
@@ -25,9 +51,9 @@ export function TemplatePreview({
           </div>
           <h3 className="font-semibold text-slate-900 text-lg">{title}</h3>
         </div>
-        {previewText && (
+        {cleanPreview && (
           <p className="text-sm text-slate-600 leading-relaxed">
-            {previewText}
+            {cleanPreview}
           </p>
         )}
       </div>

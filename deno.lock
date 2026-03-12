@@ -12,6 +12,8 @@
     "packageJson": {
       "dependencies": [
         "npm:@napi-rs/canvas@~0.1.88",
+        "npm:@types/node@22",
+        "npm:next@15",
         "npm:pdf-parse@1.1.1",
         "npm:turbo@^2.3.0"
       ]
@@ -85,7 +87,9 @@
             "npm:@google/generative-ai@~0.24.1",
             "npm:@napi-rs/canvas@~0.1.88",
             "npm:@netlify/functions@^5.1.2",
+            "npm:@playwright/test@^1.58.2",
             "npm:@radix-ui/react-slot@^1.2.4",
+            "npm:@sentry/nextjs@^10.32.1",
             "npm:@stripe/connect-js@^3.3.31",
             "npm:@stripe/react-connect-js@^3.3.31",
             "npm:@stripe/react-stripe-js@^5.4.1",
@@ -95,15 +99,20 @@
             "npm:@tailwindcss/postcss@^4.1.18",
             "npm:@tailwindcss/typography@~0.5.19",
             "npm:@tanstack/react-query@^5.90.12",
+            "npm:@testing-library/jest-dom@^6.9.1",
+            "npm:@testing-library/react@^16.3.1",
+            "npm:@testing-library/user-event@^14.6.1",
             "npm:@types/bun@latest",
             "npm:@types/diff@8",
             "npm:@types/node@^25.0.3",
+            "npm:@types/nodemailer@^7.0.11",
             "npm:@types/pdf-parse@^1.1.5",
             "npm:@types/qrcode@^1.5.6",
             "npm:@types/react-dom@^19.2.3",
             "npm:@types/react@^19.2.7",
             "npm:@types/swagger-jsdoc@^6.0.4",
             "npm:@types/swagger-ui-react@^5.18.0",
+            "npm:@vitejs/plugin-react@^5.1.2",
             "npm:ai@^6.0.3",
             "npm:autoprefixer@^10.4.23",
             "npm:class-variance-authority@~0.7.1",
@@ -114,10 +123,12 @@
             "npm:eslint-config-next@^16.1.0",
             "npm:eslint@^9.39.2",
             "npm:framer-motion@^12.23.26",
+            "npm:jsdom@^27.4.0",
             "npm:lucide-react@0.562",
             "npm:mammoth@^1.11.0",
             "npm:next-swagger-doc@~0.4.1",
             "npm:next@^16.1.0",
+            "npm:nodemailer@^8.0.2",
             "npm:openai@^6.15.0",
             "npm:pdf-lib@^1.17.1",
             "npm:postcss@^8.5.6",
@@ -135,6 +146,7 @@
             "npm:tailwindcss@^4.1.18",
             "npm:typescript@^5.9.3",
             "npm:unpdf@^1.4.0",
+            "npm:vitest@^4.0.16",
             "npm:zod@^4.2.1"
           ]
         }

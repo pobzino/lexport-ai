@@ -24,11 +24,11 @@ const contentSecurityPolicyDirectives = [
     "default-src 'self'",
     `script-src ${[
         "'self'",
+        "'unsafe-inline'",
         "https://js.stripe.com",
         "https://connect-js.stripe.com",
         "https://app.posthog.com",
         "https://*.sentry.io",
-        !isProduction ? "'unsafe-inline'" : null,
         !isProduction ? "'unsafe-eval'" : null,
     ]
         .filter(Boolean)
@@ -37,7 +37,6 @@ const contentSecurityPolicyDirectives = [
         "'self'",
         "'unsafe-inline'",
         "https://fonts.googleapis.com",
-        isProduction ? "'sha256-0hAheEzaMe6uXIKV4EehS9pu1am1lj/KnnzrOYqckXk='" : null,
     ]
         .filter(Boolean)
         .join(" ")}`,
@@ -72,7 +71,7 @@ const contentSecurityPolicyDirectives = [
     ]
         .filter(Boolean)
         .join(" ")}`,
-    "frame-ancestors 'self' https://loxdigital.com https://www.loxdigital.com https://loxdigital.netlify.app",
+    "frame-ancestors 'self'",
     "form-action 'self'",
     "base-uri 'self'",
     "object-src 'none'",
@@ -85,7 +84,7 @@ const contentSecurityPolicyDirectives = [
  */
 export const securityHeaders = {
     // Prevent clickjacking
-    "X-Frame-Options": "ALLOW-FROM https://loxdigital.com",
+    "X-Frame-Options": "SAMEORIGIN",
 
     // Prevent MIME type sniffing
     "X-Content-Type-Options": "nosniff",

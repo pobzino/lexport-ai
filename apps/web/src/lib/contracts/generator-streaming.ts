@@ -106,7 +106,16 @@ type ResponsesClient = {
     create: (
       params: unknown,
       options?: { timeout?: number; maxRetries?: number }
-    ) => Promise<{ output_text: string }>;
+    ) => Promise<{ id?: string; status?: string; output_text?: string }>;
+    retrieve: (
+      responseId: string,
+      options?: { timeout?: number; maxRetries?: number }
+    ) => Promise<{
+      id?: string;
+      status?: string;
+      output_text?: string;
+      error?: { message?: string } | string | null;
+    }>;
   };
 };
 
@@ -385,11 +394,63 @@ ${metadataSummary}
 Return only valid JSON.`;
 }
 
-// Custom contract generation with streaming progress
-async function generateCustomContractStreaming(
-  metadata: ContractMetadata,
-  onProgress: ProgressCallback
-): Promise<GeneratedContract> {
+type OpenAIGenerationInput = Array<{
+  role: "developer" | "user";
+  content: string;
+}>;
+
+function mapGeneratedClauses(
+  clauses: Array<{
+    id: string;
+    title: string;
+    content: string;
+    type: "standard" | "negotiable" | "optional";
+    order: number;
+  }>
+): Clause[] {
+  return clauses.map((clause, index) => ({
+    id: clause.id || `clause_${index + 1}`,
+    title: clause.title,
+    content: clause.content,
+    type: clause.type || "standard",
+    order: clause.order || index + 1,
+    isEdited: false,
+  }));
+}
+
+function parseGeneratedContractContent(
+  content: string,
+  errorMessage: string
+): GeneratedContract {
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error(errorMessage);
+  }
+
+  const input = JSON.parse(jsonMatch[0]) as {
+    title: string;
+    preamble: string;
+    recitals: string;
+    clauses: Array<{
+      id: string;
+      title: string;
+      content: string;
+      type: "standard" | "negotiable" | "optional";
+      order: number;
+    }>;
+    signatureBlock: string;
+  };
+
+  return {
+    title: input.title,
+    preamble: input.preamble,
+    recitals: input.recitals,
+    clauses: mapGeneratedClauses(input.clauses),
+    signatureBlock: input.signatureBlock,
+  };
+}
+
+function buildCustomGenerationInput(metadata: ContractMetadata): OpenAIGenerationInput {
   const meta = metadata as Record<string, unknown>;
   const customContractName =
     (meta.customContractName as string) || "Custom Agreement";
@@ -397,9 +458,6 @@ async function generateCustomContractStreaming(
     (meta.customContractDescription as string) || "";
   const jurisdiction = metadata.jurisdiction;
   const jurisdictionName = JURISDICTION_NAMES[jurisdiction];
-
-  onProgress({ status: "Preparing custom contract template...", percent: 25 });
-
   const signersPrompt = formatSignersForPrompt(metadata);
 
   const developerPrompt = `You are an expert legal contract drafter specializing in ${jurisdictionName} law. You are generating a ${customContractName}.
@@ -445,61 +503,108 @@ ${meta.followUpAnswers ? `ADDITIONAL DETAILS:\n${JSON.stringify(meta.followUpAns
 
 Return only valid JSON.`;
 
+  return [
+    { role: "developer", content: developerPrompt },
+    { role: "user", content: userPrompt },
+  ];
+}
+
+function buildStandardGenerationInput(
+  contractType: ContractType,
+  metadata: ContractMetadata
+): OpenAIGenerationInput {
+  const jurisdiction = metadata.jurisdiction;
+  const typeDefinition = CONTRACT_TYPES[contractType];
+  const manifest = getManifest(contractType, jurisdiction);
+
+  return [
+    { role: "developer", content: buildDeveloperPrompt(jurisdiction, manifest) },
+    {
+      role: "user",
+      content: buildUserPrompt(contractType, metadata, typeDefinition, manifest),
+    },
+  ];
+}
+
+export function buildContractGenerationInput(
+  contractType: ContractType,
+  metadata: ContractMetadata
+): OpenAIGenerationInput {
+  if (contractType === "custom") {
+    return buildCustomGenerationInput(metadata);
+  }
+
+  return buildStandardGenerationInput(contractType, metadata);
+}
+
+export function parseGeneratedContractResponseContent(
+  contractType: ContractType,
+  content: string
+): GeneratedContract {
+  return parseGeneratedContractContent(
+    content,
+    contractType === "custom"
+      ? "Failed to generate custom contract: No JSON in response"
+      : "Failed to generate contract: No JSON in response"
+  );
+}
+
+export async function createBackgroundContractGeneration(
+  contractType: ContractType,
+  metadata: ContractMetadata
+): Promise<{ responseId: string; status: string }> {
+  const response = await (getOpenAI() as unknown as ResponsesClient).responses.create(
+    {
+      model: GENERATION_MODEL,
+      reasoning: { effort: REASONING_EFFORT },
+      background: true,
+      input: buildContractGenerationInput(contractType, metadata),
+    },
+    getGenerationRequestOptions()
+  );
+
+  if (!response.id) {
+    throw new Error("OpenAI did not return a background response id");
+  }
+
+  return {
+    responseId: response.id,
+    status: response.status || "queued",
+  };
+}
+
+export async function retrieveBackgroundContractGeneration(responseId: string) {
+  return (getOpenAI() as unknown as ResponsesClient).responses.retrieve(
+    responseId,
+    getGenerationRequestOptions()
+  );
+}
+
+// Custom contract generation with streaming progress
+async function generateCustomContractStreaming(
+  metadata: ContractMetadata,
+  onProgress: ProgressCallback
+): Promise<GeneratedContract> {
+  onProgress({ status: "Preparing custom contract template...", percent: 25 });
+
   onProgress({ status: "AI is generating custom contract...", percent: 35 });
 
   // Use GPT-5.4 with Responses API
-  const response = await (getOpenAI() as unknown as ResponsesClient).responses.create({
-    model: GENERATION_MODEL,
-    reasoning: { effort: REASONING_EFFORT },
-    input: [
-      { role: "developer", content: developerPrompt },
-      { role: "user", content: userPrompt },
-    ],
-  }, getGenerationRequestOptions());
+  const response = await (getOpenAI() as unknown as ResponsesClient).responses.create(
+    {
+      model: GENERATION_MODEL,
+      reasoning: { effort: REASONING_EFFORT },
+      input: buildCustomGenerationInput(metadata),
+    },
+    getGenerationRequestOptions()
+  );
 
   onProgress({ status: "Processing AI response...", percent: 75 });
 
   const content = response.output_text || "";
 
-  // Parse JSON from response
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error("Failed to generate custom contract: No JSON in response");
-  }
-
   onProgress({ status: "Structuring contract clauses...", percent: 85 });
-
-  const input = JSON.parse(jsonMatch[0]) as {
-    title: string;
-    preamble: string;
-    recitals: string;
-    clauses: Array<{
-      id: string;
-      title: string;
-      content: string;
-      type: "standard" | "negotiable" | "optional";
-      order: number;
-    }>;
-    signatureBlock: string;
-  };
-
-  // Map to our Clause type with defaults
-  const clauses: Clause[] = input.clauses.map((c, index) => ({
-    id: c.id || `clause_${index + 1}`,
-    title: c.title,
-    content: c.content,
-    type: c.type || "standard",
-    order: c.order || index + 1,
-    isEdited: false,
-  }));
-
-  return {
-    title: input.title,
-    preamble: input.preamble,
-    recitals: input.recitals,
-    clauses,
-    signatureBlock: input.signatureBlock,
-  };
+  return parseGeneratedContractResponseContent("custom", content);
 }
 
 /**
@@ -515,30 +620,13 @@ export async function generateContractStreaming(
   metadata: ContractMetadata,
   onProgress: ProgressCallback
 ): Promise<GeneratedContract> {
-  const jurisdiction = metadata.jurisdiction;
-
   // Handle custom contracts specially
   if (contractType === "custom") {
     return generateCustomContractStreaming(metadata, onProgress);
   }
 
-  const typeDefinition = CONTRACT_TYPES[contractType];
-
   onProgress({ status: "Loading contract template...", percent: 25 });
-
-  // Get manifest for this contract type
-  const manifest = getManifest(contractType, jurisdiction);
-
   onProgress({ status: "Preparing legal requirements...", percent: 30 });
-
-  // Build the prompts
-  const developerPrompt = buildDeveloperPrompt(jurisdiction, manifest);
-  const userPrompt = buildUserPrompt(
-    contractType,
-    metadata,
-    typeDefinition,
-    manifest
-  );
 
   onProgress({
     status: "AI is drafting your contract...",
@@ -546,58 +634,21 @@ export async function generateContractStreaming(
   });
 
   // Use GPT-5.4 with Responses API for generation
-  const response = await (getOpenAI() as unknown as ResponsesClient).responses.create({
-    model: GENERATION_MODEL,
-    reasoning: { effort: REASONING_EFFORT },
-    input: [
-      { role: "developer", content: developerPrompt },
-      { role: "user", content: userPrompt },
-    ],
-  }, getGenerationRequestOptions());
+  const response = await (getOpenAI() as unknown as ResponsesClient).responses.create(
+    {
+      model: GENERATION_MODEL,
+      reasoning: { effort: REASONING_EFFORT },
+      input: buildStandardGenerationInput(contractType, metadata),
+    },
+    getGenerationRequestOptions()
+  );
 
   onProgress({ status: "Processing AI response...", percent: 70 });
 
   const content = response.output_text || "";
 
-  // Parse JSON from response
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error("Failed to generate contract: No JSON in response");
-  }
-
   onProgress({ status: "Structuring contract clauses...", percent: 80 });
 
-  const input = JSON.parse(jsonMatch[0]) as {
-    title: string;
-    preamble: string;
-    recitals: string;
-    clauses: Array<{
-      id: string;
-      title: string;
-      content: string;
-      type: "standard" | "negotiable" | "optional";
-      order: number;
-    }>;
-    signatureBlock: string;
-  };
-
   onProgress({ status: "Finalizing contract...", percent: 85 });
-
-  // Map to our Clause type with defaults
-  const clauses: Clause[] = input.clauses.map((c, index) => ({
-    id: c.id || `clause_${index + 1}`,
-    title: c.title,
-    content: c.content,
-    type: c.type || "standard",
-    order: c.order || index + 1,
-    isEdited: false,
-  }));
-
-  return {
-    title: input.title,
-    preamble: input.preamble,
-    recitals: input.recitals,
-    clauses,
-    signatureBlock: input.signatureBlock,
-  };
+  return parseGeneratedContractResponseContent(contractType, content);
 }

@@ -76,7 +76,7 @@ export function DashboardError({
         <div className="mt-8 pt-6 border-t border-slate-200">
           <p className="text-sm text-slate-400 mb-2">Need help?</p>
           <a
-            href="mailto:support@lexport.ai"
+            href="mailto:support@lexportai.com"
             className="inline-flex items-center gap-1 text-sm text-[#529ec6] hover:underline"
           >
             <MessageCircle className="w-3.5 h-3.5" />

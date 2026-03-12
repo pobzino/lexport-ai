@@ -16,7 +16,8 @@ export type NotificationType =
     | "invoice_reminder_sent"
     | "signature_expiring_soon"
     | "signature_request_viewed"
-    | "invoice_overdue";
+    | "invoice_overdue"
+    | "email_received";
 
 // Notification type metadata for UI display
 export const NOTIFICATION_TYPE_INFO: Record<NotificationType, { label: string; description: string; category: "signature" | "payment" | "contract" | "collaboration" }> = {
@@ -35,6 +36,7 @@ export const NOTIFICATION_TYPE_INFO: Record<NotificationType, { label: string; d
     signature_expiring_soon: { label: "Signature Expiring Soon", description: "24 hours before a signature request expires", category: "signature" },
     signature_request_viewed: { label: "Signature Request Viewed", description: "When a signer opens the signing page", category: "signature" },
     invoice_overdue: { label: "Invoice Overdue", description: "When an invoice passes its due date", category: "payment" },
+    email_received: { label: "Email Received", description: "When you receive an inbound email", category: "collaboration" },
 };
 
 interface CreateNotificationParams {

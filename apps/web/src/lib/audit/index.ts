@@ -6,6 +6,7 @@
 
 export {
   logAuditEvent,
+  logAuditEventWithClient,
   auditLogger,
   parseUserAgent,
   getGeoLocation,

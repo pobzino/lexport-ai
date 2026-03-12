@@ -5,7 +5,7 @@
  * Captures IP, user agent, geolocation, and device information.
  */
 
-import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   AuditEventType,
   GeoLocation,
@@ -193,7 +193,20 @@ export async function logAuditEvent(
   options: AuditLogOptions
 ): Promise<AuditLog | null> {
   try {
+    const { createClient } = await import("@/lib/supabase/server");
     const supabase = await createClient();
+    return logAuditEventWithClient(supabase, options);
+  } catch (error) {
+    console.error("Audit logging error:", error);
+    return null;
+  }
+}
+
+export async function logAuditEventWithClient(
+  supabase: SupabaseClient,
+  options: AuditLogOptions
+): Promise<AuditLog | null> {
+  try {
 
     // Parse device info from user agent
     const deviceInfo = parseUserAgent(options.context?.userAgent || null);

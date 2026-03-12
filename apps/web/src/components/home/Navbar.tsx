@@ -123,7 +123,7 @@ export function Navbar() {
 
                             {[
                                 { name: "Templates", href: "/templates" },
-                                { name: "How it works", href: "#how-it-works" },
+                                { name: "How it works", href: "/#how-it-works" },
                                 { name: "Pricing", href: "/pricing" },
                                 { name: "Contact", href: "/contact" },
                             ].map((item) => (
@@ -208,7 +208,7 @@ export function Navbar() {
                                 Templates
                             </Link>
                             <a
-                                href="#how-it-works"
+                                href="/#how-it-works"
                                 onClick={() => setMobileMenuOpen(false)}
                                 className="block px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
                             >

@@ -158,8 +158,8 @@ export default function PrivacyPolicyPage() {
                         <p>For privacy-related questions or to exercise your rights, contact us:</p>
                         <div className="mt-4 p-4 bg-slate-50 rounded-lg flex items-center gap-3">
                             <Mail className="w-5 h-5 text-slate-500" />
-                            <a href="mailto:privacy@lexport.ai" className="text-[#529ec6] hover:underline">
-                                privacy@lexport.ai
+                            <a href="mailto:privacy@lexportai.com" className="text-[#529ec6] hover:underline">
+                                privacy@lexportai.com
                             </a>
                         </div>
                     </Section>

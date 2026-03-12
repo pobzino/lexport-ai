@@ -89,10 +89,10 @@ export function ContractGeneratingOverlay({
   const showStalledHint = staleMs > 12000 && effectiveProgress < 95;
   const showLongRunningHint = elapsedSeconds >= 45;
   const footerMessage = showStalledHint
-    ? "Still working. Complex contracts can take up to 2 minutes."
+    ? "Still working. GPT-5.4 can take up to 2 minutes for longer drafts."
     : showLongRunningHint
-      ? "Almost there. We're validating and saving your contract."
-      : "This usually takes 30–60 seconds";
+      ? "Almost there. We're validating and saving your GPT-5.4 draft."
+      : "GPT-5.4 usually takes 60-90 seconds";
 
   return (
     <motion.div

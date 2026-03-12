@@ -120,9 +120,12 @@ interface Placeholder {
 import {
   CONTRACT_TYPES,
   JURISDICTION_NAMES,
+  type ContractMetadata,
   type ContractType,
   type Jurisdiction,
+  type PaymentConfig,
 } from "@/lib/contracts/schemas";
+import type { GenerateContractRequest } from "@/lib/contracts/generation-request";
 import { ContactInput } from "@/components/contacts/ContactAutocomplete";
 import { DynamicSignersSection, type SignerGroup, createSignerGroups } from "@/components/dynamic-signers";
 import type { Template } from "@/db/types";
@@ -155,6 +158,28 @@ const MANUAL_STEPS = [
 const TEMPLATE_STEPS = [
   { id: 1, name: "Template", description: "Choose a template" },
 ];
+
+const SHOULD_USE_ASYNC_GENERATION = process.env.NODE_ENV === "production";
+const ASYNC_GENERATION_POLL_INTERVAL_MS = 2500;
+
+function getNetlifyDeploymentHeaders(): HeadersInit | undefined {
+  if (typeof document === "undefined") {
+    return undefined;
+  }
+
+  const deploymentId = document
+    .querySelector('meta[name="x-deployment-id"]')
+    ?.getAttribute("content")
+    ?.trim();
+
+  if (!deploymentId) {
+    return undefined;
+  }
+
+  return {
+    "x-deployment-id": deploymentId,
+  };
+}
 
 // Intake analysis result type
 interface IntakeAnalysis {
@@ -282,7 +307,7 @@ export default function NewContractPage() {
 
   // Payment settings state
   const [paymentRequired, setPaymentRequired] = useState(false);
-  const [paymentCurrency, setPaymentCurrency] = useState("usd");
+  const [paymentCurrency, setPaymentCurrency] = useState<"usd" | "eur" | "gbp">("usd");
   const [paymentStructure, setPaymentStructure] = useState<"full" | "deposit_balance" | "bnpl">("full");
   const [depositPercent, setDepositPercent] = useState(30);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
@@ -449,7 +474,13 @@ export default function NewContractPage() {
             setPaymentRequired(draft.paymentRequired);
           }
           if (typeof draft.paymentCurrency === "string") {
-            setPaymentCurrency(draft.paymentCurrency);
+            if (
+              draft.paymentCurrency === "usd" ||
+              draft.paymentCurrency === "eur" ||
+              draft.paymentCurrency === "gbp"
+            ) {
+              setPaymentCurrency(draft.paymentCurrency);
+            }
           }
           if (
             draft.paymentStructure === "full" ||
@@ -840,15 +871,117 @@ export default function NewContractPage() {
           }
         : undefined;
 
-      // Use streaming endpoint with SSE for real-time progress
+      const generationPayload = {
+        contractType: isCustomContract ? "custom" : selectedType,
+        metadata: metadata as ContractMetadata,
+        paymentConfig: paymentConfig as PaymentConfig | undefined,
+      } as GenerateContractRequest;
+
+      if (SHOULD_USE_ASYNC_GENERATION) {
+        const deploymentHeaders = getNetlifyDeploymentHeaders();
+        const response = await fetch("/api/contracts/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...deploymentHeaders,
+          },
+          body: JSON.stringify(generationPayload),
+        });
+
+        const payload = await response.json().catch(() => null) as {
+          error?: unknown;
+          message?: unknown;
+          jobId?: unknown;
+          progressPercent?: unknown;
+          progressStatus?: unknown;
+        } | null;
+
+        if (!response.ok || !payload || typeof payload.jobId !== "string") {
+          const message =
+            typeof payload?.error === "string"
+              ? payload.error
+              : typeof payload?.message === "string"
+                ? payload.message
+                : "Failed to start contract generation";
+          throw new Error(message);
+        }
+
+        setGenerationProgress(
+          typeof payload.progressPercent === "number" ? payload.progressPercent : 5
+        );
+        setGenerationStatus(
+          typeof payload.progressStatus === "string"
+            ? payload.progressStatus
+            : "Queued for generation"
+        );
+        setGenerationLastEventAt(Date.now());
+
+        while (true) {
+          await new Promise((resolve) =>
+            window.setTimeout(resolve, ASYNC_GENERATION_POLL_INTERVAL_MS)
+          );
+
+          const statusResponse = await fetch(`/api/contracts/generate/${payload.jobId}`, {
+            cache: "no-store",
+            headers: deploymentHeaders,
+          });
+          const statusPayload = await statusResponse.json().catch(() => null) as {
+            error?: unknown;
+            status?: unknown;
+            progressPercent?: unknown;
+            progressStatus?: unknown;
+            contractId?: unknown;
+          } | null;
+
+          if (!statusResponse.ok || !statusPayload) {
+            throw new Error(
+              typeof statusPayload?.error === "string"
+                ? statusPayload.error
+                : "Failed to check contract generation status"
+            );
+          }
+
+          setGenerationProgress(
+            typeof statusPayload.progressPercent === "number"
+              ? statusPayload.progressPercent
+              : undefined
+          );
+          setGenerationStatus(
+            typeof statusPayload.progressStatus === "string"
+              ? statusPayload.progressStatus
+              : undefined
+          );
+          setGenerationLastEventAt(Date.now());
+
+          if (
+            statusPayload.status === "completed" &&
+            typeof statusPayload.contractId === "string"
+          ) {
+            completeStep("first_contract");
+            trackRecentType({
+              type: selectedType,
+              contractId: statusPayload.contractId,
+            });
+            router.push(`/contracts/${statusPayload.contractId}/edit`);
+            return;
+          }
+
+          if (statusPayload.status === "failed" || statusPayload.status === "timed_out") {
+            throw new Error(
+              typeof statusPayload.error === "string"
+                ? statusPayload.error
+                : statusPayload.status === "timed_out"
+                  ? "Contract generation timed out. Please retry."
+                  : "Contract generation failed"
+            );
+          }
+        }
+      }
+
       const response = await fetch("/api/contracts/generate/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contractType: isCustomContract ? "custom" : selectedType,
-          metadata,
-          paymentConfig,
-        }),
+        body: JSON.stringify(generationPayload),
       });
 
       if (!response.ok) {
@@ -866,7 +999,6 @@ export default function NewContractPage() {
         throw new Error(message);
       }
 
-      // Process SSE stream
       const reader = response.body?.getReader();
       if (!reader) {
         throw new Error("Failed to read response stream");
@@ -880,10 +1012,8 @@ export default function NewContractPage() {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-
-        // Process complete SSE messages
         const lines = buffer.split("\n\n");
-        buffer = lines.pop() || ""; // Keep incomplete message in buffer
+        buffer = lines.pop() || "";
 
         for (const message of lines) {
           if (!message.trim()) continue;
@@ -902,7 +1032,6 @@ export default function NewContractPage() {
                 setGenerationLastEventAt(Date.now());
                 break;
               case "complete":
-                // Mark onboarding step complete
                 completeStep("first_contract");
                 trackRecentType({
                   type: selectedType,
@@ -913,14 +1042,21 @@ export default function NewContractPage() {
               case "error":
                 if (data.details?.fieldErrors && typeof data.details.fieldErrors === "object") {
                   const firstField = Object.values(data.details.fieldErrors).find(
-                    (messages): messages is string[] => Array.isArray(messages) && messages.length > 0
+                    (messages): messages is string[] =>
+                      Array.isArray(messages) && messages.length > 0
                   );
                   const firstMessage = firstField?.[0];
-                  throw new Error(firstMessage ? `${data.message || "Generation failed"}: ${firstMessage}` : (data.message || "Generation failed"));
+                  throw new Error(
+                    firstMessage
+                      ? `${data.message || "Generation failed"}: ${firstMessage}`
+                      : data.message || "Generation failed"
+                  );
                 }
                 if (data.message === "Failed to save contract") {
-                  const reason = typeof data.details?.reason === "string" ? data.details.reason : null;
-                  const details = typeof data.details?.details === "string" ? data.details.details : null;
+                  const reason =
+                    typeof data.details?.reason === "string" ? data.details.reason : null;
+                  const details =
+                    typeof data.details?.details === "string" ? data.details.details : null;
                   const hint = typeof data.details?.hint === "string" ? data.details.hint : null;
                   const code = typeof data.details?.code === "string" ? data.details.code : null;
 
@@ -934,7 +1070,6 @@ export default function NewContractPage() {
                 }
                 throw new Error(data.message || "Generation failed");
               case "heartbeat":
-                // Just keep the connection alive
                 setGenerationLastEventAt(Date.now());
                 break;
             }
@@ -942,7 +1077,6 @@ export default function NewContractPage() {
         }
       }
 
-      // If we get here without completing, something went wrong
       throw new Error("Connection closed before completion");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -1964,7 +2098,9 @@ export default function NewContractPage() {
                             </label>
                             <select
                               value={paymentCurrency}
-                              onChange={(e) => setPaymentCurrency(e.target.value)}
+                              onChange={(e) =>
+                                setPaymentCurrency(e.target.value as "usd" | "eur" | "gbp")
+                              }
                               className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
                             >
                               <option value="usd">USD ($)</option>
@@ -2267,7 +2403,17 @@ export default function NewContractPage() {
 
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-                {error}
+                <div>{error}</div>
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => void handleGenerate()}
+                    className="inline-flex items-center gap-2 rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-100"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Retry generation
+                  </button>
+                </div>
               </div>
             )}
           </div>

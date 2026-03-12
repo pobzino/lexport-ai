@@ -93,29 +93,34 @@ export default async function TemplateTypePage({ params }: Props) {
         <section className="mb-12">
           <h2 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
             <MapPin className="w-5 h-5 text-[#529ec6]" />
-            Available Jurisdictions
+            Select Contract Jurisdiction
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {jurisdictions.map((j) => {
               const jSlug = jurisdictionEnumToSlug(j);
               const jName = getJurisdictionDisplayName(j);
               const jNotes = getBaseJurisdictionNotes(j);
+              const flag = j === "uk" ? "\uD83C\uDDEC\uD83C\uDDE7" : "\uD83C\uDDFA\uD83C\uDDF8";
 
               return (
                 <Link
                   key={j}
                   href={`/templates/${typeSlug}/${jSlug}`}
-                  className="group flex flex-col p-5 bg-white border border-slate-200 rounded-xl hover:border-[#529ec6]/40 hover:shadow-md transition-all"
+                  className="group relative flex flex-col p-5 pl-6 bg-white border border-slate-200 rounded-xl hover:border-[#529ec6] hover:shadow-lg transition-all overflow-hidden"
                 >
-                  <h3 className="font-semibold text-slate-900 mb-2 group-hover:text-[#529ec6] transition-colors">
-                    {jName} {typeName}
-                  </h3>
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-200 group-hover:bg-[#529ec6] transition-colors" />
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <span className="text-lg">{flag}</span>
+                    <h3 className="font-semibold text-slate-900 group-hover:text-[#529ec6] transition-colors">
+                      {jName} {typeName}
+                    </h3>
+                  </div>
                   {jNotes && (
                     <p className="text-sm text-slate-500 mb-3 line-clamp-2">
                       {jNotes.overview.slice(0, 150)}...
                     </p>
                   )}
-                  <span className="text-sm text-[#529ec6] font-medium flex items-center gap-1 mt-auto">
+                  <span className="text-sm text-[#529ec6] font-medium flex items-center gap-1 mt-auto group-hover:gap-2 transition-all">
                     View template
                     <ArrowRight className="w-3.5 h-3.5" />
                   </span>

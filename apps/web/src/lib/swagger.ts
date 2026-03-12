@@ -38,7 +38,7 @@ All endpoints return consistent error responses:
         `,
         contact: {
           name: "Lexport Support",
-          email: "support@lexport.app",
+          email: "support@lexportai.com",
         },
       },
       servers: [

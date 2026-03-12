@@ -16,6 +16,9 @@ const serverEnvSchema = z.object({
 
   // OpenAI (required for AI features)
   OPENAI_API_KEY: z.string().startsWith("sk-", "OpenAI API key must start with 'sk-'"),
+  OPENAI_CONTRACT_GENERATION_MODEL: z.string().optional(),
+  OPENAI_CONTRACT_GENERATION_TIMEOUT_MS: z.coerce.number().optional(),
+  OPENAI_CONTRACT_GENERATION_JOB_TIMEOUT_MS: z.coerce.number().optional(),
 
   // Stripe (optional, but required for payments)
   STRIPE_SECRET_KEY: z.string().optional(),
@@ -24,6 +27,7 @@ const serverEnvSchema = z.object({
 
   // Email (optional, but required for sending emails)
   RESEND_API_KEY: z.string().optional(),
+  RESEND_WEBHOOK_SECRET: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
   EMAIL_SMTP_HOST: z.string().optional(),
   EMAIL_SMTP_PORT: z.coerce.number().optional(),
@@ -41,6 +45,12 @@ const serverEnvSchema = z.object({
 
   // Cron security
   CRON_SECRET: z.string().optional(),
+
+  // Sentry (optional, but recommended for production)
+  NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
+  SENTRY_ORG: z.string().optional(),
+  SENTRY_PROJECT: z.string().optional(),
+  SENTRY_AUTH_TOKEN: z.string().optional(),
 
   // Node environment
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
@@ -114,4 +124,5 @@ export const features = {
   email: !!env.RESEND_API_KEY || (!!env.EMAIL_SMTP_HOST && !!env.EMAIL_SMTP_PORT),
   analytics: !!env.NEXT_PUBLIC_POSTHOG_KEY,
   webhooks: !!env.STRIPE_WEBHOOK_SECRET,
+  resendWebhooks: !!env.RESEND_WEBHOOK_SECRET,
 } as const;

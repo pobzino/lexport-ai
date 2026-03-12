@@ -6,7 +6,7 @@ import { auditLogger, getRequestContextFromRequest } from "@/lib/audit";
 import { lookupGeoLocation } from "@/lib/geolocation";
 import { requestTimestamp, hashSignatureData } from "@/lib/rfc3161-timestamp";
 import { sendCompletedContractWithCertificate, sendInvoiceEmail } from "@/lib/email";
-import { generateInvoiceNumber } from "@/lib/invoices/generate-number";
+import { insertInvoiceWithRetry } from "@/lib/invoices/create-invoice";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { randomBytes } from "crypto";
 
@@ -466,9 +466,6 @@ export async function POST(
         // Only generate invoice for paying roles
         if (isPayingRole && !isNonPayingRole) {
           try {
-            // Generate invoice number
-            const newInvoiceNumber = await generateInvoiceNumber(supabase, contractData.user_id);
-
             // Calculate amount based on payment structure
             let amount = Math.round((contractData.payment_amount || 0) * 100);
             let paymentType = "full";
@@ -511,12 +508,12 @@ export async function POST(
             // Create invoice
             const owner = contractData.users as { id: string; email: string; name: string } | null;
 
-            const { data: invoice, error: invoiceError } = await supabase
-              .from("invoices")
-              .insert({
+            const { data: invoice, error: invoiceError } = await insertInvoiceWithRetry<{
+              id: string;
+              invoice_number: string;
+            }>(supabase, {
                 contract_id: sigRequest.contract_id,
                 user_id: contractData.user_id,
-                invoice_number: newInvoiceNumber,
                 amount,
                 currency: contractData.payment_currency || "usd",
                 status: "sent",
@@ -530,13 +527,11 @@ export async function POST(
                 recipient_email: sigRequest.signer_email,
                 sender_name: owner?.name || null,
                 sender_email: owner?.email || null,
-              })
-              .select()
-              .single();
+              });
 
             if (!invoiceError && invoice) {
               invoiceId = invoice.id;
-              invoiceNumber = newInvoiceNumber;
+              invoiceNumber = invoice.invoice_number;
 
               // Send invoice email
               const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
@@ -547,7 +542,7 @@ export async function POST(
                   to: sigRequest.signer_email,
                   recipientName: sigRequest.signer_name,
                   contractTitle: contractData.title,
-                  invoiceNumber: newInvoiceNumber,
+                  invoiceNumber: invoice.invoice_number,
                   amount,
                   currency: contractData.payment_currency || "usd",
                   dueDate,
@@ -574,7 +569,7 @@ export async function POST(
                 actor_email: sigRequest.signer_email,
                 metadata: {
                   invoice_id: invoice.id,
-                  invoice_number: newInvoiceNumber,
+                  invoice_number: invoice.invoice_number,
                   amount,
                   currency: contractData.payment_currency || "usd",
                   auto_generated: true,

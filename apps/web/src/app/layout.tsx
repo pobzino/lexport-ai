@@ -13,7 +13,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://lexport.ai"),
+  metadataBase: new URL("https://lexportai.com"),
   title: {
     default: "Lexport - AI-Powered Legal Contracts & E-Signatures",
     template: "%s | Lexport",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     "legal document automation",
     "contract management software",
   ],
-  authors: [{ name: "Lexport", url: "https://lexport.ai" }],
+  authors: [{ name: "Lexport", url: "https://lexportai.com" }],
   creator: "Lexport",
   publisher: "Lexport",
   formatDetection: {
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://lexport.ai",
+    url: "https://lexportai.com",
     siteName: "Lexport",
     title: "Lexport - AI-Powered Legal Contracts & E-Signatures",
     description:
@@ -98,6 +98,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {process.env.DEPLOY_ID ? (
+          <meta name="x-deployment-id" content={process.env.DEPLOY_ID} />
+        ) : null}
         {/* Google Fonts for signature styles */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -119,4 +122,3 @@ export default function RootLayout({
     </html>
   );
 }
-

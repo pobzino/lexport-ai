@@ -18,6 +18,7 @@ export type ProcessingMode = "full";
 export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "cancelled" | "void";
 export type InvoiceTemplateType = "hourly" | "fixed_fee" | "milestone" | "retainer" | "custom";
 export type RetainerPeriod = "weekly" | "monthly" | "quarterly";
+export type ContractGenerationJobStatus = "queued" | "processing" | "completed" | "failed" | "timed_out";
 export type AuditEventType =
   // Contract lifecycle events
   | "contract_created"
@@ -225,6 +226,24 @@ export interface Contract {
   extracted_text: string | null;
   // Section explanations cache
   section_explanations: Record<string, ClauseExplanation> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContractGenerationJob {
+  id: string;
+  user_id: string;
+  contract_type: string;
+  metadata: Record<string, unknown>;
+  payment_config: Record<string, unknown> | null;
+  status: ContractGenerationJobStatus;
+  progress_percent: number;
+  progress_status: string;
+  error_message: string | null;
+  contract_id: string | null;
+  attempt_count: number;
+  started_at: string | null;
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
 }

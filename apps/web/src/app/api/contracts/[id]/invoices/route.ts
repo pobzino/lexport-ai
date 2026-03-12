@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { InvoiceLineItem, Payment } from "@/db/types";
-import { generateInvoiceNumber } from "@/lib/invoices/generate-number";
+import { insertInvoiceWithRetry } from "@/lib/invoices/create-invoice";
 
 // Format currency
 function formatCurrency(amount: number, currency: string): string {
@@ -141,15 +141,11 @@ export async function POST(
     const taxAmount = 0; // No tax calculation for now
     const total = subtotal + taxAmount;
 
-    // Generate sequential invoice number
-    const invoiceNumber = await generateInvoiceNumber(supabase, user.id);
-
     // Create invoice
     const invoiceData = {
       contract_id: id,
       payment_id: paymentId || null,
       user_id: user.id,
-      invoice_number: invoiceNumber,
       amount,
       currency,
       status: payment?.status === "succeeded" ? "paid" : "sent",
@@ -168,14 +164,25 @@ export async function POST(
       notes: notes || null,
     };
 
-    const { data: invoice, error: insertError } = await supabase
-      .from("invoices")
-      .insert(invoiceData)
-      .select()
-      .single();
+    const { data: invoice, error: insertError } = await insertInvoiceWithRetry<{
+      id: string;
+      invoice_number: string;
+      amount: number;
+      currency: string;
+    }>(
+      supabase,
+      invoiceData
+    );
 
     if (insertError) {
       console.error("Error creating invoice:", insertError);
+      return NextResponse.json(
+        { error: "Failed to create invoice" },
+        { status: 500 }
+      );
+    }
+
+    if (!invoice) {
       return NextResponse.json(
         { error: "Failed to create invoice" },
         { status: 500 }

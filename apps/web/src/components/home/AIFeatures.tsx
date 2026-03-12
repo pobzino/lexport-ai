@@ -325,7 +325,7 @@ export function AIFeatures() {
                                 {activeTab === tab.id && (
                                     <motion.div
                                         layoutId="activeTab"
-                                        className="absolute inset-0 bg-white rounded-lg shadow-sm"
+                                        className="absolute inset-0 bg-white rounded-lg shadow-sm pointer-events-none"
                                         transition={{ type: "spring", duration: 0.5 }}
                                     />
                                 )}

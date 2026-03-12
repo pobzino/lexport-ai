@@ -125,6 +125,16 @@ function getResend(): EmailClient {
   };
 }
 
+export function getResendClient(): Resend {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is not configured");
+  }
+  if (!resendClient) {
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+}
+
 export function isEmailTransportConfigured() {
   return hasSmtpTransportConfig() || Boolean(process.env.RESEND_API_KEY);
 }
@@ -2053,7 +2063,7 @@ Reply directly to this email to respond to ${name}.
 `;
 
   // Support email address - you can configure this
-  const supportEmail = process.env.SUPPORT_EMAIL || "support@lexport.ai";
+  const supportEmail = process.env.SUPPORT_EMAIL || "support@lexportai.com";
 
   try {
     const { data, error } = await getResend().emails.send({
