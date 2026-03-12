@@ -8,28 +8,15 @@ const REPLY_FROM = "Lexport <hello@lexportai.com>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
 
 function buildEmailHtml(body: string): string {
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #374151; background-color: #f8fafc; margin: 0; padding: 0;">
-  <div style="background: linear-gradient(135deg, #202e46 0%, #2a3a54 100%); padding: 20px; text-align: center;">
-    <a href="${APP_URL}" style="text-decoration: none;">
-      <img src="${APP_URL}/dark-logo.png" alt="Lexport" height="32" style="height: 32px; width: auto;" />
-    </a>
-  </div>
-  <div style="max-width: 600px; margin: 0 auto; padding: 24px 20px;">
-    <div style="background-color: #ffffff; border-radius: 12px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-      <div style="font-size: 14px; color: #1e293b; line-height: 1.7;">
-        ${body.replace(/\n/g, "<br>")}
-      </div>
-    </div>
-    <div style="text-align: center; margin-top: 24px; font-size: 12px; color: #94a3b8;">
-      <p style="margin: 0;">Sent from <a href="${APP_URL}" style="color: #529ec6; text-decoration: none;">Lexport</a></p>
-    </div>
-  </div>
-</body>
-</html>`;
+  return `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #1e293b; line-height: 1.6;">
+${body.replace(/\n/g, "<br>")}
+<br><br>
+<div style="color: #64748b; font-size: 13px; border-top: 1px solid #e2e8f0; padding-top: 12px; margin-top: 12px;">
+  <strong style="color: #202e46;">Lexport</strong><br>
+  AI-powered contracts & e-signatures<br>
+  <a href="${APP_URL}" style="color: #529ec6; text-decoration: none;">${APP_URL.replace("https://", "")}</a>
+</div>
+</div>`;
 }
 
 export async function POST(
