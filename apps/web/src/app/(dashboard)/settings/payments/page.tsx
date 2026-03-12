@@ -56,6 +56,14 @@ interface ConnectStatus {
 
 type ViewMode = "overview" | "account" | "payments" | "payouts";
 
+// Pure utility — moved outside component to avoid recreation on each render
+function formatCurrency(amount: number, currency: string) {
+    return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: currency.toUpperCase(),
+    }).format(amount / 100);
+}
+
 const SUPPORTED_COUNTRIES = [
   { code: "US", name: "United States", flag: "🇺🇸" },
   { code: "GB", name: "United Kingdom", flag: "🇬🇧" },
@@ -240,14 +248,6 @@ export default function PaymentSettingsPage() {
     } finally {
       setDisconnecting(false);
     }
-  };
-
-  // Format currency
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency.toUpperCase(),
-    }).format(amount / 100);
   };
 
   // Get status badge

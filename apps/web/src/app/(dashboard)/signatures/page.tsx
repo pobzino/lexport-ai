@@ -163,51 +163,51 @@ export default async function SignaturesPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-500">Total Requests</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1">{stats.total}</p>
+              <p className="text-xs sm:text-sm text-slate-500">Total Requests</p>
+              <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{stats.total}</p>
             </div>
-            <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-              <FileSignature className="w-5 h-5 text-slate-600" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-slate-100 rounded-lg flex items-center justify-center">
+              <FileSignature className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-500">Completed</p>
-              <p className="text-2xl font-bold text-emerald-600 mt-1">{stats.completed}</p>
+              <p className="text-xs sm:text-sm text-slate-500">Completed</p>
+              <p className="text-xl sm:text-2xl font-bold text-emerald-600 mt-1">{stats.completed}</p>
             </div>
-            <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-emerald-600" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
+              <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-500">Awaiting</p>
-              <p className="text-2xl font-bold text-amber-600 mt-1">{stats.pending}</p>
+              <p className="text-xs sm:text-sm text-slate-500">Awaiting</p>
+              <p className="text-xl sm:text-2xl font-bold text-amber-600 mt-1">{stats.pending}</p>
             </div>
-            <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
-              <Clock className="w-5 h-5 text-amber-600" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-amber-50 rounded-lg flex items-center justify-center">
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-500">Declined</p>
-              <p className="text-2xl font-bold text-red-600 mt-1">{stats.declined}</p>
+              <p className="text-xs sm:text-sm text-slate-500">Declined</p>
+              <p className="text-xl sm:text-2xl font-bold text-red-600 mt-1">{stats.declined}</p>
             </div>
-            <div className="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center">
-              <XCircle className="w-5 h-5 text-red-600" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-red-50 rounded-lg flex items-center justify-center">
+              <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />
             </div>
           </div>
         </div>
@@ -231,35 +231,35 @@ export default async function SignaturesPage() {
             {pendingRequests.map((req) => (
               <div
                 key={req.id}
-                className="px-6 py-4 hover:bg-slate-50 transition-colors"
+                className="px-4 sm:px-6 py-3 sm:py-4 hover:bg-slate-50 transition-colors"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4 min-w-0 flex-1">
-                    <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
                       <span className="text-sm font-medium text-amber-700">
                         {req.signer_name?.charAt(0)?.toUpperCase() || "?"}
                       </span>
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium text-slate-900 truncate">
+                        <p className="font-medium text-slate-900 truncate text-sm sm:text-base">
                           {req.signer_name}
                         </p>
                         {req.viewed_at && (
-                          <span className="text-xs text-blue-600 flex items-center gap-1">
+                          <span className="text-xs text-blue-600 flex items-center gap-1 flex-shrink-0">
                             <Eye className="w-3 h-3" />
-                            Viewed
+                            <span className="hidden sm:inline">Viewed</span>
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-slate-500 truncate">
+                      <p className="text-xs sm:text-sm text-slate-500 truncate">
                         {req.signer_email}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-6 flex-shrink-0">
-                    <div className="text-right hidden sm:block">
+                  <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+                    <div className="text-right hidden md:block">
                       <p className="text-sm font-medium text-slate-700 truncate max-w-[200px]">
                         {req.contracts?.title || "Contract"}
                       </p>
@@ -268,7 +268,9 @@ export default async function SignaturesPage() {
                       </p>
                     </div>
 
-                    {getStatusBadge(req.status, req.viewed_at)}
+                    <div className="hidden sm:block">
+                      {getStatusBadge(req.status, req.viewed_at)}
+                    </div>
 
                     <div className="flex items-center gap-1">
                       <SendReminderButton
@@ -278,7 +280,7 @@ export default async function SignaturesPage() {
                       />
                       <Link
                         href={`/contracts/${req.contracts?.id}/edit`}
-                        className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                        className="p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
                         title="View Contract"
                       >
                         <ArrowRight className="w-4 h-4" />

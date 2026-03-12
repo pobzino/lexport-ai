@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef, memo } from "react";
 import Link from "next/link";
 import {
     FileText,
@@ -294,6 +294,189 @@ const SORT_OPTIONS = [
     { value: "title_desc", label: "Title Z-A" },
 ];
 
+// Memoized contract row to prevent re-renders when filters change
+interface ContractRowProps {
+    contract: Contract;
+    folders: FolderType[];
+    openDropdown: string | null;
+    setOpenDropdown: (id: string | null) => void;
+    onMoveToFolder: (contractId: string, folderId: string | null) => void;
+    onDelete: (contractId: string) => void;
+    onDuplicate: (contractId: string) => void;
+}
+
+const ContractRow = memo(function ContractRow({
+    contract,
+    folders,
+    openDropdown,
+    setOpenDropdown,
+    onMoveToFolder,
+    onDelete,
+    onDuplicate,
+}: ContractRowProps) {
+    const typeDisplay = getTypeDisplay(contract.type);
+    const jurisdictionDisplay = getJurisdictionDisplay(contract.jurisdiction);
+    const TypeIcon = typeDisplay.icon;
+
+    return (
+        <div className="flex items-center justify-between p-3 sm:p-4 hover:bg-slate-50 transition-colors group">
+            <Link
+                href={`/contracts/${contract.id}/edit`}
+                className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0"
+            >
+                <div className={`w-9 h-9 sm:w-10 sm:h-10 ${typeDisplay.bg} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                    <TypeIcon className={`w-4 h-4 sm:w-5 sm:h-5 ${typeDisplay.color}`} />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <p className="font-medium text-slate-900 truncate text-sm sm:text-base">{contract.title}</p>
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-0.5">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${typeDisplay.bg} ${typeDisplay.color}`}>
+                            {typeDisplay.label}
+                        </span>
+                        {contract.source_type === "uploaded" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700">
+                                <Upload className="w-3 h-3" />
+                                Uploaded
+                            </span>
+                        )}
+                        <span className="hidden sm:inline-flex items-center gap-1 text-xs text-slate-500">
+                            <span>{jurisdictionDisplay.flag}</span>
+                            <span>{jurisdictionDisplay.label}</span>
+                        </span>
+                    </div>
+                </div>
+            </Link>
+
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-2">
+                <div className="hidden sm:block">
+                    <PaymentBadge contract={contract} />
+                </div>
+                <div className="hidden sm:block">
+                    <StatusBadge status={contract.status} />
+                </div>
+                {/* Mobile: compact status */}
+                <div className="sm:hidden">
+                    <StatusBadge status={contract.status} />
+                </div>
+                <span className="text-sm text-slate-500 hidden md:block min-w-[80px] text-right">
+                    {formatTimeAgo(contract.updated_at)}
+                </span>
+                <div className="relative">
+                    <button
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setOpenDropdown(openDropdown === contract.id ? null : contract.id);
+                        }}
+                        className="p-2.5 hover:bg-slate-100 rounded-lg transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 min-h-[36px] min-w-[36px] flex items-center justify-center"
+                        aria-label="More actions"
+                    >
+                        <MoreHorizontal className="w-4 h-4 text-slate-500" />
+                    </button>
+                    {openDropdown === contract.id && (
+                        <>
+                            <div className="fixed inset-0 z-10" onClick={() => setOpenDropdown(null)} />
+                            <div className="absolute right-0 bottom-full mb-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20">
+                                <Link
+                                    href={`/contracts/${contract.id}/edit`}
+                                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                    onClick={() => setOpenDropdown(null)}
+                                >
+                                    {["pending_signature", "signed", "completed", "expired"].includes(contract.status) ? (
+                                        <><Eye className="w-4 h-4" />View Contract</>
+                                    ) : (
+                                        <><Edit className="w-4 h-4" />Edit Contract</>
+                                    )}
+                                </Link>
+                                {contract.status === "draft" && (
+                                    <Link
+                                        href={`/contracts/${contract.id}/sign`}
+                                        className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                        onClick={() => setOpenDropdown(null)}
+                                    >
+                                        <Send className="w-4 h-4" />
+                                        Send for Signature
+                                    </Link>
+                                )}
+                                <button
+                                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
+                                    onClick={() => onDuplicate(contract.id)}
+                                >
+                                    <Copy className="w-4 h-4" />
+                                    Duplicate
+                                </button>
+                                <Link
+                                    href={`/my-templates/create?from=${contract.id}`}
+                                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                    onClick={() => setOpenDropdown(null)}
+                                >
+                                    <FileSignature className="w-4 h-4" />
+                                    Save as Template
+                                </Link>
+                                <a
+                                    href={`/api/contracts/${contract.id}/pdf`}
+                                    download
+                                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                    onClick={() => setOpenDropdown(null)}
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Download PDF
+                                </a>
+                                <div className="relative group">
+                                    <button className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left">
+                                        <Folder className="w-4 h-4" />
+                                        Move to Folder
+                                        <ChevronRight className="w-3 h-3 ml-auto" />
+                                    </button>
+                                    <div className="absolute right-full top-0 mr-1 w-44 bg-white rounded-lg shadow-lg border border-slate-200 py-1 hidden group-hover:block">
+                                        <button
+                                            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
+                                            onClick={() => onMoveToFolder(contract.id, null)}
+                                        >
+                                            <X className="w-4 h-4" />
+                                            No Folder
+                                        </button>
+                                        {folders.length > 0 && <div className="border-t border-slate-100 my-1" />}
+                                        {folders.map((folder) => (
+                                            <button
+                                                key={folder.id}
+                                                className={cn(
+                                                    "flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 w-full text-left",
+                                                    contract.folder_id === folder.id ? "text-[#529ec6] bg-[#529ec6]/5" : "text-slate-700"
+                                                )}
+                                                onClick={() => onMoveToFolder(contract.id, folder.id)}
+                                            >
+                                                <Folder className="w-4 h-4" style={{ color: folder.color }} />
+                                                <span className="truncate">{folder.name}</span>
+                                                {contract.folder_id === folder.id && <CheckCircle2 className="w-3 h-3 ml-auto flex-shrink-0" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                {["draft", "cancelled"].includes(contract.status) && (
+                                    <>
+                                        <div className="border-t border-slate-100 my-1" />
+                                        <button
+                                            className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
+                                            onClick={() => onDelete(contract.id)}
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                            Delete
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
+                <Link href={`/contracts/${contract.id}/edit`}>
+                    <ArrowRight className="w-4 h-4 text-slate-400" />
+                </Link>
+            </div>
+        </div>
+    );
+});
+
 interface ContractsListProps {
     contracts: Contract[];
 }
@@ -301,12 +484,20 @@ interface ContractsListProps {
 export function ContractsList({ contracts }: ContractsListProps) {
     const toast = useToast();
     const [searchQuery, setSearchQuery] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
     const [typeFilter, setTypeFilter] = useState("");
     const [jurisdictionFilter, setJurisdictionFilter] = useState("");
     const [paymentFilter, setPaymentFilter] = useState("");
     const [sortBy, setSortBy] = useState("updated_desc");
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+    const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+    // Debounce search input (300ms)
+    useEffect(() => {
+        searchTimerRef.current = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+        return () => clearTimeout(searchTimerRef.current);
+    }, [searchQuery]);
 
     // Folders & Tags state
     const [folders, setFolders] = useState<FolderType[]>([]);
@@ -428,8 +619,8 @@ export function ContractsList({ contracts }: ContractsListProps) {
         setLocalContracts(contracts);
     }, [contracts]);
 
-    // Move contract to folder
-    async function moveToFolder(contractId: string, folderId: string | null) {
+    // Move contract to folder (memoized)
+    const moveToFolder = useCallback(async function moveToFolder(contractId: string, folderId: string | null) {
         try {
             const { error } = await supabase
                 .from("contracts")
@@ -448,10 +639,10 @@ export function ContractsList({ contracts }: ContractsListProps) {
             console.error("Error moving contract:", error);
         }
         setOpenDropdown(null);
-    }
+    }, [supabase]);
 
-    // Delete contract
-    async function deleteContract(contractId: string) {
+    // Delete contract (memoized)
+    const deleteContract = useCallback(async function deleteContract(contractId: string) {
         if (!confirm("Are you sure you want to delete this contract? This cannot be undone.")) return;
         try {
             const { error } = await supabase
@@ -466,10 +657,10 @@ export function ContractsList({ contracts }: ContractsListProps) {
             console.error("Error deleting contract:", error);
         }
         setOpenDropdown(null);
-    }
+    }, [supabase]);
 
-    // Duplicate contract
-    async function duplicateContract(contractId: string) {
+    // Duplicate contract (memoized)
+    const duplicateContract = useCallback(async function duplicateContract(contractId: string) {
         try {
             const res = await fetch(`/api/contracts/${contractId}/duplicate`, { method: "POST" });
             if (res.ok) {
@@ -480,17 +671,17 @@ export function ContractsList({ contracts }: ContractsListProps) {
             console.error("Error duplicating contract:", error);
         }
         setOpenDropdown(null);
-    }
+    }, []);
 
     // Filter and sort contracts
     const filteredContracts = useMemo(() => {
         // First filter
         const filtered = localContracts.filter((contract) => {
-            // Search filter (search in title and formatted type)
+            // Search filter (search in title and formatted type) — uses debounced value
             const typeDisplay = getTypeDisplay(contract.type);
-            const matchesSearch = searchQuery.trim() === "" ||
-                contract.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                typeDisplay.label.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesSearch = debouncedSearch.trim() === "" ||
+                contract.title.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+                typeDisplay.label.toLowerCase().includes(debouncedSearch.toLowerCase());
 
             // Status filter
             const matchesStatus = statusFilter === "" || contract.status === statusFilter;
@@ -543,11 +734,14 @@ export function ContractsList({ contracts }: ContractsListProps) {
                     return 0;
             }
         });
-    }, [localContracts, searchQuery, statusFilter, typeFilter, jurisdictionFilter, paymentFilter, sortBy, selectedFolderId, selectedTagId]);
+    }, [localContracts, debouncedSearch, statusFilter, typeFilter, jurisdictionFilter, paymentFilter, sortBy, selectedFolderId, selectedTagId]);
 
-    const hasActiveFilters = searchQuery || statusFilter || typeFilter || jurisdictionFilter || paymentFilter || selectedFolderId || selectedTagId;
+    const hasActiveFilters = useMemo(() =>
+        !!(searchQuery || statusFilter || typeFilter || jurisdictionFilter || paymentFilter || selectedFolderId || selectedTagId),
+        [searchQuery, statusFilter, typeFilter, jurisdictionFilter, paymentFilter, selectedFolderId, selectedTagId]
+    );
 
-    const clearFilters = () => {
+    const clearFilters = useCallback(() => {
         setSearchQuery("");
         setStatusFilter("");
         setTypeFilter("");
@@ -556,7 +750,7 @@ export function ContractsList({ contracts }: ContractsListProps) {
         setSortBy("updated_desc");
         setSelectedFolderId(null);
         setSelectedTagId(null);
-    };
+    }, []);
 
     // Get unique types from contracts for dynamic filter options
     const uniqueTypes = useMemo(() => {
@@ -586,7 +780,7 @@ export function ContractsList({ contracts }: ContractsListProps) {
                 <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setShowMobileSidebar(false)}>
                     <div className="absolute inset-0 bg-black/50" />
                     <div
-                        className="absolute left-0 top-0 bottom-0 w-72 bg-white shadow-xl overflow-auto"
+                        className="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-white shadow-xl overflow-auto"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="sticky top-0 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
@@ -871,7 +1065,7 @@ export function ContractsList({ contracts }: ContractsListProps) {
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer min-w-[160px]"
+                            className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer sm:min-w-[140px]"
                         >
                             {STATUS_OPTIONS.map((option) => (
                                 <option key={option.value} value={option.value}>
@@ -884,7 +1078,7 @@ export function ContractsList({ contracts }: ContractsListProps) {
                         <select
                             value={typeFilter}
                             onChange={(e) => setTypeFilter(e.target.value)}
-                            className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer min-w-[180px]"
+                            className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer sm:min-w-[140px]"
                         >
                             <option value="">All Types</option>
                             {uniqueTypes.map((option) => (
@@ -898,7 +1092,7 @@ export function ContractsList({ contracts }: ContractsListProps) {
                         <select
                             value={paymentFilter}
                             onChange={(e) => setPaymentFilter(e.target.value)}
-                            className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer min-w-[170px]"
+                            className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer sm:min-w-[140px]"
                         >
                             {PAYMENT_OPTIONS.map((option) => (
                                 <option key={option.value} value={option.value}>
@@ -926,7 +1120,7 @@ export function ContractsList({ contracts }: ContractsListProps) {
                             <select
                                 value={jurisdictionFilter}
                                 onChange={(e) => setJurisdictionFilter(e.target.value)}
-                                className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer min-w-[160px]"
+                                className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer sm:min-w-[140px]"
                             >
                                 <option value="">All Jurisdictions</option>
                                 {uniqueJurisdictions.map((option) => (
@@ -944,7 +1138,7 @@ export function ContractsList({ contracts }: ContractsListProps) {
                         <select
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value)}
-                            className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer min-w-[180px]"
+                            className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer sm:min-w-[160px]"
                         >
                             {SORT_OPTIONS.map((option) => (
                                 <option key={option.value} value={option.value}>
@@ -1004,195 +1198,18 @@ export function ContractsList({ contracts }: ContractsListProps) {
                         </div>
                     ) : (
                         <div className="divide-y divide-slate-100">
-                            {filteredContracts.map((contract) => {
-                                const typeDisplay = getTypeDisplay(contract.type);
-                                const jurisdictionDisplay = getJurisdictionDisplay(contract.jurisdiction);
-                                const TypeIcon = typeDisplay.icon;
-
-                                return (
-                                    <div
-                                        key={contract.id}
-                                        className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors group"
-                                    >
-                                        <Link
-                                            href={`/contracts/${contract.id}/edit`}
-                                            className="flex items-center gap-4 flex-1 min-w-0"
-                                        >
-                                            {/* Type Icon */}
-                                            <div className={`w-10 h-10 ${typeDisplay.bg} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                                                <TypeIcon className={`w-5 h-5 ${typeDisplay.color}`} />
-                                            </div>
-
-                                            {/* Contract Info */}
-                                            <div className="min-w-0 flex-1">
-                                                <p className="font-medium text-slate-900 truncate">
-                                                    {contract.title}
-                                                </p>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    {/* Type Badge */}
-                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${typeDisplay.bg} ${typeDisplay.color}`}>
-                                                        {typeDisplay.label}
-                                                    </span>
-                                                    {/* Uploaded Badge */}
-                                                    {contract.source_type === "uploaded" && (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700">
-                                                            <Upload className="w-3 h-3" />
-                                                            Uploaded
-                                                        </span>
-                                                    )}
-                                                    {/* Jurisdiction */}
-                                                    <span className="inline-flex items-center gap-1 text-xs text-slate-500">
-                                                        <span>{jurisdictionDisplay.flag}</span>
-                                                        <span>{jurisdictionDisplay.label}</span>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </Link>
-
-                                        {/* Right side: Payment, Status, Date, Actions */}
-                                        <div className="flex items-center gap-3 flex-shrink-0">
-                                            {/* Payment Badge */}
-                                            <div className="hidden sm:block">
-                                                <PaymentBadge contract={contract} />
-                                            </div>
-
-                                            {/* Status Badge */}
-                                            <StatusBadge status={contract.status} />
-
-                                            {/* Last Updated */}
-                                            <span className="text-sm text-slate-500 hidden md:block min-w-[80px] text-right">
-                                                {formatTimeAgo(contract.updated_at)}
-                                            </span>
-
-                                            {/* Actions Dropdown */}
-                                            <div className="relative">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        setOpenDropdown(openDropdown === contract.id ? null : contract.id);
-                                                    }}
-                                                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                                                >
-                                                    <MoreHorizontal className="w-4 h-4 text-slate-500" />
-                                                </button>
-
-                                                {openDropdown === contract.id && (
-                                                    <>
-                                                        <div
-                                                            className="fixed inset-0 z-10"
-                                                            onClick={() => setOpenDropdown(null)}
-                                                        />
-                                                        <div className="absolute right-0 bottom-full mb-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20">
-                                                            <Link
-                                                                href={`/contracts/${contract.id}/edit`}
-                                                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                                                                onClick={() => setOpenDropdown(null)}
-                                                            >
-                                                                {["pending_signature", "signed", "completed", "expired"].includes(contract.status) ? (
-                                                                    <>
-                                                                        <Eye className="w-4 h-4" />
-                                                                        View Contract
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <Edit className="w-4 h-4" />
-                                                                        Edit Contract
-                                                                    </>
-                                                                )}
-                                                            </Link>
-                                                            {contract.status === "draft" && (
-                                                                <Link
-                                                                    href={`/contracts/${contract.id}/sign`}
-                                                                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                                                                    onClick={() => setOpenDropdown(null)}
-                                                                >
-                                                                    <Send className="w-4 h-4" />
-                                                                    Send for Signature
-                                                                </Link>
-                                                            )}
-                                                            <button
-                                                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
-                                                                onClick={() => duplicateContract(contract.id)}
-                                                            >
-                                                                <Copy className="w-4 h-4" />
-                                                                Duplicate
-                                                            </button>
-                                                            <Link
-                                                                href={`/my-templates/create?from=${contract.id}`}
-                                                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                                                                onClick={() => setOpenDropdown(null)}
-                                                            >
-                                                                <FileSignature className="w-4 h-4" />
-                                                                Save as Template
-                                                            </Link>
-                                                            <a
-                                                                href={`/api/contracts/${contract.id}/pdf`}
-                                                                download
-                                                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                                                                onClick={() => setOpenDropdown(null)}
-                                                            >
-                                                                <Download className="w-4 h-4" />
-                                                                Download PDF
-                                                            </a>
-                                                            {/* Move to Folder submenu */}
-                                                            <div className="relative group">
-                                                                <button className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left">
-                                                                    <Folder className="w-4 h-4" />
-                                                                    Move to Folder
-                                                                    <ChevronRight className="w-3 h-3 ml-auto" />
-                                                                </button>
-                                                                <div className="absolute right-full top-0 mr-1 w-44 bg-white rounded-lg shadow-lg border border-slate-200 py-1 hidden group-hover:block">
-                                                                    <button
-                                                                        className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
-                                                                        onClick={() => moveToFolder(contract.id, null)}
-                                                                    >
-                                                                        <X className="w-4 h-4" />
-                                                                        No Folder
-                                                                    </button>
-                                                                    {folders.length > 0 && <div className="border-t border-slate-100 my-1" />}
-                                                                    {folders.map((folder) => (
-                                                                        <button
-                                                                            key={folder.id}
-                                                                            className={cn(
-                                                                                "flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 w-full text-left",
-                                                                                contract.folder_id === folder.id ? "text-[#529ec6] bg-[#529ec6]/5" : "text-slate-700"
-                                                                            )}
-                                                                            onClick={() => moveToFolder(contract.id, folder.id)}
-                                                                        >
-                                                                            <Folder className="w-4 h-4" style={{ color: folder.color }} />
-                                                                            <span className="truncate">{folder.name}</span>
-                                                                            {contract.folder_id === folder.id && <CheckCircle2 className="w-3 h-3 ml-auto flex-shrink-0" />}
-                                                                        </button>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                            {/* Only show delete for draft or cancelled contracts */}
-                                                            {["draft", "cancelled"].includes(contract.status) && (
-                                                                <>
-                                                                    <div className="border-t border-slate-100 my-1" />
-                                                                    <button
-                                                                        className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
-                                                                        onClick={() => deleteContract(contract.id)}
-                                                                    >
-                                                                        <Trash2 className="w-4 h-4" />
-                                                                        Delete
-                                                                    </button>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    </>
-                                                )}
-                                            </div>
-
-                                            {/* Arrow */}
-                                            <Link href={`/contracts/${contract.id}/edit`}>
-                                                <ArrowRight className="w-4 h-4 text-slate-400" />
-                                            </Link>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                            {filteredContracts.map((contract) => (
+                                <ContractRow
+                                    key={contract.id}
+                                    contract={contract}
+                                    folders={folders}
+                                    openDropdown={openDropdown}
+                                    setOpenDropdown={setOpenDropdown}
+                                    onMoveToFolder={moveToFolder}
+                                    onDelete={deleteContract}
+                                    onDuplicate={duplicateContract}
+                                />
+                            ))}
                         </div>
                     )}
                 </div>

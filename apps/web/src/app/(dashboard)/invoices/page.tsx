@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
 import Link from "next/link";
 import {
   Plus,
@@ -103,6 +103,179 @@ function formatDate(dateString: string | null): string {
   });
 }
 
+// Memoized invoice row to prevent re-renders on filter/pagination changes
+interface InvoiceRowProps {
+  invoice: Invoice;
+  openMenu: string | null;
+  setOpenMenu: (id: string | null) => void;
+  actionLoading: string | null;
+  onSend: (id: string) => void;
+  onDelete: (id: string) => void;
+}
+
+// Shared action menu used by both table row and mobile card
+function InvoiceActions({ invoice, openMenu, setOpenMenu, actionLoading, onSend, onDelete }: Omit<InvoiceRowProps, never>) {
+  return (
+    <div className="flex items-center gap-2">
+      {invoice.status === "draft" && (
+        <button
+          onClick={() => onSend(invoice.id)}
+          disabled={actionLoading === invoice.id}
+          className="flex items-center gap-1.5 px-3 py-2 bg-[#202e46] text-white text-sm font-medium rounded-lg hover:bg-[#1a2539] transition-colors disabled:opacity-50 min-h-[36px]"
+        >
+          {actionLoading === invoice.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+          <span className="hidden sm:inline">{actionLoading === invoice.id ? "Sending..." : "Send"}</span>
+        </button>
+      )}
+      {(invoice.status === "sent" || invoice.status === "overdue") && (
+        <button
+          onClick={() => onSend(invoice.id)}
+          disabled={actionLoading === invoice.id}
+          className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 min-h-[36px]"
+        >
+          {actionLoading === invoice.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+          <span className="hidden sm:inline">{actionLoading === invoice.id ? "Sending..." : "Resend"}</span>
+        </button>
+      )}
+      <div className="relative">
+        <button
+          onClick={() => setOpenMenu(openMenu === invoice.id ? null : invoice.id)}
+          className="p-2.5 hover:bg-slate-100 rounded-lg transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
+          aria-label="More actions"
+        >
+          <MoreVertical className="w-4 h-4 text-slate-600" />
+        </button>
+        {openMenu === invoice.id && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
+            <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-20 py-1">
+              <Link href={`/invoices/${invoice.id}`} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                <FileText className="w-4 h-4" />View Details
+              </Link>
+              {invoice.status === "draft" && (
+                <button
+                  onClick={() => { onSend(invoice.id); setOpenMenu(null); }}
+                  disabled={actionLoading === invoice.id}
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 w-full text-left disabled:opacity-50"
+                >
+                  {actionLoading === invoice.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {actionLoading === invoice.id ? "Sending..." : "Send Invoice"}
+                </button>
+              )}
+              {(invoice.status === "sent" || invoice.status === "overdue") && (
+                <button
+                  onClick={() => { onSend(invoice.id); setOpenMenu(null); }}
+                  disabled={actionLoading === invoice.id}
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 w-full text-left disabled:opacity-50"
+                >
+                  {actionLoading === invoice.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  {actionLoading === invoice.id ? "Sending..." : "Resend Invoice"}
+                </button>
+              )}
+              <button
+                onClick={() => { window.open(`/api/invoices/${invoice.id}?format=pdf&download=true`, '_blank'); setOpenMenu(null); }}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
+              >
+                <Download className="w-4 h-4" />Download PDF
+              </button>
+              <hr className="my-1 border-slate-100" />
+              <button
+                onClick={() => { onDelete(invoice.id); setOpenMenu(null); }}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 w-full text-left"
+              >
+                <Trash2 className="w-4 h-4" />Delete
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Desktop table row
+const InvoiceRow = memo(function InvoiceRow(props: InvoiceRowProps) {
+  const { invoice } = props;
+  const statusConfig = STATUS_CONFIG[invoice.status];
+  const StatusIcon = statusConfig.icon;
+
+  return (
+    <tr className="hover:bg-slate-50 transition-colors">
+      <td className="py-3 px-4">
+        <Link href={`/invoices/${invoice.id}`} className="font-medium text-slate-900 hover:text-[#529ec6]">
+          {invoice.invoice_number}
+        </Link>
+        <p className="text-xs text-slate-500">{formatDate(invoice.created_at)}</p>
+      </td>
+      <td className="py-3 px-4">
+        <p className="text-slate-900">{invoice.recipient_name}</p>
+        <p className="text-xs text-slate-500">{invoice.recipient_email}</p>
+      </td>
+      <td className="py-3 px-4">
+        <span className="font-medium text-slate-900">{formatCurrency(invoice.amount, invoice.currency)}</span>
+      </td>
+      <td className="py-3 px-4">
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig.bgColor} ${statusConfig.color}`}>
+          <StatusIcon className="w-3.5 h-3.5" />
+          {statusConfig.label}
+        </span>
+      </td>
+      <td className="py-3 px-4 text-slate-600 hidden lg:table-cell">{formatDate(invoice.due_date)}</td>
+      <td className="py-3 px-4 hidden lg:table-cell">
+        {invoice.contract_id ? (
+          <Link href={`/contracts/${invoice.contract_id}/edit`} className="text-sm text-[#529ec6] hover:underline truncate max-w-[150px] block">
+            {invoice.contract_title || "View Contract"}
+          </Link>
+        ) : (
+          <span className="text-xs text-slate-400">Standalone</span>
+        )}
+      </td>
+      <td className="py-3 px-4 text-right">
+        <div className="flex items-center justify-end">
+          <InvoiceActions {...props} />
+        </div>
+      </td>
+    </tr>
+  );
+});
+
+// Mobile card layout
+const InvoiceCard = memo(function InvoiceCard(props: InvoiceRowProps) {
+  const { invoice } = props;
+  const statusConfig = STATUS_CONFIG[invoice.status];
+  const StatusIcon = statusConfig.icon;
+
+  return (
+    <div className="p-4 border-b border-slate-100 last:border-b-0">
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <Link href={`/invoices/${invoice.id}`} className="font-medium text-slate-900 hover:text-[#529ec6]">
+          {invoice.invoice_number}
+        </Link>
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig.bgColor} ${statusConfig.color} flex-shrink-0`}>
+          <StatusIcon className="w-3 h-3" />
+          {statusConfig.label}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="min-w-0">
+          <p className="text-sm text-slate-700 truncate">{invoice.recipient_name}</p>
+          <p className="text-xs text-slate-500 truncate">{invoice.recipient_email}</p>
+        </div>
+        <p className="text-lg font-semibold text-slate-900 flex-shrink-0">
+          {formatCurrency(invoice.amount, invoice.currency)}
+        </p>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 text-xs text-slate-500">
+          <span>{formatDate(invoice.created_at)}</span>
+          {invoice.due_date && <span>Due {formatDate(invoice.due_date)}</span>}
+        </div>
+        <InvoiceActions {...props} />
+      </div>
+    </div>
+  );
+});
+
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,8 +283,16 @@ export default function InvoicesPage() {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "all">("all");
   const [showStandalone, setShowStandalone] = useState<boolean | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Debounce search input (300ms)
+  useEffect(() => {
+    searchTimerRef.current = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(searchTimerRef.current);
+  }, [searchQuery]);
 
   // Pagination
   const [total, setTotal] = useState(0);
@@ -131,8 +312,8 @@ export default function InvoicesPage() {
       params.set("limit", limit.toString());
       params.set("offset", offset.toString());
 
-      if (searchQuery.trim()) {
-        params.set("search", searchQuery.trim());
+      if (debouncedSearch.trim()) {
+        params.set("search", debouncedSearch.trim());
       }
       if (statusFilter !== "all") {
         params.set("status", statusFilter);
@@ -154,7 +335,7 @@ export default function InvoicesPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, statusFilter, showStandalone, offset, limit]);
+  }, [debouncedSearch, statusFilter, showStandalone, offset, limit]);
 
   useEffect(() => {
     fetchInvoices();
@@ -163,7 +344,7 @@ export default function InvoicesPage() {
   // Reset offset when filters change
   useEffect(() => {
     setOffset(0);
-  }, [searchQuery, statusFilter, showStandalone]);
+  }, [debouncedSearch, statusFilter, showStandalone]);
 
   const handleDelete = async (invoiceId: string) => {
     if (!confirm("Are you sure you want to delete this invoice?")) return;
@@ -205,14 +386,14 @@ export default function InvoicesPage() {
   const totalPages = Math.ceil(total / limit);
   const currentPage = Math.floor(offset / limit) + 1;
 
-  // Stats calculation
-  const stats = {
-    total: total,
-    draft: invoices.filter((i) => i.status === "draft").length,
-    sent: invoices.filter((i) => i.status === "sent").length,
-    paid: invoices.filter((i) => i.status === "paid").length,
-    overdue: invoices.filter((i) => i.status === "overdue").length,
-  };
+  // Memoize stats to avoid 4 filter passes on every render
+  const stats = useMemo(() => {
+    const counts = { total, draft: 0, sent: 0, paid: 0, overdue: 0 };
+    for (const inv of invoices) {
+      if (inv.status in counts) counts[inv.status as keyof Omit<typeof counts, "total">]++;
+    }
+    return counts;
+  }, [invoices, total]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -239,26 +420,26 @@ export default function InvoicesPage() {
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <p className="text-sm text-slate-500">Total</p>
-            <p className="text-2xl font-bold text-slate-900">{stats.total}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4 mb-6">
+          <div className="bg-white rounded-lg border border-slate-200 p-3 md:p-4">
+            <p className="text-xs md:text-sm text-slate-500">Total</p>
+            <p className="text-xl md:text-2xl font-bold text-slate-900">{stats.total}</p>
           </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <p className="text-sm text-slate-500">Drafts</p>
-            <p className="text-2xl font-bold text-slate-600">{stats.draft}</p>
+          <div className="bg-white rounded-lg border border-slate-200 p-3 md:p-4">
+            <p className="text-xs md:text-sm text-slate-500">Drafts</p>
+            <p className="text-xl md:text-2xl font-bold text-slate-600">{stats.draft}</p>
           </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <p className="text-sm text-slate-500">Sent</p>
-            <p className="text-2xl font-bold text-blue-600">{stats.sent}</p>
+          <div className="bg-white rounded-lg border border-slate-200 p-3 md:p-4">
+            <p className="text-xs md:text-sm text-slate-500">Sent</p>
+            <p className="text-xl md:text-2xl font-bold text-blue-600">{stats.sent}</p>
           </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <p className="text-sm text-slate-500">Paid</p>
-            <p className="text-2xl font-bold text-emerald-600">{stats.paid}</p>
+          <div className="bg-white rounded-lg border border-slate-200 p-3 md:p-4">
+            <p className="text-xs md:text-sm text-slate-500">Paid</p>
+            <p className="text-xl md:text-2xl font-bold text-emerald-600">{stats.paid}</p>
           </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <p className="text-sm text-slate-500">Overdue</p>
-            <p className="text-2xl font-bold text-red-600">{stats.overdue}</p>
+          <div className="bg-white rounded-lg border border-slate-200 p-3 md:p-4 col-span-2 sm:col-span-1">
+            <p className="text-xs md:text-sm text-slate-500">Overdue</p>
+            <p className="text-xl md:text-2xl font-bold text-red-600">{stats.overdue}</p>
           </div>
         </div>
 
@@ -357,8 +538,23 @@ export default function InvoicesPage() {
             </div>
           ) : (
             <>
-              {/* Table */}
-              <div className="overflow-x-auto">
+              {/* Mobile card layout */}
+              <div className="md:hidden">
+                {invoices.map((invoice) => (
+                  <InvoiceCard
+                    key={invoice.id}
+                    invoice={invoice}
+                    openMenu={openMenu}
+                    setOpenMenu={setOpenMenu}
+                    actionLoading={actionLoading}
+                    onSend={handleSend}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+
+              {/* Desktop table layout */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
@@ -374,10 +570,10 @@ export default function InvoicesPage() {
                       <th className="text-left py-3 px-4 text-sm font-medium text-slate-600">
                         Status
                       </th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-slate-600">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-slate-600 hidden lg:table-cell">
                         Due Date
                       </th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-slate-600">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-slate-600 hidden lg:table-cell">
                         Contract
                       </th>
                       <th className="text-right py-3 px-4 text-sm font-medium text-slate-600">
@@ -386,189 +582,17 @@ export default function InvoicesPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {invoices.map((invoice) => {
-                      const statusConfig = STATUS_CONFIG[invoice.status];
-                      const StatusIcon = statusConfig.icon;
-
-                      return (
-                        <tr
-                          key={invoice.id}
-                          className="hover:bg-slate-50 transition-colors"
-                        >
-                          <td className="py-3 px-4">
-                            <Link
-                              href={`/invoices/${invoice.id}`}
-                              className="font-medium text-slate-900 hover:text-[#529ec6]"
-                            >
-                              {invoice.invoice_number}
-                            </Link>
-                            <p className="text-xs text-slate-500">
-                              {formatDate(invoice.created_at)}
-                            </p>
-                          </td>
-                          <td className="py-3 px-4">
-                            <p className="text-slate-900">
-                              {invoice.recipient_name}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {invoice.recipient_email}
-                            </p>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="font-medium text-slate-900">
-                              {formatCurrency(invoice.amount, invoice.currency)}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig.bgColor} ${statusConfig.color}`}
-                            >
-                              <StatusIcon className="w-3.5 h-3.5" />
-                              {statusConfig.label}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-slate-600">
-                            {formatDate(invoice.due_date)}
-                          </td>
-                          <td className="py-3 px-4">
-                            {invoice.contract_id ? (
-                              <Link
-                                href={`/contracts/${invoice.contract_id}/edit`}
-                                className="text-sm text-[#529ec6] hover:underline truncate max-w-[150px] block"
-                              >
-                                {invoice.contract_title || "View Contract"}
-                              </Link>
-                            ) : (
-                              <span className="text-xs text-slate-400">
-                                Standalone
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {/* Quick Send button for draft invoices */}
-                              {invoice.status === "draft" && (
-                                <button
-                                  onClick={() => handleSend(invoice.id)}
-                                  disabled={actionLoading === invoice.id}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#202e46] text-white text-sm font-medium rounded-lg hover:bg-[#1a2539] transition-colors disabled:opacity-50"
-                                >
-                                  {actionLoading === invoice.id ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  ) : (
-                                    <Send className="w-3.5 h-3.5" />
-                                  )}
-                                  {actionLoading === invoice.id ? "Sending..." : "Send"}
-                                </button>
-                              )}
-
-                              {/* Resend button for sent/overdue invoices */}
-                              {(invoice.status === "sent" || invoice.status === "overdue") && (
-                                <button
-                                  onClick={() => handleSend(invoice.id)}
-                                  disabled={actionLoading === invoice.id}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                                >
-                                  {actionLoading === invoice.id ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  ) : (
-                                    <RefreshCw className="w-3.5 h-3.5" />
-                                  )}
-                                  {actionLoading === invoice.id ? "Sending..." : "Resend"}
-                                </button>
-                              )}
-
-                              {/* More actions dropdown */}
-                              <div className="relative">
-                                <button
-                                  onClick={() =>
-                                    setOpenMenu(
-                                      openMenu === invoice.id ? null : invoice.id
-                                    )
-                                  }
-                                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                                >
-                                  <MoreVertical className="w-4 h-4 text-slate-600" />
-                                </button>
-
-                                {openMenu === invoice.id && (
-                                <>
-                                  <div
-                                    className="fixed inset-0 z-10"
-                                    onClick={() => setOpenMenu(null)}
-                                  />
-                                  <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-20 py-1">
-                                    <Link
-                                      href={`/invoices/${invoice.id}`}
-                                      className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                                    >
-                                      <FileText className="w-4 h-4" />
-                                      View Details
-                                    </Link>
-                                    {invoice.status === "draft" && (
-                                      <button
-                                        onClick={() => {
-                                          handleSend(invoice.id);
-                                          setOpenMenu(null);
-                                        }}
-                                        disabled={actionLoading === invoice.id}
-                                        className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left disabled:opacity-50"
-                                      >
-                                        {actionLoading === invoice.id ? (
-                                          <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                          <Send className="w-4 h-4" />
-                                        )}
-                                        {actionLoading === invoice.id ? "Sending..." : "Send Invoice"}
-                                      </button>
-                                    )}
-                                    {(invoice.status === "sent" || invoice.status === "overdue") && (
-                                      <button
-                                        onClick={() => {
-                                          handleSend(invoice.id);
-                                          setOpenMenu(null);
-                                        }}
-                                        disabled={actionLoading === invoice.id}
-                                        className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left disabled:opacity-50"
-                                      >
-                                        {actionLoading === invoice.id ? (
-                                          <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                          <RefreshCw className="w-4 h-4" />
-                                        )}
-                                        {actionLoading === invoice.id ? "Sending..." : "Resend Invoice"}
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => {
-                                        window.open(`/api/invoices/${invoice.id}?format=pdf&download=true`, '_blank');
-                                        setOpenMenu(null);
-                                      }}
-                                      className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
-                                    >
-                                      <Download className="w-4 h-4" />
-                                      Download PDF
-                                    </button>
-                                    <hr className="my-1 border-slate-100" />
-                                    <button
-                                      onClick={() => {
-                                        handleDelete(invoice.id);
-                                        setOpenMenu(null);
-                                      }}
-                                      className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                      Delete
-                                    </button>
-                                  </div>
-                                </>
-                              )}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {invoices.map((invoice) => (
+                      <InvoiceRow
+                        key={invoice.id}
+                        invoice={invoice}
+                        openMenu={openMenu}
+                        setOpenMenu={setOpenMenu}
+                        actionLoading={actionLoading}
+                        onSend={handleSend}
+                        onDelete={handleDelete}
+                      />
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -576,27 +600,29 @@ export default function InvoicesPage() {
               {/* Pagination */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50">
-                  <p className="text-sm text-slate-600">
-                    Showing {offset + 1} to {Math.min(offset + limit, total)} of{" "}
-                    {total} invoices
+                  <p className="text-xs sm:text-sm text-slate-600">
+                    <span className="hidden sm:inline">Showing {offset + 1} to {Math.min(offset + limit, total)} of{" "}{total}</span>
+                    <span className="sm:hidden">{offset + 1}-{Math.min(offset + limit, total)} of {total}</span>
                   </p>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setOffset(Math.max(0, offset - limit))}
                       disabled={offset === 0}
-                      className="p-2 rounded-lg border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors"
+                      className="p-2.5 rounded-lg border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
+                      aria-label="Previous page"
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
-                    <span className="text-sm text-slate-600">
-                      Page {currentPage} of {totalPages}
+                    <span className="text-xs sm:text-sm text-slate-600 min-w-[60px] text-center">
+                      {currentPage} / {totalPages}
                     </span>
                     <button
                       onClick={() =>
                         setOffset(Math.min(total - limit, offset + limit))
                       }
                       disabled={offset + limit >= total}
-                      className="p-2 rounded-lg border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors"
+                      className="p-2.5 rounded-lg border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
+                      aria-label="Next page"
                     >
                       <ChevronRight className="w-4 h-4" />
                     </button>

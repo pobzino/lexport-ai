@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, memo } from "react";
 import Link from "next/link";
 import {
     FileText,
@@ -93,6 +93,126 @@ interface AuditLog {
     actor_email: string | null;
 }
 
+// Pure utility functions — moved outside component to avoid recreation on each render
+function formatTimeAgo(dateString: string) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatDate(dateString: string) {
+    return new Date(dateString).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+    });
+}
+
+function getEventDescription(log: AuditLog) {
+    const actor = log.actor_name || log.actor_email || "Someone";
+    const eventLabel = EVENT_LABELS[log.event_type] || log.event_type.replace(/_/g, " ");
+
+    switch (log.event_type) {
+        case "contract_created":
+            return `${actor} created a new contract`;
+        case "contract_sent":
+            return `${actor} sent the contract for signature`;
+        case "signature_completed":
+            return `${actor} signed the contract`;
+        case "signature_declined":
+            return `${actor} declined to sign`;
+        case "payment_completed":
+            return `${actor} completed a payment`;
+        case "document_viewed":
+            return `${actor} viewed the document`;
+        default:
+            return `${actor} - ${eventLabel}`;
+    }
+}
+
+// Memoized row component to prevent re-renders when sibling rows change
+interface ActivityLogRowProps {
+    log: AuditLog;
+    isExpanded: boolean;
+    onToggleExpanded: (id: string) => void;
+}
+
+const ActivityLogRow = memo(function ActivityLogRow({ log, isExpanded, onToggleExpanded }: ActivityLogRowProps) {
+    const Icon = EVENT_ICONS[log.event_type] || FileText;
+    const colors = EVENT_COLORS[log.event_type] || DEFAULT_COLORS;
+
+    return (
+        <div className="p-3 sm:p-4 hover:bg-slate-50 transition-colors">
+            <div className="flex items-start gap-3 sm:gap-4">
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${colors.bg}`}>
+                    <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${colors.text}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 sm:gap-4">
+                        <div className="min-w-0">
+                            <p className="font-medium text-slate-900 text-sm sm:text-base">
+                                {getEventDescription(log)}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                                <Link
+                                    href={`/contracts/${log.contract_id}/edit`}
+                                    className="text-xs sm:text-sm text-brand-600 hover:underline flex items-center gap-1 truncate"
+                                >
+                                    {log.contract_title}
+                                    <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                </Link>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                            <span className="text-xs sm:text-sm text-slate-500 whitespace-nowrap">
+                                {formatTimeAgo(log.created_at)}
+                            </span>
+                            {log.metadata && Object.keys(log.metadata).length > 0 && (
+                                <button
+                                    onClick={() => onToggleExpanded(log.id)}
+                                    className="p-1.5 hover:bg-slate-100 rounded min-h-[32px] min-w-[32px] flex items-center justify-center"
+                                    aria-label="Toggle details"
+                                >
+                                    {isExpanded ? (
+                                        <ChevronUp className="w-4 h-4 text-slate-400" />
+                                    ) : (
+                                        <ChevronDown className="w-4 h-4 text-slate-400" />
+                                    )}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    {isExpanded && log.metadata && (
+                        <div className="mt-3 p-3 bg-slate-50 rounded-lg">
+                            <p className="text-xs text-slate-500 mb-1">Details</p>
+                            <pre className="text-xs text-slate-600 overflow-auto">
+                                {JSON.stringify(log.metadata, null, 2)}
+                            </pre>
+                            <p className="text-xs text-slate-400 mt-2">
+                                {formatDate(log.created_at)}
+                                {log.ip_address && ` • IP: ${log.ip_address}`}
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+});
+
 interface Stats {
     total: number;
     today: number;
@@ -136,7 +256,7 @@ export default function ActivityPage() {
         fetchActivity();
     }, [fetchActivity]);
 
-    const toggleExpanded = (id: string) => {
+    const toggleExpanded = useCallback((id: string) => {
         setExpandedIds((prev) => {
             const newSet = new Set(prev);
             if (newSet.has(id)) {
@@ -146,59 +266,10 @@ export default function ActivityPage() {
             }
             return newSet;
         });
-    };
-
-    const formatTimeAgo = (dateString: string) => {
-        const date = new Date(dateString);
-        const now = new Date();
-        const diffMs = now.getTime() - date.getTime();
-        const diffMins = Math.floor(diffMs / (1000 * 60));
-        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-        if (diffMins < 1) return "Just now";
-        if (diffMins < 60) return `${diffMins}m ago`;
-        if (diffHours < 24) return `${diffHours}h ago`;
-        if (diffDays === 1) return "Yesterday";
-        if (diffDays < 7) return `${diffDays} days ago`;
-        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    };
-
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-            hour: "numeric",
-            minute: "2-digit",
-            hour12: true,
-        });
-    };
-
-    const getEventDescription = (log: AuditLog) => {
-        const actor = log.actor_name || log.actor_email || "Someone";
-        const eventLabel = EVENT_LABELS[log.event_type] || log.event_type.replace(/_/g, " ");
-
-        switch (log.event_type) {
-            case "contract_created":
-                return `${actor} created a new contract`;
-            case "contract_sent":
-                return `${actor} sent the contract for signature`;
-            case "signature_completed":
-                return `${actor} signed the contract`;
-            case "signature_declined":
-                return `${actor} declined to sign`;
-            case "payment_completed":
-                return `${actor} completed a payment`;
-            case "document_viewed":
-                return `${actor} viewed the document`;
-            default:
-                return `${actor} - ${eventLabel}`;
-        }
-    };
+    }, []);
 
     // Get unique event types from logs for filter
-    const uniqueEventTypes = [...new Set(logs.map(l => l.event_type))];
+    const uniqueEventTypes = useMemo(() => [...new Set(logs.map(l => l.event_type))], [logs]);
 
     return (
         <div className="space-y-6">
@@ -221,33 +292,33 @@ export default function ActivityPage() {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-                            <Activity className="w-5 h-5 text-slate-600" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
+                <div className="bg-white rounded-xl border border-slate-200 p-3 md:p-4">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600" />
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-slate-900">{stats.total}</p>
+                            <p className="text-xl md:text-2xl font-bold text-slate-900">{stats.total}</p>
                             <p className="text-xs text-slate-500">Total Events</p>
                         </div>
                     </div>
                 </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <Clock className="w-5 h-5 text-blue-600" />
+                <div className="bg-white rounded-xl border border-slate-200 p-3 md:p-4">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-slate-900">{stats.today}</p>
+                            <p className="text-xl md:text-2xl font-bold text-slate-900">{stats.today}</p>
                             <p className="text-xs text-slate-500">Today</p>
                         </div>
                     </div>
                 </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-[#529ec6]/10 rounded-lg flex items-center justify-center">
-                            <Calendar className="w-5 h-5 text-[#529ec6]" />
+                <div className="bg-white rounded-xl border border-slate-200 p-3 md:p-4">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[#529ec6]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-[#529ec6]" />
                         </div>
                         <div>
                             <p className="text-2xl font-bold text-slate-900">{stats.thisWeek}</p>
@@ -255,24 +326,24 @@ export default function ActivityPage() {
                         </div>
                     </div>
                 </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                            <PenTool className="w-5 h-5 text-emerald-600" />
+                <div className="bg-white rounded-xl border border-slate-200 p-3 md:p-4">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <PenTool className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-slate-900">{stats.signatures}</p>
+                            <p className="text-xl md:text-2xl font-bold text-slate-900">{stats.signatures}</p>
                             <p className="text-xs text-slate-500">Signatures</p>
                         </div>
                     </div>
                 </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                            <DollarSign className="w-5 h-5 text-green-600" />
+                <div className="bg-white rounded-xl border border-slate-200 p-3 md:p-4 col-span-2 sm:col-span-1">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-slate-900">{stats.payments}</p>
+                            <p className="text-xl md:text-2xl font-bold text-slate-900">{stats.payments}</p>
                             <p className="text-xs text-slate-500">Payments</p>
                         </div>
                     </div>
@@ -280,8 +351,8 @@ export default function ActivityPage() {
             </div>
 
             {/* Filters */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <div className="flex flex-wrap items-center gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
+                <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                     <div className="flex items-center gap-2">
                         <Filter className="w-4 h-4 text-slate-400" />
                         <span className="text-sm text-slate-600">Filters:</span>
@@ -355,76 +426,14 @@ export default function ActivityPage() {
                     </div>
                 ) : (
                     <div className="divide-y divide-slate-100">
-                        {logs.map((log) => {
-                            const Icon = EVENT_ICONS[log.event_type] || FileText;
-                            const colors = EVENT_COLORS[log.event_type] || DEFAULT_COLORS;
-                            const isExpanded = expandedIds.has(log.id);
-
-                            return (
-                                <div
-                                    key={log.id}
-                                    className="p-4 hover:bg-slate-50 transition-colors"
-                                >
-                                    <div className="flex items-start gap-4">
-                                        {/* Icon */}
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${colors.bg}`}>
-                                            <Icon className={`w-5 h-5 ${colors.text}`} />
-                                        </div>
-
-                                        {/* Content */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-start justify-between gap-4">
-                                                <div>
-                                                    <p className="font-medium text-slate-900">
-                                                        {getEventDescription(log)}
-                                                    </p>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <Link
-                                                            href={`/contracts/${log.contract_id}/edit`}
-                                                            className="text-sm text-brand-600 hover:underline flex items-center gap-1"
-                                                        >
-                                                            {log.contract_title}
-                                                            <ExternalLink className="w-3 h-3" />
-                                                        </Link>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2 flex-shrink-0">
-                                                    <span className="text-sm text-slate-500">
-                                                        {formatTimeAgo(log.created_at)}
-                                                    </span>
-                                                    {log.metadata && Object.keys(log.metadata).length > 0 && (
-                                                        <button
-                                                            onClick={() => toggleExpanded(log.id)}
-                                                            className="p-1 hover:bg-slate-100 rounded"
-                                                        >
-                                                            {isExpanded ? (
-                                                                <ChevronUp className="w-4 h-4 text-slate-400" />
-                                                            ) : (
-                                                                <ChevronDown className="w-4 h-4 text-slate-400" />
-                                                            )}
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Expanded details */}
-                                            {isExpanded && log.metadata && (
-                                                <div className="mt-3 p-3 bg-slate-50 rounded-lg">
-                                                    <p className="text-xs text-slate-500 mb-1">Details</p>
-                                                    <pre className="text-xs text-slate-600 overflow-auto">
-                                                        {JSON.stringify(log.metadata, null, 2)}
-                                                    </pre>
-                                                    <p className="text-xs text-slate-400 mt-2">
-                                                        {formatDate(log.created_at)}
-                                                        {log.ip_address && ` • IP: ${log.ip_address}`}
-                                                    </p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                        {logs.map((log) => (
+                            <ActivityLogRow
+                                key={log.id}
+                                log={log}
+                                isExpanded={expandedIds.has(log.id)}
+                                onToggleExpanded={toggleExpanded}
+                            />
+                        ))}
                     </div>
                 )}
             </div>
