@@ -31,9 +31,9 @@ export interface TierLimits {
  */
 export const TIER_LIMITS: Record<SubscriptionTier, TierLimits> = {
     free: {
-        contractsPerMonth: 3,
-        signaturesPerMonth: 5,
-        chatMessagesPerContract: 5,
+        contractsPerMonth: 1,
+        signaturesPerMonth: 2,
+        chatMessagesPerContract: 3,
         templatesPerMonth: 1,
         teamMembers: 1,
     },

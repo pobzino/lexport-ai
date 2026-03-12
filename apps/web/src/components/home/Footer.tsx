@@ -40,9 +40,9 @@ export function Footer() {
                                 </a>
                             </li>
                             <li>
-                                <a href="#pricing" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
+                                <Link href="/pricing" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
                                     Pricing
-                                </a>
+                                </Link>
                             </li>
                             <li>
                                 <Link href="/templates" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">

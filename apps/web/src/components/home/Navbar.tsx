@@ -122,8 +122,9 @@ export function Navbar() {
                             </div>
 
                             {[
+                                { name: "Templates", href: "/templates" },
                                 { name: "How it works", href: "#how-it-works" },
-                                { name: "Pricing", href: "#pricing" },
+                                { name: "Pricing", href: "/pricing" },
                                 { name: "Contact", href: "/contact" },
                             ].map((item) => (
                                 <Link
@@ -199,6 +200,13 @@ export function Navbar() {
 
                         {/* Other links */}
                         <div className="space-y-1 mb-4">
+                            <Link
+                                href="/templates"
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="block px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
+                            >
+                                Templates
+                            </Link>
                             <a
                                 href="#how-it-works"
                                 onClick={() => setMobileMenuOpen(false)}
@@ -206,13 +214,13 @@ export function Navbar() {
                             >
                                 How it works
                             </a>
-                            <a
-                                href="#pricing"
+                            <Link
+                                href="/pricing"
                                 onClick={() => setMobileMenuOpen(false)}
                                 className="block px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
                             >
                                 Pricing
-                            </a>
+                            </Link>
                             <Link
                                 href="/contact"
                                 onClick={() => setMobileMenuOpen(false)}

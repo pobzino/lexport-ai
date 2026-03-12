@@ -197,6 +197,18 @@
     animation: fadeIn 0.3s ease-out;
   }
 
+  @keyframes border-spin {
+    to {
+      --border-angle: 360deg;
+    }
+  }
+
+  @property --border-angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+  }
+
   /* Template/Content copy protection */
   .copy-protected {
     -webkit-user-select: none;

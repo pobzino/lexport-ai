@@ -327,7 +327,7 @@ export interface FieldValue {
 
 export interface AuditLog {
   id: string;
-  contract_id: string;
+  contract_id: string | null;
   signature_request_id: string | null;
   user_id: string | null;
   event_type: AuditEventType;

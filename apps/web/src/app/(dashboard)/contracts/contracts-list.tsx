@@ -1119,7 +1119,7 @@ export function ContractsList({ contracts }: ContractsListProps) {
                                                                 Duplicate
                                                             </button>
                                                             <Link
-                                                                href={`/templates/create?from=${contract.id}`}
+                                                                href={`/my-templates/create?from=${contract.id}`}
                                                                 className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
                                                                 onClick={() => setOpenDropdown(null)}
                                                             >

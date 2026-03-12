@@ -129,6 +129,8 @@ export function PrivacyActions({ action, userEmail }: PrivacyActionsProps) {
                                 <p className="text-sm text-red-800">
                                     <strong>Warning:</strong> This action is permanent and cannot be undone.
                                     All your contracts, signatures, and data will be permanently deleted.
+                                    If you have an active personal subscription, it will be canceled immediately.
+                                    If you own a team workspace, transfer or delete it first.
                                 </p>
                             </div>
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 const isProduction = process.env.NODE_ENV === "production";
 const localSupabaseConnectSources: string[] = [];
+const localSupabaseFrameSources: string[] = [];
 
 if (!isProduction) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -9,6 +10,7 @@ if (!isProduction) {
         try {
             const parsed = new URL(supabaseUrl);
             localSupabaseConnectSources.push(parsed.origin);
+            localSupabaseFrameSources.push(parsed.origin);
             localSupabaseConnectSources.push(
                 parsed.protocol === "https:" ? `wss://${parsed.host}` : `ws://${parsed.host}`
             );
@@ -20,21 +22,56 @@ if (!isProduction) {
 
 const contentSecurityPolicyDirectives = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://js.stripe.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    `script-src ${[
+        "'self'",
+        "https://js.stripe.com",
+        "https://connect-js.stripe.com",
+        "https://app.posthog.com",
+        "https://*.sentry.io",
+        !isProduction ? "'unsafe-inline'" : null,
+        !isProduction ? "'unsafe-eval'" : null,
+    ]
+        .filter(Boolean)
+        .join(" ")}`,
+    `style-src ${[
+        "'self'",
+        "'unsafe-inline'",
+        "https://fonts.googleapis.com",
+        isProduction ? "'sha256-0hAheEzaMe6uXIKV4EehS9pu1am1lj/KnnzrOYqckXk='" : null,
+    ]
+        .filter(Boolean)
+        .join(" ")}`,
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https:",
+    "img-src 'self' data: blob: https: http:",
     `connect-src ${[
         "'self'",
         "https://*.supabase.co",
         "wss://*.supabase.co",
         "https://api.stripe.com",
+        "https://connect.stripe.com",
+        "https://connect-js.stripe.com",
+        "https://merchant-ui-api.stripe.com",
+        "https://m.stripe.network",
         "https://api.openai.com",
+        "https://app.posthog.com",
+        "https://us.i.posthog.com",
+        "https://*.sentry.io",
         ...localSupabaseConnectSources,
     ]
         .filter(Boolean)
         .join(" ")}`,
-    "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com",
+    `frame-src ${[
+        "'self'",
+        "blob:",
+        "https://*.supabase.co",
+        "https://js.stripe.com",
+        "https://connect-js.stripe.com",
+        "https://connect.stripe.com",
+        "https://hooks.stripe.com",
+        ...localSupabaseFrameSources,
+    ]
+        .filter(Boolean)
+        .join(" ")}`,
     "frame-ancestors 'self' https://loxdigital.com https://www.loxdigital.com https://loxdigital.netlify.app",
     "form-action 'self'",
     "base-uri 'self'",

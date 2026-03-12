@@ -10,12 +10,15 @@ import Image from "next/image";
 import { LoginForm } from "./login-form";
 
 interface LoginPageProps {
-  searchParams: Promise<{ error?: string; error_description?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
-  const oauthError = params.error_description || params.error;
+  const oauthError = (typeof params.error_description === "string" ? params.error_description : undefined)
+    || (typeof params.error === "string" ? params.error : undefined);
+  const action = typeof params.action === "string" ? params.action : undefined;
+  const prompt = typeof params.prompt === "string" ? params.prompt : undefined;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-white px-4">
@@ -42,7 +45,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             Sign in to your account to continue
           </p>
 
-          <LoginForm initialError={oauthError} />
+          <LoginForm initialError={oauthError} action={action} prompt={prompt} />
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-500">

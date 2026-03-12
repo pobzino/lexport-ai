@@ -22,9 +22,9 @@ const TIER_CONFIG: Record<SubscriptionTier, {
     hasTeamFeatures: false,
     hasApiAccess: false,
     platformFeePercent: 0,
-    contractsLimit: 3, // 3 contracts/month
-    signaturesLimit: 5, // 5 signatures/month
-    chatMessagesLimit: 5, // 5 chat messages/month
+    contractsLimit: 1, // 1 contract/month
+    signaturesLimit: 2, // 2 signatures/month
+    chatMessagesLimit: 3, // 3 chat messages/month
   },
   pro: {
     hasAIChat: true,

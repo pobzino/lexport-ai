@@ -1,12 +1,136 @@
+import nodemailer, { type Transporter } from "nodemailer";
 import { Resend } from "resend";
 
-// Lazy initialization to avoid build-time errors when env vars are unavailable
+type EmailSendPayload = {
+  from?: string;
+  to: string | string[];
+  subject: string;
+  html?: string;
+  text?: string;
+  replyTo?: string | string[];
+  attachments?: Array<{
+    filename?: string;
+    content?: string | Buffer;
+    path?: string;
+    contentType?: string;
+  }>;
+};
+
+type EmailSendResponse = {
+  data: { id: string } | null;
+  error: Error | null;
+};
+
+type EmailClient = {
+  emails: {
+    send: (payload: EmailSendPayload) => Promise<EmailSendResponse>;
+  };
+};
+
 let resendClient: Resend | null = null;
-function getResend() {
+let smtpTransporter: Transporter | null = null;
+
+function hasSmtpTransportConfig() {
+  return Boolean(process.env.EMAIL_SMTP_HOST && process.env.EMAIL_SMTP_PORT);
+}
+
+function getSmtpTransporter() {
+  if (!smtpTransporter) {
+    const port = Number(process.env.EMAIL_SMTP_PORT);
+
+    smtpTransporter = nodemailer.createTransport({
+      host: process.env.EMAIL_SMTP_HOST,
+      port,
+      secure: process.env.EMAIL_SMTP_SECURE === "true",
+      auth: process.env.EMAIL_SMTP_USER && process.env.EMAIL_SMTP_PASS
+        ? {
+            user: process.env.EMAIL_SMTP_USER,
+            pass: process.env.EMAIL_SMTP_PASS,
+          }
+        : undefined,
+      tls: process.env.EMAIL_SMTP_SECURE === "true"
+        ? undefined
+        : { rejectUnauthorized: false },
+    });
+  }
+
+  return smtpTransporter;
+}
+
+async function sendWithSmtp(payload: EmailSendPayload): Promise<EmailSendResponse> {
+  try {
+    const info = await getSmtpTransporter().sendMail({
+      from: payload.from ?? FROM_EMAIL,
+      to: payload.to,
+      subject: payload.subject,
+      html: payload.html,
+      text: payload.text,
+      replyTo: payload.replyTo,
+      attachments: payload.attachments,
+    });
+
+    return {
+      data: { id: info.messageId },
+      error: null,
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error("Failed to send email via SMTP"),
+    };
+  }
+}
+
+async function sendWithResend(payload: EmailSendPayload): Promise<EmailSendResponse> {
+  if (!process.env.RESEND_API_KEY) {
+    return {
+      data: null,
+      error: new Error("Email transport is not configured"),
+    };
+  }
+
   if (!resendClient) {
     resendClient = new Resend(process.env.RESEND_API_KEY);
   }
-  return resendClient;
+
+  try {
+    const { data, error } = await resendClient.emails.send({
+      from: payload.from ?? FROM_EMAIL,
+      to: Array.isArray(payload.to) ? payload.to : [payload.to],
+      subject: payload.subject,
+      html: payload.html,
+      text: payload.text,
+      replyTo: payload.replyTo,
+      attachments: payload.attachments,
+    } as any);
+
+    return {
+      data: data?.id ? { id: data.id } : null,
+      error: error ? new Error(error.message || "Failed to send email via Resend") : null,
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error("Failed to send email via Resend"),
+    };
+  }
+}
+
+function getResend(): EmailClient {
+  return {
+    emails: {
+      send: async (payload: EmailSendPayload) =>
+        hasSmtpTransportConfig() ? sendWithSmtp(payload) : sendWithResend(payload),
+    },
+  };
+}
+
+export function isEmailTransportConfigured() {
+  return hasSmtpTransportConfig() || Boolean(process.env.RESEND_API_KEY);
+}
+
+export async function sendEmail(payload: EmailSendPayload) {
+  return getResend().emails.send(payload);
 }
 
 // Default from address - update this with your verified domain
@@ -2059,4 +2183,3 @@ Powered by Lexport
     return { success: false };
   }
 }
-

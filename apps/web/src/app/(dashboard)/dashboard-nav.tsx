@@ -34,7 +34,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/contracts", label: "Contracts", icon: FolderOpen },
   { href: "/invoices", label: "Invoices", icon: Receipt },
-  { href: "/templates", label: "Templates", icon: FileStack },
+  { href: "/my-templates", label: "Templates", icon: FileStack },
   { href: "/signatures", label: "Signatures", icon: FileSignature },
   { href: "/payments", label: "Payments", icon: CreditCard },
   { href: "/activity", label: "Activity", icon: Activity },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import Stripe from "stripe";
 import { calculatePlatformFee, getPlatformFeePercent, type SubscriptionTier } from "@/lib/stripe";
 
@@ -14,7 +15,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // Fetch invoice (no auth required for public payment page)
     const { data: invoice, error: invoiceError } = await supabase
@@ -206,7 +207,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     const { data: invoice, error } = await supabase
       .from("invoices")

@@ -45,14 +45,23 @@ export function WelcomeModal() {
   const { showWelcome, setUserType } = useOnboarding();
   const [selectedType, setSelectedType] = useState<UserType>(null);
   const [step, setStep] = useState<"select" | "examples">("select");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
 
   if (!showWelcome) return null;
 
-  const handleContinue = () => {
-    if (selectedType) {
-      setUserType(selectedType);
+  const handleContinue = async () => {
+    if (!selectedType || isSubmitting) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      await setUserType(selectedType);
       router.push("/contracts/new");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -157,16 +166,18 @@ export function WelcomeModal() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setStep("select")}
+                  disabled={isSubmitting}
                   className="px-4 py-3 rounded-xl font-medium text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   Back
                 </button>
                 <button
                   onClick={handleContinue}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium bg-[#529ec6] text-white hover:bg-[#4189b1] transition-all shadow-lg shadow-blue-900/10"
+                  disabled={isSubmitting}
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium bg-[#529ec6] text-white hover:bg-[#4189b1] transition-all shadow-lg shadow-blue-900/10 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Sparkles className="w-4 h-4" />
-                  Create My First Contract
+                  {isSubmitting ? "Saving..." : "Create My First Contract"}
                 </button>
               </div>
             </>

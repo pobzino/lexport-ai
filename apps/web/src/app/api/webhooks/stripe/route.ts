@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe, STRIPE_WEBHOOK_SECRET, getAccountStatus } from "@/lib/stripe";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { sendPaymentReceiptEmail } from "@/lib/email";
 import Stripe from "stripe";
 import type { InvoiceLineItem, PaymentType } from "@/db/types";
@@ -29,7 +29,7 @@ function getPaymentTypeLabel(paymentType: PaymentType): string {
 
 // Auto-create invoice after successful payment
 async function createInvoiceForPayment(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: ReturnType<typeof createAdminClient>,
   paymentIntentId: string,
   payerEmail: string | null,
   payerName: string | null
@@ -127,10 +127,10 @@ async function createInvoiceForPayment(
     console.log(`Auto-created invoice ${invoice.invoice_number} for ${paymentTypeLabel}`);
 
     // Log audit event
-    await supabase.from("audit_logs").insert({
+    const { error: auditError } = await supabase.from("audit_logs").insert({
       contract_id: payment.contract_id,
       user_id: contract.user_id,
-      event_type: "invoice_auto_created",
+      event_type: "invoice_created",
       ip_address: "webhook",
       user_agent: "stripe-webhook",
       metadata: {
@@ -139,8 +139,13 @@ async function createInvoiceForPayment(
         payment_type: payment.payment_type,
         amount: invoice.amount,
         currency: invoice.currency,
+        auto_created: true,
       },
     });
+
+    if (auditError) {
+      console.error("Failed to insert auto-created invoice audit log:", auditError);
+    }
 
     // Send receipt email to payer if we have their email
     if (payerEmail) {
@@ -184,7 +189,7 @@ async function createInvoiceForPayment(
 
 // Helper to update both payments and contracts tables
 async function updatePaymentStatus(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: ReturnType<typeof createAdminClient>,
   paymentIntentId: string,
   status: string,
   additionalData?: Record<string, unknown>
@@ -248,7 +253,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     switch (event.type) {
       // ===== Payment Events =====
@@ -268,14 +273,16 @@ export async function POST(request: NextRequest) {
         const payerName = charges?.billing_details?.name || null;
 
         // Handle standalone invoice payments
-        if (paymentType === "standalone_invoice" && invoiceId) {
-          // Update invoice status to paid
-          const { error: updateError } = await supabase
-            .from("invoices")
-            .update({
+      if (paymentType === "standalone_invoice" && invoiceId) {
+        const paidAt = new Date().toISOString();
+
+        // Update invoice status to paid
+        const { error: updateError } = await supabase
+          .from("invoices")
+          .update({
               status: "paid",
-              paid_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
+              paid_at: paidAt,
+              updated_at: paidAt,
             })
             .eq("id", invoiceId);
 
@@ -288,12 +295,12 @@ export async function POST(request: NextRequest) {
           // Create audit log for invoice payment
           const { data: invoice } = await supabase
             .from("invoices")
-            .select("user_id, contract_id, invoice_number")
+            .select("user_id, contract_id, invoice_number, recipient_name, recipient_email, sender_name, sender_email, line_items, total, amount, currency, paid_at")
             .eq("id", invoiceId)
             .single();
 
           if (invoice) {
-            await supabase.from("audit_logs").insert({
+            const { error: auditError } = await supabase.from("audit_logs").insert({
               contract_id: invoice.contract_id,
               user_id: invoice.user_id,
               event_type: "invoice_paid",
@@ -310,6 +317,49 @@ export async function POST(request: NextRequest) {
                 payer_name: payerName,
               },
             });
+
+            if (auditError) {
+              console.error(`Failed to insert invoice_paid audit log for invoice ${invoiceId}:`, auditError);
+            }
+
+            const receiptEmail = payerEmail || invoice.recipient_email;
+            if (receiptEmail) {
+              const firstLineItem = Array.isArray(invoice.line_items)
+                ? invoice.line_items.find(
+                    (item): item is { description?: string } =>
+                      typeof item === "object" && item !== null
+                  )
+                : null;
+              const receiptReference =
+                typeof firstLineItem?.description === "string" && firstLineItem.description.trim().length > 0
+                  ? firstLineItem.description
+                  : `Invoice ${invoice.invoice_number}`;
+
+              try {
+                await sendPaymentReceiptEmail({
+                  to: receiptEmail,
+                  recipientName:
+                    payerName ||
+                    invoice.recipient_name ||
+                    "Valued Customer",
+                  contractTitle: receiptReference,
+                  invoiceNumber: invoice.invoice_number,
+                  amount: invoice.total || invoice.amount || paymentIntent.amount,
+                  currency: invoice.currency || paymentIntent.currency,
+                  paymentType: "full",
+                  paidAt: invoice.paid_at || paidAt,
+                  senderName: invoice.sender_name || undefined,
+                  senderEmail: invoice.sender_email || undefined,
+                });
+
+                console.log(`Standalone invoice payment receipt email sent to ${receiptEmail}`);
+              } catch (emailError) {
+                console.error(
+                  `Failed to send standalone invoice payment receipt email to ${receiptEmail}:`,
+                  emailError
+                );
+              }
+            }
           }
         }
         // Handle contract-linked payments

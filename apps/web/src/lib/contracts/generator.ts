@@ -1,10 +1,7 @@
 /**
- * Contract Generator using OpenAI GPT-5.1
+ * Contract Generator using OpenAI GPT-5.4
  *
  * Uses manifest-based dynamic prompts for optimal quality.
- * GPT-5.1 produces ~75% more substantive clause content than GPT-5-mini.
- *
- * Quality metrics (avg words/clause): GPT-5.1: 286 vs GPT-5-mini: 164
  */
 
 import OpenAI from "openai";
@@ -33,10 +30,23 @@ function getOpenAI(): OpenAI {
   return openaiClient;
 }
 
-// Models - GPT-5.1 for best quality (286 words/clause avg)
-const GENERATION_MODEL = "gpt-5.1";
+// GPT-5.4 is the strongest current model and still completes in interactive time.
+const GENERATION_MODEL = process.env.OPENAI_CONTRACT_GENERATION_MODEL || "gpt-5.4";
 const REASONING_EFFORT = "low";
 const CHAT_MODEL = "gpt-4.1-mini"; // Fast, cost-effective for chat/explanations
+const GENERATION_REQUEST_TIMEOUT_MS = Number.parseInt(
+  process.env.OPENAI_CONTRACT_GENERATION_TIMEOUT_MS || "120000",
+  10
+);
+
+function getGenerationRequestOptions() {
+  return {
+    timeout: Number.isFinite(GENERATION_REQUEST_TIMEOUT_MS)
+      ? GENERATION_REQUEST_TIMEOUT_MS
+      : 120000,
+    maxRetries: 0,
+  };
+}
 
 // Map contract types to manifest keys
 const MANIFEST_KEY_MAP: Record<ContractType, string> = {
@@ -410,7 +420,7 @@ ${meta.followUpAnswers ? `ADDITIONAL DETAILS:\n${JSON.stringify(meta.followUpAns
 
 Return only valid JSON.`;
 
-  // Use GPT-5.1 with Responses API for generation
+  // Use GPT-5.4 with Responses API for generation
   const response = await (getOpenAI() as any).responses.create({
     model: GENERATION_MODEL,
     reasoning: { effort: REASONING_EFFORT },
@@ -418,7 +428,7 @@ Return only valid JSON.`;
       { role: "developer", content: developerPrompt },
       { role: "user", content: userPrompt },
     ],
-  });
+  }, getGenerationRequestOptions());
 
   const content = response.output_text || "";
 
@@ -481,7 +491,7 @@ export async function generateContract(
   const developerPrompt = buildDeveloperPrompt(jurisdiction, manifest);
   const userPrompt = buildManifestBasedPrompt(contractType, metadata, typeDefinition, manifest);
 
-  // Use GPT-5-mini with Responses API for cost-effective generation
+  // Use GPT-5.4 with Responses API for generation
   const response = await (getOpenAI() as any).responses.create({
     model: GENERATION_MODEL,
     reasoning: { effort: REASONING_EFFORT },
@@ -489,7 +499,7 @@ export async function generateContract(
       { role: "developer", content: developerPrompt },
       { role: "user", content: userPrompt },
     ],
-  });
+  }, getGenerationRequestOptions());
 
   const content = response.output_text || "";
 

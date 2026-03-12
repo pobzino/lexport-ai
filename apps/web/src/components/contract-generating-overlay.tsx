@@ -18,6 +18,7 @@ interface ContractGeneratingOverlayProps {
   contractType?: string;
   serverProgress?: number;
   serverStatus?: string;
+  lastServerEventAt?: number;
 }
 
 export function ContractGeneratingOverlay({
@@ -25,12 +26,20 @@ export function ContractGeneratingOverlay({
   contractType,
   serverProgress,
   serverStatus,
+  lastServerEventAt,
 }: ContractGeneratingOverlayProps) {
   const [currentStage, setCurrentStage] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [nowTick, setNowTick] = useState(Date.now());
   const startTimeRef = useRef<number | null>(null);
 
   const effectiveProgress = serverProgress !== undefined ? serverProgress : progress;
+
+  useEffect(() => {
+    if (!isVisible) return;
+    const tick = setInterval(() => setNowTick(Date.now()), 500);
+    return () => clearInterval(tick);
+  }, [isVisible]);
 
   useEffect(() => {
     if (!isVisible) {
@@ -40,6 +49,8 @@ export function ContractGeneratingOverlay({
       return;
     }
 
+    if (!startTimeRef.current) startTimeRef.current = Date.now();
+
     if (serverProgress !== undefined) {
       if (serverProgress < 25) setCurrentStage(0);
       else if (serverProgress < 50) setCurrentStage(1);
@@ -47,8 +58,6 @@ export function ContractGeneratingOverlay({
       else setCurrentStage(3);
       return;
     }
-
-    if (!startTimeRef.current) startTimeRef.current = Date.now();
 
     const totalDuration = STAGE_DURATIONS.reduce((a, b) => a + b, 0);
 
@@ -71,6 +80,19 @@ export function ContractGeneratingOverlay({
   if (!isVisible) return null;
 
   const displayLabel = serverStatus || STAGES[currentStage]?.label;
+  const elapsedMs = startTimeRef.current ? Math.max(0, nowTick - startTimeRef.current) : 0;
+  const elapsedSeconds = Math.floor(elapsedMs / 1000);
+  const staleMs =
+    lastServerEventAt && serverProgress !== undefined
+      ? Math.max(0, nowTick - lastServerEventAt)
+      : 0;
+  const showStalledHint = staleMs > 12000 && effectiveProgress < 95;
+  const showLongRunningHint = elapsedSeconds >= 45;
+  const footerMessage = showStalledHint
+    ? "Still working. Complex contracts can take up to 2 minutes."
+    : showLongRunningHint
+      ? "Almost there. We're validating and saving your contract."
+      : "This usually takes 30–60 seconds";
 
   return (
     <motion.div
@@ -127,15 +149,23 @@ export function ContractGeneratingOverlay({
           transition={{ delay: 0.3 }}
           className="mt-10 mb-10 mx-auto max-w-xs"
         >
-          <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+          <div className="relative h-1 bg-slate-100 rounded-full overflow-hidden">
             <motion.div
               className="h-full bg-slate-900 rounded-full"
               style={{ width: `${effectiveProgress}%` }}
               transition={{ duration: 0.4, ease: "easeOut" }}
             />
+            <motion.div
+              className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/60 to-transparent pointer-events-none"
+              animate={{ x: ["-130%", "320%"] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: "linear" }}
+            />
           </div>
           <p className="text-xs text-slate-400 mt-3 font-medium tabular-nums">
             {Math.round(effectiveProgress)}%
+          </p>
+          <p className="text-[11px] text-slate-300 mt-1 tabular-nums">
+            Elapsed {elapsedSeconds}s
           </p>
         </motion.div>
 
@@ -192,7 +222,7 @@ export function ContractGeneratingOverlay({
           transition={{ delay: 0.6 }}
           className="text-xs text-slate-300 mt-12"
         >
-          This usually takes 30–60 seconds
+          {footerMessage}
         </motion.p>
       </div>
     </motion.div>

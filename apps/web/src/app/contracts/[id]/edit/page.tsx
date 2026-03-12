@@ -1478,16 +1478,16 @@ export default function ContractEditorPage() {
 
               {/* Section Guide */}
               <button
-                  onClick={() => togglePanel('sectionExplainer')}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showSectionExplainer
-                    ? "bg-[#529ec6] text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                    }`}
-                  title="Section explanations"
-                >
-                  <BookOpen className="w-4 h-4" />
-                  <span className="hidden sm:inline">Guide</span>
-                </button>
+                onClick={() => togglePanel('sectionExplainer')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showSectionExplainer
+                  ? "bg-[#529ec6] text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                title="Section explanations"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span className="hidden sm:inline">Guide</span>
+              </button>
 
               {/* Divider */}
               <div className="w-px h-6 bg-slate-200 mx-1" />
@@ -1998,196 +1998,196 @@ export default function ContractEditorPage() {
                         <>
                           {/* Visible clauses */}
                           {visibleClauses.map((clause) => (
-                      <div
-                        key={clause.id}
-                        id={`clause-${clause.id}`}
-                        className={`transition-all ${activeClause === clause.id ? "bg-[#529ec6]/5" : ""
-                          }`}
-                      >
-                        {/* Clause Header */}
-                        <div
-                          onClick={() => toggleClause(clause.id)}
-                          className="w-full px-8 py-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer"
-                        >
-                          <div className="flex items-center gap-3">
-                            {expandedClauses.has(clause.id) ? (
-                              <ChevronDown className="w-5 h-5 text-slate-400" />
-                            ) : (
-                              <ChevronRight className="w-5 h-5 text-slate-400" />
-                            )}
-                            <span className="font-semibold text-slate-900">
-                              {clause.title}
-                            </span>
-                            {clause.isEdited && (
-                              <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full">
-                                Edited
-                              </span>
-                            )}
-                            <span
-                              className={`px-2 py-0.5 text-xs rounded-full ${clause.type === "standard"
-                                ? "bg-slate-100 text-slate-600"
-                                : clause.type === "negotiable"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : "bg-purple-100 text-purple-700"
+                            <div
+                              key={clause.id}
+                              id={`clause-${clause.id}`}
+                              className={`transition-all ${activeClause === clause.id ? "bg-[#529ec6]/5" : ""
                                 }`}
                             >
-                              {clause.type}
-                            </span>
-                            {/* Risk indicator */}
-                            {getClauseRiskLevel(clause.id) && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShowRiskAnalysis(true);
-                                  setShowChat(false);
-                                  setShowComments(false);
-                                  setShowSignerPanel(false);
-                                  setShowFillBlanksPanel(false);
-                                  setShowVersionHistory(false);
-                                  setShowReviewPanel(false);
-                                }}
-                                className={`p-1 rounded-full ${getClauseRiskLevel(clause.id) === "critical"
-                                  ? "bg-red-100 hover:bg-red-200"
-                                  : "bg-amber-100 hover:bg-amber-200"
-                                  }`}
-                                title="View risks for this clause"
+                              {/* Clause Header */}
+                              <div
+                                onClick={() => toggleClause(clause.id)}
+                                className="w-full px-8 py-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer"
                               >
-                                <AlertTriangle className={`w-3.5 h-3.5 ${getClauseRiskLevel(clause.id) === "critical"
-                                  ? "text-red-500"
-                                  : "text-amber-500"
-                                  }`} />
-                              </button>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {/* Comment indicator */}
-                            <CommentIndicator
-                              count={commentCounts[clause.id] || 0}
-                              isActive={showComments && activeCommentClause === clause.id}
-                              onClick={() => {
-                                setActiveCommentClause(clause.id);
-                                setShowComments(true);
-                                setShowChat(false);
-                                setShowSignerPanel(false);
-                                setShowFillBlanksPanel(false);
-                                setShowVersionHistory(false);
-                                setShowReviewPanel(false);
-                              }}
-                            />
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveClause(clause.id);
-                                explainClause(clause.id);
-                                setShowChat(true);
-                              }}
-                              className="p-2 hover:bg-slate-200 rounded-lg"
-                              title="Explain this clause"
-                            >
-                              <Info className="w-4 h-4 text-slate-500" />
-                            </button>
-                            {!isLocked && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  startEditing(clause);
-                                }}
-                                className="p-2 hover:bg-slate-200 rounded-lg"
-                                title="Edit this clause"
-                              >
-                                <Edit3 className="w-4 h-4 text-slate-500" />
-                              </button>
-                            )}
-                            {!isLocked && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  // Require confirmation for standard clauses, quick delete for others
-                                  if (clause.type === "standard") {
-                                    if (confirm(`"${clause.title}" is a standard clause that's typically required in this type of contract.\n\nAre you sure you want to remove it?`)) {
-                                      removeClause(clause.id);
-                                    }
-                                  } else {
-                                    removeClause(clause.id);
-                                  }
-                                }}
-                                className="p-2 hover:bg-red-100 rounded-lg"
-                                title={clause.type === "standard" ? "Remove standard clause (confirmation required)" : "Remove this clause"}
-                              >
-                                <Trash2 className="w-4 h-4 text-slate-400 hover:text-red-500" />
-                              </button>
-                            )}
-                            {isLocked && (
-                              <div className="p-2" title="Contract is locked">
-                                <Lock className="w-4 h-4 text-amber-500" />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Clause Content */}
-                        {expandedClauses.has(clause.id) && (
-                          <div className="px-8 pb-6">
-                            {editingClause === clause.id ? (
-                              <div className="space-y-3">
-                                <div>
-                                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Clause Title
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={editedTitle}
-                                    onChange={(e) => setEditedTitle(e.target.value)}
-                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent text-sm font-semibold"
-                                    placeholder="Enter clause title..."
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Clause Content
-                                  </label>
-                                  <textarea
-                                    value={editedContent}
-                                    onChange={(e) => setEditedContent(e.target.value)}
-                                    className="w-full h-64 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent resize-none font-mono text-sm"
-                                    placeholder="Enter clause content..."
-                                  />
+                                <div className="flex items-center gap-3">
+                                  {expandedClauses.has(clause.id) ? (
+                                    <ChevronDown className="w-5 h-5 text-slate-400" />
+                                  ) : (
+                                    <ChevronRight className="w-5 h-5 text-slate-400" />
+                                  )}
+                                  <span className="font-semibold text-slate-900">
+                                    {clause.title}
+                                  </span>
+                                  {clause.isEdited && (
+                                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full">
+                                      Edited
+                                    </span>
+                                  )}
+                                  <span
+                                    className={`px-2 py-0.5 text-xs rounded-full ${clause.type === "standard"
+                                      ? "bg-slate-100 text-slate-600"
+                                      : clause.type === "negotiable"
+                                        ? "bg-blue-100 text-blue-700"
+                                        : "bg-purple-100 text-purple-700"
+                                      }`}
+                                  >
+                                    {clause.type}
+                                  </span>
+                                  {/* Risk indicator */}
+                                  {getClauseRiskLevel(clause.id) && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowRiskAnalysis(true);
+                                        setShowChat(false);
+                                        setShowComments(false);
+                                        setShowSignerPanel(false);
+                                        setShowFillBlanksPanel(false);
+                                        setShowVersionHistory(false);
+                                        setShowReviewPanel(false);
+                                      }}
+                                      className={`p-1 rounded-full ${getClauseRiskLevel(clause.id) === "critical"
+                                        ? "bg-red-100 hover:bg-red-200"
+                                        : "bg-amber-100 hover:bg-amber-200"
+                                        }`}
+                                      title="View risks for this clause"
+                                    >
+                                      <AlertTriangle className={`w-3.5 h-3.5 ${getClauseRiskLevel(clause.id) === "critical"
+                                        ? "text-red-500"
+                                        : "text-amber-500"
+                                        }`} />
+                                    </button>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-2">
+                                  {/* Comment indicator */}
+                                  <CommentIndicator
+                                    count={commentCounts[clause.id] || 0}
+                                    isActive={showComments && activeCommentClause === clause.id}
+                                    onClick={() => {
+                                      setActiveCommentClause(clause.id);
+                                      setShowComments(true);
+                                      setShowChat(false);
+                                      setShowSignerPanel(false);
+                                      setShowFillBlanksPanel(false);
+                                      setShowVersionHistory(false);
+                                      setShowReviewPanel(false);
+                                    }}
+                                  />
                                   <button
-                                    onClick={saveClauseEdit}
-                                    className="flex items-center gap-2 px-4 py-2 bg-[#202e46] text-white rounded-lg hover:bg-[#1a2539]"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveClause(clause.id);
+                                      explainClause(clause.id);
+                                      setShowChat(true);
+                                    }}
+                                    className="p-2 hover:bg-slate-200 rounded-lg"
+                                    title="Explain this clause"
                                   >
-                                    <Check className="w-4 h-4" />
-                                    Save Changes
+                                    <Info className="w-4 h-4 text-slate-500" />
                                   </button>
-                                  <button
-                                    onClick={cancelEdit}
-                                    className="flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
-                                  >
-                                    <X className="w-4 h-4" />
-                                    Cancel
-                                  </button>
+                                  {!isLocked && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        startEditing(clause);
+                                      }}
+                                      className="p-2 hover:bg-slate-200 rounded-lg"
+                                      title="Edit this clause"
+                                    >
+                                      <Edit3 className="w-4 h-4 text-slate-500" />
+                                    </button>
+                                  )}
+                                  {!isLocked && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        // Require confirmation for standard clauses, quick delete for others
+                                        if (clause.type === "standard") {
+                                          if (confirm(`"${clause.title}" is a standard clause that's typically required in this type of contract.\n\nAre you sure you want to remove it?`)) {
+                                            removeClause(clause.id);
+                                          }
+                                        } else {
+                                          removeClause(clause.id);
+                                        }
+                                      }}
+                                      className="p-2 hover:bg-red-100 rounded-lg"
+                                      title={clause.type === "standard" ? "Remove standard clause (confirmation required)" : "Remove this clause"}
+                                    >
+                                      <Trash2 className="w-4 h-4 text-slate-400 hover:text-red-500" />
+                                    </button>
+                                  )}
+                                  {isLocked && (
+                                    <div className="p-2" title="Contract is locked">
+                                      <Lock className="w-4 h-4 text-amber-500" />
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                            ) : (
-                              <div className="pl-8">
-                                <HighlightedClauseContent
-                                  clauseId={clause.id}
-                                  content={clause.content}
-                                  comments={comments.filter(c => c.clause_id === clause.id)}
-                                  onHighlightClick={(commentId) => handleHighlightClick(commentId, clause.id)}
-                                  onTextSelect={handleHighlightedTextSelect}
-                                  className="text-slate-700 leading-relaxed select-text"
-                                  filledBlanks={filledBlanks}
-                                  onBlankChange={handleBlankChange}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+
+                              {/* Clause Content */}
+                              {expandedClauses.has(clause.id) && (
+                                <div className="px-8 pb-6">
+                                  {editingClause === clause.id ? (
+                                    <div className="space-y-3">
+                                      <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                                          Clause Title
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={editedTitle}
+                                          onChange={(e) => setEditedTitle(e.target.value)}
+                                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent text-sm font-semibold"
+                                          placeholder="Enter clause title..."
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                                          Clause Content
+                                        </label>
+                                        <textarea
+                                          value={editedContent}
+                                          onChange={(e) => setEditedContent(e.target.value)}
+                                          className="w-full h-64 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent resize-none font-mono text-sm"
+                                          placeholder="Enter clause content..."
+                                        />
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          onClick={saveClauseEdit}
+                                          className="flex items-center gap-2 px-4 py-2 bg-[#202e46] text-white rounded-lg hover:bg-[#1a2539]"
+                                        >
+                                          <Check className="w-4 h-4" />
+                                          Save Changes
+                                        </button>
+                                        <button
+                                          onClick={cancelEdit}
+                                          className="flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
+                                        >
+                                          <X className="w-4 h-4" />
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="pl-8">
+                                      <HighlightedClauseContent
+                                        clauseId={clause.id}
+                                        content={clause.content}
+                                        comments={comments.filter(c => c.clause_id === clause.id)}
+                                        onHighlightClick={(commentId) => handleHighlightClick(commentId, clause.id)}
+                                        onTextSelect={handleHighlightedTextSelect}
+                                        className="text-slate-700 leading-relaxed select-text"
+                                        filledBlanks={filledBlanks}
+                                        onBlankChange={handleBlankChange}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
 
                           {/* Blurred clauses with paywall */}
                           {blurredClauses.length > 0 && (
@@ -2260,16 +2260,20 @@ export default function ContractEditorPage() {
                       />
                     </div>
                   ) : (
-                    <SignatureBlockDisplay
-                      signatureBlock={contract.content.signatureBlock}
-                      fields={dbSignatureFields}
-                      fieldValues={fieldValues}
-                      signatures={signatures}
-                      signatureRequests={signatureRequests}
-                      showPlaceholders={true}
-                    />
+                    <>
+                      <SignatureBlockDisplay
+                        signatureBlock={contract.content.signatureBlock}
+                        fields={dbSignatureFields}
+                        fieldValues={fieldValues}
+                        signatures={signatures}
+                        signatureRequests={signatureRequests}
+                        showPlaceholders={true}
+                      />
+                      <div className="px-8 pb-8">
+                        <AIDisclaimer />
+                      </div>
+                    </>
                   )}
-                  <AIDisclaimer />
                 </>
               )}
             </div>

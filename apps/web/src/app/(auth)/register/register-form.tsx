@@ -17,7 +17,21 @@ const nameValidator = all(required("Name is required"), minLength(2, "Name must 
 const registerEmailValidator = all(required("Email is required"), emailValidator());
 const passwordValidatorFn = all(required("Password is required"), minLength(6, "Password must be at least 6 characters"));
 
-export function RegisterForm() {
+interface RegisterFormProps {
+  action?: string;
+  prompt?: string;
+  returnTo?: string;
+}
+
+export function RegisterForm({ action, prompt, returnTo }: RegisterFormProps) {
+  // Compute where to redirect after auth based on context
+  // returnTo takes precedence for template marketplace flow
+  const nextPath =
+    returnTo && returnTo.startsWith("/")
+      ? returnTo
+      : action === "create" && prompt
+        ? `/contracts/new?mode=smart&prompt=${encodeURIComponent(prompt)}`
+        : undefined;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -85,7 +99,7 @@ export function RegisterForm() {
         data: {
           full_name: name,
         },
-        emailRedirectTo: getAuthCallbackUrl(),
+        emailRedirectTo: getAuthCallbackUrl(nextPath),
       },
     });
 
@@ -106,7 +120,7 @@ export function RegisterForm() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: getAuthCallbackUrl(),
+        redirectTo: getAuthCallbackUrl(nextPath),
       },
     });
 

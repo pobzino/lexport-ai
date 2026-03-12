@@ -26,12 +26,12 @@ if (!isProduction) {
 // 'unsafe-eval' is only needed in development for hot reload
 const ContentSecurityPolicy = `
   default-src 'self';
-  script-src 'self' https://js.stripe.com https://app.posthog.com https://*.sentry.io ${isDevelopment ? "'unsafe-eval'" : ""};
-  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  script-src 'self' https://js.stripe.com https://connect-js.stripe.com https://app.posthog.com https://*.sentry.io ${isDevelopment ? "'unsafe-inline'" : ""} ${isDevelopment ? "'unsafe-eval'" : ""};
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com ${isProduction ? "'sha256-0hAheEzaMe6uXIKV4EehS9pu1am1lj/KnnzrOYqckXk='" : ""};
   font-src 'self' https://fonts.gstatic.com;
   img-src 'self' data: blob: https: http:;
-  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.openai.com https://app.posthog.com https://us.i.posthog.com https://*.sentry.io ${localSupabaseConnectSources.join(" ")};
-  frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com;
+  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://connect.stripe.com https://connect-js.stripe.com https://merchant-ui-api.stripe.com https://m.stripe.network https://api.openai.com https://app.posthog.com https://us.i.posthog.com https://*.sentry.io ${localSupabaseConnectSources.join(" ")};
+  frame-src 'self' blob: https://*.supabase.co https://js.stripe.com https://connect-js.stripe.com https://connect.stripe.com https://hooks.stripe.com ${localSupabaseConnectSources[0] ?? ""};
   frame-ancestors 'self' https://loxdigital.com https://www.loxdigital.com https://loxdigital.netlify.app;
   form-action 'self';
   base-uri 'self';

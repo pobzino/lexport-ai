@@ -1,6 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+function formatDuplicateError(error: {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+} | null) {
+  if (!error) {
+    return "Failed to duplicate contract";
+  }
+
+  const parts = [
+    error.message,
+    error.details,
+    error.hint,
+    error.code ? `Code: ${error.code}` : null,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" ") : "Failed to duplicate contract";
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -22,7 +42,22 @@ export async function POST(
     // Fetch the original contract
     const { data: original, error: fetchError } = await supabase
       .from("contracts")
-      .select("*")
+      .select(`
+        id,
+        title,
+        type,
+        jurisdiction,
+        content,
+        metadata,
+        payment_required,
+        payment_amount,
+        payment_currency,
+        payment_structure,
+        deposit_percentage,
+        source_type,
+        source_file_url,
+        source_file_type
+      `)
       .eq("id", id)
       .eq("user_id", user.id)
       .single();
@@ -52,12 +87,15 @@ export async function POST(
         source_file_url: original.source_file_url,
         source_file_type: original.source_file_type,
       })
-      .select()
+      .select("id, title, type, jurisdiction, status, version, created_at, updated_at")
       .single();
 
     if (insertError) {
       console.error("Error duplicating contract:", insertError);
-      return NextResponse.json({ error: "Failed to duplicate contract" }, { status: 500 });
+      return NextResponse.json(
+        { error: formatDuplicateError(insertError) },
+        { status: 500 }
+      );
     }
 
     // Also duplicate signature fields
@@ -88,6 +126,14 @@ export async function POST(
     return NextResponse.json({ contract: duplicate });
   } catch (error) {
     console.error("Error duplicating contract:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Internal server error",
+      },
+      { status: 500 }
+    );
   }
 }

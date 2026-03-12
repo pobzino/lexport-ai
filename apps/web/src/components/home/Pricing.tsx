@@ -64,12 +64,12 @@ export function Pricing() {
                             <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-100">
                                 <ul className="space-y-3">
                                     {[
-                                        { text: "3 AI contracts/month", included: true },
-                                        { text: "5 signature requests/month", included: true },
+                                        { text: "1 AI contract/month", included: true },
+                                        { text: "2 signature requests/month", included: true },
                                         { text: "Collect payments", included: true },
-                                        { text: "Basic templates", included: true },
+                                        { text: "7 free templates", included: true },
+                                        { text: "Buy premium templates ($9.99 each)", included: true },
                                         { text: "AI contract chat", included: false },
-                                        { text: "Premium templates", included: false },
                                     ].map((feature, i) => (
                                         <li key={i} className="flex items-start gap-3">
                                             <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5 ${feature.included ? "bg-emerald-100" : "bg-slate-100"}`}>
@@ -120,7 +120,7 @@ export function Pricing() {
                                     {[
                                         "50 AI contracts/month",
                                         "Unlimited signatures",
-                                        "Full template library",
+                                        "All premium templates included",
                                         "AI contract chat & review",
                                         "Payment collection",
                                         "Priority support",
@@ -166,7 +166,7 @@ export function Pricing() {
                                     {[
                                         "200 AI contracts/month",
                                         "Unlimited signatures",
-                                        "Full template library",
+                                        "All premium templates included",
                                         "AI contract chat & review",
                                         "Priority support",
                                         "Dedicated account manager",

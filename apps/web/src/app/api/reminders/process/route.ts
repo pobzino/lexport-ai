@@ -360,9 +360,11 @@ export async function POST(request: NextRequest) {
           
           const isFinalWarning = hoursUntilExpiration && hoursUntilExpiration <= 24 && hoursUntilExpiration > 0;
 
+          let emailId: string | undefined;
+
           if (isFinalWarning) {
             // Send expiration warning
-            await sendExpirationWarningEmail({
+            const result = await sendExpirationWarningEmail({
               to: sigRequest.signer_email,
               signerName: sigRequest.signer_name,
               contractTitle: contract.title,
@@ -371,26 +373,28 @@ export async function POST(request: NextRequest) {
               hoursRemaining: hoursUntilExpiration,
               senderName,
             });
+            emailId = result.id;
             reminderType = "final";
           } else {
             // Send regular reminder
-            await sendSigningReminder({
+            const result = await sendSigningReminder({
               to: sigRequest.signer_email,
               signerName: sigRequest.signer_name,
               contractTitle: contract.title,
               signingUrl,
               expiresAt: expiresAt || undefined,
             });
+            emailId = result.id;
           }
 
           // Record in history
           await getSupabaseAdmin().from("signature_reminder_history").insert({
             signature_request_id: sigRequest.id,
             contract_id: sigRequest.contract_id,
-            reminder_type: isFinalWarning ? "expiration_warning" : reminderType,
-            recipient_email: sigRequest.signer_email,
-            recipient_name: sigRequest.signer_name,
-            days_until_expiration: hoursUntilExpiration ? Math.ceil(hoursUntilExpiration / 24) : null,
+            sent_by: null,
+            email_id: emailId || null,
+            status: "sent",
+            reminder_type: "auto",
           });
 
           // Update signature request

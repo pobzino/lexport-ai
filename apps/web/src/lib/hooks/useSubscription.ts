@@ -55,11 +55,11 @@ const DEFAULT_DATA: Omit<SubscriptionData, "refetch"> = {
   source: "user",
   isUnlimited: false,
   contractsUsed: 0,
-  contractsLimit: 3, // Free tier: 3 contracts/month
+  contractsLimit: 1, // Free tier: 1 contract/month
   signaturesUsed: 0,
-  signaturesLimit: 5, // Free tier: 5 signatures/month
+  signaturesLimit: 2, // Free tier: 2 signatures/month
   chatMessagesUsed: 0,
-  chatMessagesLimit: 5, // Free tier: 5 chat messages/month
+  chatMessagesLimit: 3, // Free tier: 3 chat messages/month
   usageResetAt: null,
   daysUntilReset: null,
   canCreateContract: true,
@@ -97,11 +97,11 @@ export function useSubscription(): SubscriptionData & LegacySubscriptionData {
         isUnlimited: result.isUnlimited || false,
         // Usage tracking
         contractsUsed: result.contractsUsed ?? 0,
-        contractsLimit: result.contractsLimit ?? 3, // Default: 3 for free tier
+        contractsLimit: result.contractsLimit ?? 1, // Default: 1 for free tier
         signaturesUsed: result.signaturesUsed ?? 0,
-        signaturesLimit: result.signaturesLimit ?? 5, // Default: 5 for free tier
+        signaturesLimit: result.signaturesLimit ?? 2, // Default: 2 for free tier
         chatMessagesUsed: result.chatMessagesUsed ?? 0,
-        chatMessagesLimit: result.chatMessagesLimit ?? 5, // Default: 5 for free tier
+        chatMessagesLimit: result.chatMessagesLimit ?? 3, // Default: 3 for free tier
         usageResetAt: result.usageResetAt || null,
         daysUntilReset: result.daysUntilReset ?? null,
         // Feature flags
@@ -214,7 +214,7 @@ export function getUpgradeMessage(feature: FeatureType): {
     case "ai_chat":
       return {
         title: "AI Chat Limit Reached",
-        description: "You've used all 5 free AI chat messages this month. Upgrade to Pro for unlimited chat.",
+        description: "You've used all 3 free AI chat messages this month. Upgrade to Pro for unlimited chat.",
         ctaText: "Upgrade to Pro",
       };
     case "risk_analysis":

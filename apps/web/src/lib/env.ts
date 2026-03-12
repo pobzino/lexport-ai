@@ -25,6 +25,11 @@ const serverEnvSchema = z.object({
   // Email (optional, but required for sending emails)
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
+  EMAIL_SMTP_HOST: z.string().optional(),
+  EMAIL_SMTP_PORT: z.coerce.number().optional(),
+  EMAIL_SMTP_SECURE: z.string().optional(),
+  EMAIL_SMTP_USER: z.string().optional(),
+  EMAIL_SMTP_PASS: z.string().optional(),
   SUPPORT_EMAIL: z.string().email().optional(),
 
   // Analytics (optional)
@@ -106,7 +111,7 @@ export const clientEnv = validateClientEnv();
 // Helper to check if a feature is configured
 export const features = {
   payments: !!env.STRIPE_SECRET_KEY && !!env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
-  email: !!env.RESEND_API_KEY,
+  email: !!env.RESEND_API_KEY || (!!env.EMAIL_SMTP_HOST && !!env.EMAIL_SMTP_PORT),
   analytics: !!env.NEXT_PUBLIC_POSTHOG_KEY,
   webhooks: !!env.STRIPE_WEBHOOK_SECRET,
 } as const;

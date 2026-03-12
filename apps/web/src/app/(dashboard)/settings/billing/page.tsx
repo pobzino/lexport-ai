@@ -43,8 +43,8 @@ const PLANS: Array<{
     period: "forever",
     description: "Try it out",
     features: [
-      { text: "3 AI contracts/month", included: true },
-      { text: "5 signature requests/month", included: true },
+      { text: "1 AI contract/month", included: true },
+      { text: "2 signature requests/month", included: true },
       { text: "Collect payments", included: true },
       { text: "Basic templates", included: true },
       { text: "AI contract chat", included: false },

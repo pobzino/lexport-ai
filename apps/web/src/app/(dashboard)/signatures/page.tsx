@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { SendReminderButton } from "@/components/signatures/SendReminderButton";
 
 interface SignatureRequest {
   id: string;
@@ -270,12 +271,11 @@ export default async function SignaturesPage() {
                     {getStatusBadge(req.status, req.viewed_at)}
 
                     <div className="flex items-center gap-1">
-                      <button
-                        className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                        title="Send Reminder"
-                      >
-                        <Mail className="w-4 h-4" />
-                      </button>
+                      <SendReminderButton
+                        contractId={req.contracts?.id || ""}
+                        signatureRequestId={req.id}
+                        signerName={req.signer_name}
+                      />
                       <Link
                         href={`/contracts/${req.contracts?.id}/edit`}
                         className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"

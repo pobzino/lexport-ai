@@ -63,8 +63,18 @@ export async function GET(
       return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
     }
 
-    // Get payment reminder history for this invoice
-    const { data: reminderHistory, error: historyError } = await supabase
+    let reminderHistory: Array<{
+      id: string;
+      recipient_email: string;
+      recipient_name: string | null;
+      reminder_type: string;
+      amount: number;
+      currency: string;
+      sent_at: string;
+      email_id: string | null;
+    }> | null = null;
+
+    const reminderHistoryQuery = supabase
       .from("payment_reminders")
       .select(`
         id,
@@ -76,12 +86,42 @@ export async function GET(
         sent_at,
         email_id
       `)
-      .eq("contract_id", invoice.contract_id || id)
+      .eq("invoice_id", invoice.id)
       .order("sent_at", { ascending: false })
       .limit(50);
 
-    if (historyError) {
-      console.error("Error fetching reminder history:", historyError);
+    {
+      const { data, error: historyError } = await reminderHistoryQuery;
+
+      if (historyError) {
+        console.error("Error fetching reminder history:", historyError);
+      } else {
+        reminderHistory = data;
+      }
+    }
+
+    if (!reminderHistory?.length && invoice.contract_id) {
+      const { data, error: historyError } = await supabase
+        .from("payment_reminders")
+        .select(`
+          id,
+          recipient_email,
+          recipient_name,
+          reminder_type,
+          amount,
+          currency,
+          sent_at,
+          email_id
+        `)
+        .eq("contract_id", invoice.contract_id)
+        .order("sent_at", { ascending: false })
+        .limit(50);
+
+      if (historyError) {
+        console.error("Error fetching reminder history:", historyError);
+      } else {
+        reminderHistory = data;
+      }
     }
 
     // Calculate status info
@@ -254,10 +294,10 @@ export async function POST(
       })
       .eq("id", id);
 
-    // Record in payment_reminders table
-    await supabase
+    const { error: reminderInsertError } = await supabase
       .from("payment_reminders")
       .insert({
+        invoice_id: invoice.id,
         contract_id: invoice.contract_id || null,
         payment_id: invoice.payment_id || null,
         recipient_email: invoice.recipient_email,
@@ -268,6 +308,10 @@ export async function POST(
         sent_at: now.toISOString(),
         email_id: emailId || null,
       });
+
+    if (reminderInsertError) {
+      console.error("Error recording payment reminder history:", reminderInsertError);
+    }
 
     // Create notification for the invoice owner
     await supabase

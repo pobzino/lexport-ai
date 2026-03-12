@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { Resend } from "resend";
-
-// Lazy initialization to avoid build-time errors when env vars are unavailable
-let resendClient: Resend | null = null;
-function getResend() {
-  if (!resendClient) {
-    resendClient = new Resend(process.env.RESEND_API_KEY);
-  }
-  return resendClient;
-}
-const FROM_EMAIL = process.env.EMAIL_FROM || "Lexport <noreply@lexportai.com>";
+import { isEmailTransportConfigured, sendEmail } from "@/lib/email";
 
 // Format currency
 function formatCurrency(amount: number, currency: string): string {
@@ -191,11 +181,10 @@ View and pay your invoice: ${paymentUrl}
 Powered by Lexport - Simple, legally binding contracts for startups and freelancers.
 `;
 
-    // Check if Resend API key is configured
-    if (!process.env.RESEND_API_KEY) {
-      console.error("RESEND_API_KEY is not configured");
+    if (!isEmailTransportConfigured()) {
+      console.error("Email transport is not configured");
       return NextResponse.json(
-        { error: "Email service not configured. Please add RESEND_API_KEY to your environment variables." },
+        { error: "Email service not configured. Please add SMTP or Resend email settings to your environment variables." },
         { status: 500 }
       );
     }
@@ -209,8 +198,7 @@ Powered by Lexport - Simple, legally binding contracts for startups and freelanc
         ? `Reminder: Invoice ${invoice.invoice_number} from ${senderName} - ${formattedAmount}`
         : `Invoice ${invoice.invoice_number} from ${senderName} - ${formattedAmount}`;
 
-      const { error } = await getResend().emails.send({
-        from: FROM_EMAIL,
+      const { error } = await sendEmail({
         to: [invoice.recipient_email],
         subject,
         html,

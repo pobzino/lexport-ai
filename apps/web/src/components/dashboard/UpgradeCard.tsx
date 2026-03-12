@@ -2,15 +2,15 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { X, Zap, ArrowRight } from "lucide-react";
+import { X, ArrowRight, Rocket } from "lucide-react";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 
 const DISMISS_KEY = "lexport_upgrade_card_dismissed";
-const DISMISS_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
+const DISMISS_DURATION = 2 * 60 * 60 * 1000; // 2 hours
 
 export function UpgradeCard() {
   const subscription = useSubscription();
-  const [dismissed, setDismissed] = useState(true); // Start hidden to avoid flash
+  const [dismissed, setDismissed] = useState(true);
 
   useEffect(() => {
     const dismissedAt = localStorage.getItem(DISMISS_KEY);
@@ -27,47 +27,48 @@ export function UpgradeCard() {
     setDismissed(true);
   };
 
-  // Don't show for paid users or while loading
   if (subscription.isLoading || subscription.tier !== "free" || dismissed) {
     return null;
   }
 
+  const href = "/settings/billing?promo=FIRST50";
+
   return (
-    <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-[#202e46] via-[#2a3d5c] to-[#1a2539]">
-      {/* Subtle decorative elements */}
-      <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-      <div className="absolute bottom-0 left-1/3 w-24 h-24 bg-white/5 rounded-full translate-y-1/2" />
-
-      <div className="relative flex items-center gap-4 px-5 py-3.5">
-        {/* Icon */}
-        <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-amber-400/20 ring-1 ring-amber-400/30">
-          <Zap className="w-4 h-4 text-amber-400" />
+    <div className="relative rounded-xl p-[1.5px] overflow-hidden">
+      {/* Animated rotating gradient border — blue-to-teal palette */}
+      <div
+        className="absolute inset-0 rounded-xl bg-[conic-gradient(from_var(--border-angle),#6b8db5,#529ec6,#4db8a4,#3dab8e,#529ec6,#6b8db5)] animate-[border-spin_4s_linear_infinite]"
+        style={{ "--border-angle": "0deg" } as React.CSSProperties}
+      />
+      {/* Inner card */}
+      <div className="relative rounded-[10px] bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_right,rgba(77,184,164,0.12),transparent_70%)]" />
+        <div className="relative flex items-center gap-4 px-5 py-4">
+          <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-[#4db8a4]/20 flex items-center justify-center">
+            <Rocket className="w-4.5 h-4.5 text-[#4db8a4]" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white">
+              Upgrade to Pro — <span className="text-[#4db8a4]">50% off</span>
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              50 contracts &middot; Unlimited signatures &middot; AI chat &middot; <span className="text-[#4db8a4]/80">Save $120/year</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="hidden sm:inline text-xs text-slate-500 line-through">$19.99</span>
+            <Link
+              href={href}
+              className="inline-flex items-center gap-1.5 px-5 py-2 bg-[#4db8a4] text-white text-sm font-semibold rounded-lg hover:bg-[#3dab8e] transition-all active:scale-[0.98] shadow-lg shadow-[#4db8a4]/25"
+            >
+              $9.99/mo
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            <button onClick={handleDismiss} className="p-1.5 rounded-md text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors" aria-label="Dismiss">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-
-        {/* Text */}
-        <p className="flex-1 text-sm text-slate-200">
-          <span className="font-semibold text-white">50% off Pro</span>
-          <span className="mx-1.5 text-slate-500">—</span>
-          50 contracts/mo, unlimited signatures, AI chat & all templates.
-        </p>
-
-        {/* CTA */}
-        <Link
-          href="/settings/billing?promo=FIRST50"
-          className="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-white text-[#202e46] text-xs font-bold rounded-lg hover:bg-slate-100 transition-all hover:shadow-lg hover:shadow-white/10 active:scale-[0.98]"
-        >
-          Upgrade — $9.99/mo
-          <ArrowRight className="w-3 h-3" />
-        </Link>
-
-        {/* Dismiss */}
-        <button
-          onClick={handleDismiss}
-          className="flex-shrink-0 p-1 rounded-md hover:bg-white/10 transition-colors"
-          aria-label="Dismiss"
-        >
-          <X className="w-3.5 h-3.5 text-slate-400" />
-        </button>
       </div>
     </div>
   );

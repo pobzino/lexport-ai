@@ -1,16 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { sendEmail } from "@/lib/email";
 import { z } from "zod";
 import { randomBytes } from "crypto";
-import { Resend } from "resend";
 
-// Lazy initialization to avoid build-time errors when env vars are unavailable
-let resendClient: Resend | null = null;
-function getResend() {
-  if (!resendClient) {
-    resendClient = new Resend(process.env.RESEND_API_KEY);
+function formatReviewError(error: {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+} | null) {
+  if (!error) {
+    return "Failed to create review request";
   }
-  return resendClient;
+
+  const parts = [
+    error.message,
+    error.details,
+    error.hint,
+    error.code ? `Code: ${error.code}` : null,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" ") : "Failed to create review request";
 }
 
 // Request schema
@@ -54,7 +65,7 @@ export async function POST(
     // Fetch and verify contract ownership
     const { data: contract, error: contractError } = await supabase
       .from("contracts")
-      .select("*")
+      .select("id, user_id, title, status")
       .eq("id", id)
       .eq("user_id", user.id)
       .single();
@@ -96,7 +107,7 @@ export async function POST(
     if (insertError) {
       console.error("Error creating review request:", insertError);
       return NextResponse.json(
-        { error: "Failed to create review request" },
+        { error: formatReviewError(insertError) },
         { status: 500 }
       );
     }
@@ -105,20 +116,20 @@ export async function POST(
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const reviewUrl = `${baseUrl}/review/${token}`;
 
-    // Get sender name from profile
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name")
+    // Get sender details from the local users table
+    const { data: sender } = await supabase
+      .from("users")
+      .select("name, email")
       .eq("id", user.id)
       .single();
-    const senderName = profile?.full_name || "Someone";
+    const senderName = sender?.name || user.email || "Someone";
 
     // Send email invitation
     let emailSent = false;
     try {
-      await getResend().emails.send({
-        from: process.env.RESEND_FROM_EMAIL || "Lexport <noreply@lexportai.com>",
-        to: reviewerEmail,
+      const { error } = await sendEmail({
+        from: process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || "Lexport <noreply@lexportai.com>",
+        to: [reviewerEmail],
         subject: `${senderName} has shared "${contract.title}" for your review`,
         html: `
           <!DOCTYPE html>
@@ -178,6 +189,11 @@ export async function POST(
           </html>
         `,
       });
+
+      if (error) {
+        throw error;
+      }
+
       emailSent = true;
     } catch (emailError) {
       console.error("Failed to send review invitation email:", emailError);
@@ -201,7 +217,12 @@ export async function POST(
   } catch (error) {
     console.error("Error sharing contract for review:", error);
     return NextResponse.json(
-      { error: "Failed to share contract for review" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to share contract for review",
+      },
       { status: 500 }
     );
   }

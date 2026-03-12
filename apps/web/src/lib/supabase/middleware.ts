@@ -22,6 +22,7 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/privacy") ||
     request.nextUrl.pathname.startsWith("/portal/login") ||
     request.nextUrl.pathname.startsWith("/portal/verify") ||
+    request.nextUrl.pathname.startsWith("/templates") ||
     request.nextUrl.pathname === "/";
 
   if (isPublicRoute) {
@@ -37,7 +38,7 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/contracts") ||
     request.nextUrl.pathname.startsWith("/signatures") ||
     request.nextUrl.pathname.startsWith("/settings") ||
-    request.nextUrl.pathname.startsWith("/templates") ||
+    request.nextUrl.pathname.startsWith("/my-templates") ||
     request.nextUrl.pathname.startsWith("/invoices") ||
     request.nextUrl.pathname.startsWith("/activity") ||
     request.nextUrl.pathname.startsWith("/payments");
@@ -83,10 +84,22 @@ export async function updateSession(request: NextRequest) {
     return applySecurityHeaders(redirectResponse);
   }
 
-  // For auth routes with session, redirect to dashboard
+  // For auth routes with session, redirect appropriately
   if (session && isAuthRoute) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    const returnTo = request.nextUrl.searchParams.get("returnTo");
+    const action = request.nextUrl.searchParams.get("action");
+    const prompt = request.nextUrl.searchParams.get("prompt");
+    if (returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")) {
+      // Redirect to returnTo path (e.g., from template marketplace)
+      url.pathname = returnTo;
+      url.search = "";
+    } else if (action === "create" && prompt) {
+      url.pathname = "/contracts/new";
+      url.search = `?mode=smart&prompt=${encodeURIComponent(prompt)}`;
+    } else {
+      url.pathname = "/dashboard";
+    }
     const redirectResponse = NextResponse.redirect(url);
     redirectResponse.headers.set(CORRELATION_ID_HEADER, correlationId);
     return applySecurityHeaders(redirectResponse);

@@ -1,5 +1,5 @@
 /**
- * Streaming Contract Generator using OpenAI GPT-5.1
+ * Streaming Contract Generator using OpenAI GPT-5.4
  *
  * This module provides streaming contract generation with progress callbacks
  * to support SSE (Server-Sent Events) for real-time progress updates.
@@ -37,9 +37,22 @@ function getOpenAI(): OpenAI {
   return openaiClient;
 }
 
-// Models - GPT-5.1 for best quality
-const GENERATION_MODEL = "gpt-5.1";
+// GPT-5.4 is the strongest current model and still completes in interactive time.
+const GENERATION_MODEL = process.env.OPENAI_CONTRACT_GENERATION_MODEL || "gpt-5.4";
 const REASONING_EFFORT = "low";
+const GENERATION_REQUEST_TIMEOUT_MS = Number.parseInt(
+  process.env.OPENAI_CONTRACT_GENERATION_TIMEOUT_MS || "120000",
+  10
+);
+
+function getGenerationRequestOptions() {
+  return {
+    timeout: Number.isFinite(GENERATION_REQUEST_TIMEOUT_MS)
+      ? GENERATION_REQUEST_TIMEOUT_MS
+      : 120000,
+    maxRetries: 0,
+  };
+}
 
 // Map contract types to manifest keys
 const MANIFEST_KEY_MAP: Record<ContractType, string> = {
@@ -87,6 +100,15 @@ export type ProgressCallback = (progress: {
   status: string;
   percent: number;
 }) => void;
+
+type ResponsesClient = {
+  responses: {
+    create: (
+      params: unknown,
+      options?: { timeout?: number; maxRetries?: number }
+    ) => Promise<{ output_text: string }>;
+  };
+};
 
 // Get manifest for contract type
 function getManifest(
@@ -425,15 +447,15 @@ Return only valid JSON.`;
 
   onProgress({ status: "AI is generating custom contract...", percent: 35 });
 
-  // Use GPT-5.1 with Responses API
-  const response = await (getOpenAI() as unknown as { responses: { create: (params: unknown) => Promise<{ output_text: string }> } }).responses.create({
+  // Use GPT-5.4 with Responses API
+  const response = await (getOpenAI() as unknown as ResponsesClient).responses.create({
     model: GENERATION_MODEL,
     reasoning: { effort: REASONING_EFFORT },
     input: [
       { role: "developer", content: developerPrompt },
       { role: "user", content: userPrompt },
     ],
-  });
+  }, getGenerationRequestOptions());
 
   onProgress({ status: "Processing AI response...", percent: 75 });
 
@@ -523,15 +545,15 @@ export async function generateContractStreaming(
     percent: 40,
   });
 
-  // Use GPT-5.1 with Responses API for generation
-  const response = await (getOpenAI() as unknown as { responses: { create: (params: unknown) => Promise<{ output_text: string }> } }).responses.create({
+  // Use GPT-5.4 with Responses API for generation
+  const response = await (getOpenAI() as unknown as ResponsesClient).responses.create({
     model: GENERATION_MODEL,
     reasoning: { effort: REASONING_EFFORT },
     input: [
       { role: "developer", content: developerPrompt },
       { role: "user", content: userPrompt },
     ],
-  });
+  }, getGenerationRequestOptions());
 
   onProgress({ status: "Processing AI response...", percent: 70 });
 

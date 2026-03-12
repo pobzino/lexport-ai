@@ -18,7 +18,7 @@ interface OnboardingContextType {
   showWelcome: boolean;
   setShowWelcome: (show: boolean) => void;
   userType: UserType;
-  setUserType: (type: UserType) => void;
+  setUserType: (type: UserType) => Promise<void>;
 
   // Checklist
   steps: OnboardingStep[];
@@ -62,7 +62,7 @@ const DEFAULT_STEPS: Omit<OnboardingStep, "completed">[] = [
     id: "save_template",
     label: "Save a template",
     description: "Create reusable templates for future contracts",
-    href: "/templates",
+    href: "/my-templates",
   },
   {
     id: "setup_payments",
@@ -165,11 +165,30 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     }
   }, [userId, supabase]);
 
+  const persistOnboardingCompletion = useCallback(async () => {
+    if (!userId) {
+      return;
+    }
+
+    setShowChecklist(false);
+
+    try {
+      await supabase
+        .from("users")
+        .update({ onboarding_completed_at: new Date().toISOString() })
+        .eq("id", userId);
+    } catch (error) {
+      console.error("Error marking onboarding complete:", error);
+    }
+  }, [userId, supabase]);
+
   // Complete a step
   const completeStep = useCallback(async (stepId: string) => {
     if (completedSteps.has(stepId)) return;
 
-    setCompletedSteps(prev => new Set([...prev, stepId]));
+    const nextCompletedSteps = new Set(completedSteps);
+    nextCompletedSteps.add(stepId);
+    setCompletedSteps(nextCompletedSteps);
 
     if (userId) {
       try {
@@ -186,7 +205,11 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         console.error("Error saving step progress:", error);
       }
     }
-  }, [userId, completedSteps, supabase]);
+
+    if (nextCompletedSteps.size >= 3) {
+      await persistOnboardingCompletion();
+    }
+  }, [userId, completedSteps, supabase, persistOnboardingCompletion]);
 
   // Check if step is completed
   const isStepCompleted = useCallback((stepId: string) => {
@@ -223,19 +246,8 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
   // Dismiss checklist
   const dismissChecklist = useCallback(async () => {
-    setShowChecklist(false);
-
-    if (userId) {
-      try {
-        await supabase
-          .from("users")
-          .update({ onboarding_completed_at: new Date().toISOString() })
-          .eq("id", userId);
-      } catch (error) {
-        console.error("Error dismissing checklist:", error);
-      }
-    }
-  }, [userId, supabase]);
+    await persistOnboardingCompletion();
+  }, [persistOnboardingCompletion]);
 
   // Build steps with completion status
   const steps: OnboardingStep[] = DEFAULT_STEPS.map(step => ({
@@ -246,6 +258,12 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const completedCount = completedSteps.size;
   const totalCount = DEFAULT_STEPS.length;
   const isOnboardingComplete = completedCount >= 3; // Consider complete after 3 steps
+
+  useEffect(() => {
+    if (!isLoading && showChecklist && completedSteps.size >= 3) {
+      void persistOnboardingCompletion();
+    }
+  }, [completedSteps, isLoading, showChecklist, persistOnboardingCompletion]);
 
   return (
     <OnboardingContext.Provider
@@ -278,7 +296,7 @@ const defaultContext: OnboardingContextType = {
   showWelcome: false,
   setShowWelcome: () => {},
   userType: null,
-  setUserType: () => {},
+  setUserType: async () => {},
   steps: [],
   completeStep: async () => {},
   isStepCompleted: () => false,

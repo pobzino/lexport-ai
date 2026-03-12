@@ -21,29 +21,9 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch contract with all related data in a single query using nested selects
-    // This eliminates N+1 queries by leveraging Supabase's join capabilities
     const { data: contract, error } = await supabase
       .from("contracts")
-      .select(`
-        *,
-        signature_fields!signature_fields_contract_id_fkey (
-          id, contract_id, type, label, signer_role, required,
-          position_x, position_y, width, height, "order", page,
-          options, placeholder, validation, created_at
-        ),
-        signature_requests!signature_requests_contract_id_fkey (
-          id, contract_id, signer_email, signer_name, signer_role,
-          "order", status, signed_at, declined_at, decline_reason,
-          token, expires_at, created_at, updated_at, message,
-          viewed_at, last_reminder_sent_at
-        ),
-        signatures!signatures_contract_id_fkey (
-          id, contract_id, signature_request_id, type, image_url,
-          image_hash, created_at, signature_data, signature_type,
-          ip_address, user_agent, signed_at
-        )
-      `)
+      .select("*")
       .eq("id", id)
       .eq("user_id", user.id)
       .single();
@@ -52,14 +32,47 @@ export async function GET(
       return NextResponse.json({ error: "Contract not found" }, { status: 404 });
     }
 
-    // Extract nested data from the joined query
-    const signatureFields = (contract.signature_fields || []).sort(
+    // Query related records explicitly instead of relying on PostgREST schema-cache
+    // relationship names, which can drift between hosted and fresh local databases.
+    const [
+      { data: signatureFieldsData },
+      { data: signatureRequestsData },
+      { data: signaturesData },
+    ] = await Promise.all([
+      supabase
+        .from("signature_fields")
+        .select(`
+          id, contract_id, type, label, signer_role, required,
+          position_x, position_y, width, height, "order", page,
+          options, placeholder, validation, created_at
+        `)
+        .eq("contract_id", id),
+      supabase
+        .from("signature_requests")
+        .select(`
+          id, contract_id, signer_email, signer_name, signer_role,
+          "order", status, signed_at, declined_at, decline_reason,
+          token, expires_at, created_at, updated_at, message,
+          viewed_at, last_reminder_sent_at
+        `)
+        .eq("contract_id", id),
+      supabase
+        .from("signatures")
+        .select(`
+          id, contract_id, signature_request_id, type, image_url,
+          image_hash, created_at, signature_data, signature_type,
+          ip_address, user_agent, signed_at
+        `)
+        .eq("contract_id", id),
+    ]);
+
+    const signatureFields = (signatureFieldsData || []).sort(
       (a: { order: number }, b: { order: number }) => a.order - b.order
     );
-    const signatureRequests = (contract.signature_requests || []).sort(
+    const signatureRequests = (signatureRequestsData || []).sort(
       (a: { order: number }, b: { order: number }) => a.order - b.order
     );
-    const signatures = contract.signatures || [];
+    const signatures = signaturesData || [];
 
     // Field values still need a separate query as they reference field IDs
     // but now we only make this query if there are fields
@@ -75,8 +88,7 @@ export async function GET(
       fieldValues = data || [];
     }
 
-    // Clean up the contract object by removing nested relations
-    const { signature_fields, signature_requests, signatures: sigs, ...contractData } = contract;
+    const contractData = contract;
 
     // Log contract view
     const context = getRequestContextFromRequest(request);

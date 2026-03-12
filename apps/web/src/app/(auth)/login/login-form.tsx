@@ -20,9 +20,16 @@ const passwordValidator = required("Password is required");
 
 interface LoginFormProps {
   initialError?: string;
+  action?: string;
+  prompt?: string;
 }
 
-export function LoginForm({ initialError }: LoginFormProps) {
+export function LoginForm({ initialError, action, prompt }: LoginFormProps) {
+  // Compute where to redirect after login based on context
+  const nextPath =
+    action === "create" && prompt
+      ? `/contracts/new?mode=smart&prompt=${encodeURIComponent(prompt)}`
+      : "/dashboard";
   const [emailValue, setEmailValue] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(initialError || null);
@@ -92,7 +99,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
       }
 
       // Use hard navigation so middleware sees fresh auth cookies immediately.
-      window.location.assign("/dashboard");
+      window.location.assign(nextPath);
     } catch (authError) {
       console.error("Login failed:", authError);
       setError(
@@ -111,7 +118,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: getAuthCallbackUrl(),
+        redirectTo: getAuthCallbackUrl(nextPath === "/dashboard" ? undefined : nextPath),
       },
     });
 
@@ -141,7 +148,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
     const { error } = await supabase.auth.signInWithOtp({
       email: emailValue,
       options: {
-        emailRedirectTo: getAuthCallbackUrl(),
+        emailRedirectTo: getAuthCallbackUrl(nextPath === "/dashboard" ? undefined : nextPath),
       },
     });
 
@@ -214,7 +221,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
     const { error } = await supabase.auth.signInWithOtp({
       email: emailValue,
       options: {
-        emailRedirectTo: getAuthCallbackUrl(),
+        emailRedirectTo: getAuthCallbackUrl(nextPath === "/dashboard" ? undefined : nextPath),
       },
     });
 

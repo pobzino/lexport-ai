@@ -9,7 +9,18 @@ import Link from "next/link";
 import Image from "next/image";
 import { RegisterForm } from "./register-form";
 
-export default function RegisterPage() {
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const action = typeof params.action === "string" ? params.action : undefined;
+  const prompt = typeof params.prompt === "string" ? params.prompt : undefined;
+  const rawReturnTo = typeof params.returnTo === "string" ? params.returnTo : undefined;
+  // Validate returnTo to prevent open redirect — must be a relative path
+  const returnTo = rawReturnTo?.startsWith("/") ? rawReturnTo : undefined;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-white px-4">
       <div className="w-full max-w-md">
@@ -35,7 +46,7 @@ export default function RegisterPage() {
             Start creating contracts in minutes
           </p>
 
-          <RegisterForm />
+          <RegisterForm action={action} prompt={prompt} returnTo={returnTo} />
 
           <div className="mt-6">
             <div className="bg-brand-50 rounded-lg p-4">
@@ -43,8 +54,8 @@ export default function RegisterPage() {
                 Free plan includes:
               </h3>
               <ul className="text-sm text-gray-600 space-y-1">
-                <li>3 contracts per month</li>
-                <li>5 e-signatures per month</li>
+                <li>1 AI contract/month</li>
+                <li>2 signature requests/month</li>
                 <li>All contract templates</li>
                 <li>AI contract generation</li>
               </ul>

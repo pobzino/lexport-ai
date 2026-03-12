@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
-import { HeroMockDemo } from "./HeroMockDemo";
+import { HeroCTA } from "./HeroCTA";
 
 export function Hero() {
     return (
@@ -63,40 +61,9 @@ export function Hero() {
                         Stop chasing invoices.
                     </motion.p>
 
-                    <motion.div
-                        initial={{ opacity: 0, y: 16 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.4, delay: 0.2 }}
-                        className="flex flex-col sm:flex-row gap-3 justify-center"
-                    >
-                        <Link
-                            href="/register"
-                            className="inline-flex items-center justify-center bg-slate-900 text-white px-6 py-3 rounded-xl text-base font-medium hover:bg-slate-800 transition-all hover:scale-[1.02] shadow-lg shadow-slate-900/10"
-                        >
-                            Start for free
-                            <ArrowRight className="w-4 h-4 ml-2" />
-                        </Link>
-                        <Link
-                            href="#how-it-works"
-                            className="inline-flex items-center justify-center bg-white text-slate-600 px-6 py-3 rounded-xl text-base font-medium border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all"
-                        >
-                            See how it works
-                        </Link>
-                    </motion.div>
+                    {/* Interactive CTA */}
+                    <HeroCTA />
                 </div>
-
-                {/* Animated Product Demo */}
-                <motion.div
-                    initial={{ opacity: 0, y: 24 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, delay: 0.3 }}
-                    className="relative max-w-4xl mx-auto"
-                >
-                    <div className="absolute -inset-4 bg-gradient-to-r from-[#529ec6]/20 via-[#529ec6]/10 to-emerald-500/20 rounded-3xl blur-2xl opacity-50" />
-                    <div className="relative">
-                        <HeroMockDemo />
-                    </div>
-                </motion.div>
             </div>
         </section>
     );

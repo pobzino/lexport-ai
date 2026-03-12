@@ -288,7 +288,15 @@ export async function POST(request: NextRequest) {
 
         if (insertError) {
           console.error("Database insert error:", insertError);
-          sendSSE(controller, "error", { message: "Failed to save contract" });
+          sendSSE(controller, "error", {
+            message: "Failed to save contract",
+            details: {
+              reason: insertError.message,
+              code: insertError.code,
+              hint: insertError.hint,
+              details: insertError.details,
+            },
+          });
           controller.close();
           if (heartbeatInterval) clearInterval(heartbeatInterval);
           return;
@@ -427,7 +435,11 @@ export async function POST(request: NextRequest) {
 
       } catch (error) {
         console.error("Streaming contract generation error:", error);
-        sendSSE(controller, "error", { message: "Failed to generate contract" });
+        const genericMessage = error instanceof Error ? error.message : "Failed to generate contract";
+        sendSSE(controller, "error", {
+          message: "Failed to generate contract",
+          details: { reason: genericMessage },
+        });
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         controller.close();
       }
