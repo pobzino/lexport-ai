@@ -29,6 +29,8 @@ interface PDFPreviewModalProps {
   onClose: () => void;
   contractId: string;
   contractTitle: string;
+  /** Direct URL to an existing PDF (e.g. uploaded sign-only contracts). Skips API generation. */
+  sourceFileUrl?: string | null;
 }
 
 export function PDFPreviewModal({
@@ -36,6 +38,7 @@ export function PDFPreviewModal({
   onClose,
   contractId,
   contractTitle,
+  sourceFileUrl,
 }: PDFPreviewModalProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +116,10 @@ export function PDFPreviewModal({
       setError(null);
 
       try {
-        const response = await fetch(`/api/contracts/${contractId}/pdf`, {
+        // Use the direct source file URL if provided (e.g. uploaded sign-only contracts)
+        const fetchUrl = sourceFileUrl || `/api/contracts/${contractId}/pdf`;
+
+        const response = await fetch(fetchUrl, {
           signal: abortController.signal,
         });
 
@@ -155,7 +161,7 @@ export function PDFPreviewModal({
       // Abort the request on cleanup
       abortController.abort();
     };
-  }, [isOpen, contractId]);
+  }, [isOpen, contractId, sourceFileUrl]);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -310,7 +316,7 @@ export function PDFPreviewModal({
                   setError(null);
                   setLoading(true);
                   // Retry fetch
-                  fetch(`/api/contracts/${contractId}/pdf`)
+                  fetch(sourceFileUrl || `/api/contracts/${contractId}/pdf`)
                     .then((res) => {
                       if (!res.ok) throw new Error("Failed to generate PDF");
                       return res.blob();

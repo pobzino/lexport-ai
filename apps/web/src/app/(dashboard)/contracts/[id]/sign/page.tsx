@@ -30,6 +30,8 @@ interface Contract {
   title: string;
   type: string;
   status: string;
+  processing_mode?: string;
+  source_file_url?: string | null;
 }
 
 export default function SendForSignaturePage() {
@@ -500,6 +502,9 @@ export default function SendForSignaturePage() {
         onClose={() => setShowPreview(false)}
         contractId={contractId}
         contractTitle={contract?.title || "Contract"}
+        sourceFileUrl={
+          contract?.processing_mode === "sign_only" ? contract.source_file_url : undefined
+        }
       />
     </div>
   );
