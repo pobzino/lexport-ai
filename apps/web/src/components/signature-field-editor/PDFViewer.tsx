@@ -39,10 +39,11 @@ export function PDFViewer({
   const [isClient, setIsClient] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Set up PDF.js worker on client side — only mark ready after worker is configured
+  // Set up PDF.js worker on client side — use CDN with exact version match
   useEffect(() => {
     import("react-pdf").then((pdfjs) => {
-      pdfjs.pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+      pdfjs.pdfjs.GlobalWorkerOptions.workerSrc =
+        "https://unpkg.com/pdfjs-dist@5.4.296/build/pdf.worker.min.mjs";
       setIsClient(true);
     });
   }, []);

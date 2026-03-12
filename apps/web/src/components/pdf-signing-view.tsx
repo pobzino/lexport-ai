@@ -92,10 +92,11 @@ export function PDFSigningView({
   const containerRef = useRef<HTMLDivElement>(null);
   const pageContainerRef = useRef<HTMLDivElement>(null);
 
-  // Set up PDF.js worker on client side — only mark ready after worker is configured
+  // Set up PDF.js worker on client side — use CDN with local fallback
   useEffect(() => {
     import("react-pdf").then((pdfjs) => {
-      pdfjs.pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+      pdfjs.pdfjs.GlobalWorkerOptions.workerSrc =
+        "https://unpkg.com/pdfjs-dist@5.4.296/build/pdf.worker.min.mjs";
       setIsClient(true);
     });
   }, []);

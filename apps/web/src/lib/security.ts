@@ -29,6 +29,7 @@ const contentSecurityPolicyDirectives = [
         "https://connect-js.stripe.com",
         "https://app.posthog.com",
         "https://*.sentry.io",
+        "https://unpkg.com",
         !isProduction ? "'unsafe-eval'" : null,
     ]
         .filter(Boolean)
@@ -55,6 +56,7 @@ const contentSecurityPolicyDirectives = [
         "https://app.posthog.com",
         "https://us.i.posthog.com",
         "https://*.sentry.io",
+        "https://unpkg.com",
         ...localSupabaseConnectSources,
     ]
         .filter(Boolean)
@@ -71,7 +73,7 @@ const contentSecurityPolicyDirectives = [
     ]
         .filter(Boolean)
         .join(" ")}`,
-    "worker-src 'self' blob:",
+    "worker-src 'self' blob: https://unpkg.com",
     "frame-ancestors 'self'",
     "form-action 'self'",
     "base-uri 'self'",
