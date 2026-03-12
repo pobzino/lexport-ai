@@ -13,6 +13,7 @@ import {
     Trash2,
     X
 } from "lucide-react";
+import toast from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 interface FolderType {
@@ -74,8 +75,12 @@ export function FoldersSidebar({
 
             if (foldersRes.data) setFolders(foldersRes.data);
             if (tagsRes.data) setTags(tagsRes.data);
+            if (foldersRes.error || tagsRes.error) {
+                toast.error("Failed to load folders or tags.");
+            }
         } catch (error) {
             console.error("Error fetching folders/tags:", error);
+            toast.error("Failed to load folders and tags.");
         } finally {
             setLoading(false);
         }
@@ -96,9 +101,12 @@ export function FoldersSidebar({
                 setFolders(prev => [...prev, { ...folder, contracts: [{ count: 0 }] }]);
                 setNewFolderName("");
                 setIsAddingFolder(false);
+            } else {
+                toast.error("Failed to create folder.");
             }
         } catch (error) {
             console.error("Error creating folder:", error);
+            toast.error("Failed to create folder.");
         }
     }
 
@@ -117,29 +125,42 @@ export function FoldersSidebar({
                 setTags(prev => [...prev, { ...tag, contract_tags: [{ count: 0 }] }]);
                 setNewTagName("");
                 setIsAddingTag(false);
+            } else {
+                toast.error("Failed to create tag.");
             }
         } catch (error) {
             console.error("Error creating tag:", error);
+            toast.error("Failed to create tag.");
         }
     }
 
     async function deleteFolder(folderId: string) {
         try {
-            await fetch(`/api/folders/${folderId}`, { method: "DELETE" });
-            setFolders(prev => prev.filter(f => f.id !== folderId));
-            if (selectedFolderId === folderId) onSelectFolder(null);
+            const res = await fetch(`/api/folders/${folderId}`, { method: "DELETE" });
+            if (res.ok) {
+                setFolders(prev => prev.filter(f => f.id !== folderId));
+                if (selectedFolderId === folderId) onSelectFolder(null);
+            } else {
+                toast.error("Failed to delete folder.");
+            }
         } catch (error) {
             console.error("Error deleting folder:", error);
+            toast.error("Failed to delete folder.");
         }
     }
 
     async function deleteTag(tagId: string) {
         try {
-            await fetch(`/api/tags/${tagId}`, { method: "DELETE" });
-            setTags(prev => prev.filter(t => t.id !== tagId));
-            if (selectedTagId === tagId) onSelectTag(null);
+            const res = await fetch(`/api/tags/${tagId}`, { method: "DELETE" });
+            if (res.ok) {
+                setTags(prev => prev.filter(t => t.id !== tagId));
+                if (selectedTagId === tagId) onSelectTag(null);
+            } else {
+                toast.error("Failed to delete tag.");
+            }
         } catch (error) {
             console.error("Error deleting tag:", error);
+            toast.error("Failed to delete tag.");
         }
     }
 

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Bell, Check, CheckCheck, X, FileText, CreditCard, AlertCircle, MessageSquare, Clock } from "lucide-react";
+import { Bell, Check, CheckCheck, X, FileText, CreditCard, AlertCircle, MessageSquare, Clock, RefreshCw } from "lucide-react";
+import toast from "@/lib/toast";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 
@@ -34,6 +35,7 @@ export function NotificationCenter() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const supabase = createClient();
 
@@ -84,41 +86,54 @@ export function NotificationCenter() {
 
             if (error) throw error;
             setNotifications(data || []);
+            setFetchError(false);
         } catch (error) {
             console.error("Error fetching notifications:", error);
+            setFetchError(true);
         } finally {
             setLoading(false);
         }
     }
 
     async function markAsRead(id: string) {
+        // Optimistic update
+        setNotifications(prev =>
+            prev.map(n => (n.id === id ? { ...n, read: true } : n))
+        );
         try {
-            await supabase
+            const { error } = await supabase
                 .from("notifications")
                 .update({ read: true, read_at: new Date().toISOString() })
                 .eq("id", id);
 
-            setNotifications(prev =>
-                prev.map(n => (n.id === id ? { ...n, read: true } : n))
-            );
+            if (error) throw error;
         } catch (error) {
             console.error("Error marking notification as read:", error);
+            // Revert optimistic update
+            setNotifications(prev =>
+                prev.map(n => (n.id === id ? { ...n, read: false } : n))
+            );
         }
     }
 
     async function markAllAsRead() {
-        try {
-            const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
-            if (unreadIds.length === 0) return;
+        const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
+        if (unreadIds.length === 0) return;
 
-            await supabase
+        // Optimistic update
+        const prevNotifications = notifications;
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        try {
+            const { error } = await supabase
                 .from("notifications")
                 .update({ read: true, read_at: new Date().toISOString() })
                 .in("id", unreadIds);
 
-            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+            if (error) throw error;
         } catch (error) {
             console.error("Error marking all as read:", error);
+            setNotifications(prevNotifications);
+            toast.error("Failed to mark notifications as read.");
         }
     }
 
@@ -159,6 +174,18 @@ export function NotificationCenter() {
                     <div className="max-h-[400px] overflow-y-auto">
                         {loading ? (
                             <div className="p-8 text-center text-gray-500">Loading...</div>
+                        ) : fetchError ? (
+                            <div className="p-8 text-center">
+                                <AlertCircle className="h-10 w-10 text-red-300 mx-auto mb-3" />
+                                <p className="text-gray-500 mb-2">Failed to load notifications</p>
+                                <button
+                                    onClick={() => { setLoading(true); fetchNotifications(); }}
+                                    className="text-sm text-blue-600 hover:text-blue-700 inline-flex items-center gap-1"
+                                >
+                                    <RefreshCw className="h-3.5 w-3.5" />
+                                    Try again
+                                </button>
+                            </div>
                         ) : notifications.length === 0 ? (
                             <div className="p-8 text-center">
                                 <Bell className="h-10 w-10 text-gray-300 mx-auto mb-3" />

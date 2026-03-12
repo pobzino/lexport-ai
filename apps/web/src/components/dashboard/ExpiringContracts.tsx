@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Clock, AlertTriangle, Send, ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, AlertTriangle, Send, ArrowRight, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
 import { formatDistanceToNow, differenceInHours, differenceInDays } from "date-fns";
+import toast from "@/lib/toast";
 
 interface ExpiringContract {
   id: string;
@@ -101,13 +102,13 @@ export function ExpiringContracts({ contracts }: ExpiringContractsProps) {
       });
 
       if (res.ok) {
-        // Show success feedback (could add toast here)
-        console.log("Reminder sent successfully");
+        toast.success("Reminder sent successfully");
       } else {
-        console.error("Failed to send reminder");
+        toast.error("Failed to send reminder. Please try again.");
       }
     } catch (error) {
       console.error("Error sending reminder:", error);
+      toast.error("Failed to send reminder. Please try again.");
     } finally {
       setSendingReminder(null);
     }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { FileText, Folder, Tag } from "lucide-react";
+import toast from "@/lib/toast";
 import { FolderSidebar } from "./FolderSidebar";
 
 interface Contract {
@@ -50,9 +51,12 @@ export function ContractOrganizer({ initialContracts }: ContractOrganizerProps) 
       if (response.ok) {
         const data = await response.json();
         setContracts(data.contracts || []);
+      } else {
+        toast.error("Failed to load contracts.");
       }
     } catch (error) {
       console.error("Failed to load contracts:", error);
+      toast.error("Failed to load contracts.");
     } finally {
       setLoading(false);
     }
@@ -67,11 +71,13 @@ export function ContractOrganizer({ initialContracts }: ContractOrganizerProps) 
       });
 
       if (response.ok) {
-        // Refresh contracts
         loadContracts();
+      } else {
+        toast.error("Failed to move contract.");
       }
     } catch (error) {
       console.error("Failed to move contract:", error);
+      toast.error("Failed to move contract.");
     }
   }
 

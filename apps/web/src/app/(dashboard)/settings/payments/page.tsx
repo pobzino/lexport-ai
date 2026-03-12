@@ -10,7 +10,7 @@ import {
   ConnectPayouts,
   ConnectNotificationBanner,
 } from "@stripe/react-connect-js";
-import { loadConnectAndInitialize } from "@stripe/connect-js";
+import { loadConnectAndInitialize } from "@stripe/connect-js/pure";
 import type { StripeConnectInstance } from "@stripe/connect-js";
 import {
   CreditCard,
@@ -168,7 +168,7 @@ export default function PaymentSettingsPage() {
       setStripeConnectInstance(instance);
     } catch (err) {
       console.error("Failed to initialize Stripe Connect:", err);
-      // Don't show error for expected "no account" case - just don't initialize
+      setError("Failed to load account setup. Please try again.");
     }
   }, [stripeConnectInstance]);
 
@@ -265,10 +265,15 @@ export default function PaymentSettingsPage() {
       case "pending":
         return (
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
+            <button
+              onClick={() => setViewMode("account")}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors cursor-pointer"
+              title="Complete account setup"
+            >
               <AlertCircle className="w-4 h-4" />
-              Pending Setup
-            </span>
+              Complete Setup
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
             <button
               onClick={fetchStatus}
               className="p-1 text-slate-400 hover:text-slate-600 rounded"
@@ -281,10 +286,15 @@ export default function PaymentSettingsPage() {
       case "restricted":
         return (
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+            <button
+              onClick={() => setViewMode("account")}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 hover:bg-red-200 transition-colors cursor-pointer"
+              title="Fix account restrictions"
+            >
               <XCircle className="w-4 h-4" />
-              Restricted
-            </span>
+              Fix Issues
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
             <button
               onClick={fetchStatus}
               className="p-1 text-slate-400 hover:text-slate-600 rounded"
@@ -534,8 +544,42 @@ export default function PaymentSettingsPage() {
           ) : status.status === "pending" ? (
             /* Fallback for pending without instance */
             <div className="text-center py-8">
-              <Loader2 className="w-8 h-8 animate-spin text-brand-600 mx-auto mb-4" />
-              <p className="text-slate-600">Loading account setup...</p>
+              {error ? (
+                <>
+                  <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <AlertCircle className="w-8 h-8 text-red-400" />
+                  </div>
+                  <p className="text-slate-600 mb-4">
+                    Could not load account setup. Please try again.
+                  </p>
+                  <div className="flex gap-3 justify-center">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setError(null);
+                        initializeStripeConnect();
+                      }}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Retry
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={handleDisconnect}
+                      disabled={disconnecting}
+                      className="text-slate-500 hover:text-red-600"
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Cancel & Start Over
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Loader2 className="w-8 h-8 animate-spin text-brand-600 mx-auto mb-4" />
+                  <p className="text-slate-600">Loading account setup...</p>
+                </>
+              )}
             </div>
           ) : stripeConnectInstance ? (
             /* Connected State with Embedded Management */
@@ -593,23 +637,29 @@ export default function PaymentSettingsPage() {
                   <div className="space-y-6">
                     {/* Account Status */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-slate-50 rounded-lg p-4">
-                        <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
+                      <div className={`rounded-lg p-4 ${status.chargesEnabled ? "bg-green-50" : "bg-slate-50"}`}>
+                        <div className={`flex items-center gap-2 text-sm mb-1 ${status.chargesEnabled ? "text-green-700" : "text-slate-600"}`}>
                           <CheckCircle2 className="w-4 h-4" />
                           Payments
                         </div>
-                        <p className="text-lg font-semibold text-slate-900">
+                        <p className={`text-lg font-semibold ${status.chargesEnabled ? "text-green-900" : "text-slate-900"}`}>
                           {status.chargesEnabled ? "Enabled" : "Disabled"}
                         </p>
+                        {!status.chargesEnabled && (
+                          <p className="text-xs text-slate-500 mt-1">Complete setup to enable</p>
+                        )}
                       </div>
-                      <div className="bg-slate-50 rounded-lg p-4">
-                        <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
+                      <div className={`rounded-lg p-4 ${status.payoutsEnabled ? "bg-green-50" : "bg-slate-50"}`}>
+                        <div className={`flex items-center gap-2 text-sm mb-1 ${status.payoutsEnabled ? "text-green-700" : "text-slate-600"}`}>
                           <Wallet className="w-4 h-4" />
                           Payouts
                         </div>
-                        <p className="text-lg font-semibold text-slate-900">
+                        <p className={`text-lg font-semibold ${status.payoutsEnabled ? "text-green-900" : "text-slate-900"}`}>
                           {status.payoutsEnabled ? "Enabled" : "Disabled"}
                         </p>
+                        {!status.payoutsEnabled && (
+                          <p className="text-xs text-slate-500 mt-1">Complete setup to enable</p>
+                        )}
                       </div>
                       <div className="bg-slate-50 rounded-lg p-4">
                         <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
@@ -656,18 +706,26 @@ export default function PaymentSettingsPage() {
                     )}
 
                     {/* Restricted Account Warning */}
-                    {status.status === "restricted" && status.requirements && (
+                    {status.status === "restricted" && (
                       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                         <div className="flex items-start gap-3">
                           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                          <div>
+                          <div className="flex-1">
                             <h4 className="font-medium text-red-800">
                               Action Required
                             </h4>
                             <p className="text-sm text-red-700 mt-1">
-                              Your account has restrictions. Please go to Account Settings
-                              to update your information.
+                              Your account has restrictions that prevent you from receiving payments.
+                              Update your information to resolve this.
                             </p>
+                            <button
+                              onClick={() => setViewMode("account")}
+                              className="inline-flex items-center gap-1.5 text-sm font-medium mt-3 px-3 py-1.5 rounded-md bg-red-100 text-red-800 hover:bg-red-200 transition-colors"
+                            >
+                              <Settings className="w-3.5 h-3.5" />
+                              Go to Account Settings
+                              <ArrowUpRight className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -675,9 +733,14 @@ export default function PaymentSettingsPage() {
 
                     {/* Quick Actions */}
                     <div className="flex gap-3 border-t border-slate-200 pt-6">
-                      <Button onClick={() => setViewMode("account")}>
+                      <Button
+                        onClick={() => setViewMode("account")}
+                        variant={status.status === "restricted" ? "default" : "outline"}
+                      >
                         <Settings className="w-4 h-4 mr-2" />
-                        Manage Account
+                        {status.status === "restricted"
+                          ? "Fix Account Issues"
+                          : "Manage Account"}
                       </Button>
                       {status.dashboardUrl && (
                         <Button variant="outline" asChild>

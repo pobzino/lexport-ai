@@ -14,6 +14,7 @@ import {
   Plus,
   FileText,
   ArrowLeftRight,
+  AlertCircle,
 } from "lucide-react";
 import type { ContractVersion, VersionComparison, ContractContent } from "@/db/types";
 import { DiffViewer, CompactDiff } from "./diff-viewer";
@@ -44,6 +45,7 @@ export function VersionHistoryPanel({
     to: number | null;
   }>({ from: null, to: null });
   const [loadingComparison, setLoadingComparison] = useState(false);
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
   const [showRollbackModal, setShowRollbackModal] = useState(false);
   const [rollbackTarget, setRollbackTarget] = useState<ContractVersion | null>(null);
   const [view, setView] = useState<"timeline" | "compare">("timeline");
@@ -70,6 +72,7 @@ export function VersionHistoryPanel({
   const fetchComparison = async (fromVersion: number, toVersion: number) => {
     try {
       setLoadingComparison(true);
+      setComparisonError(null);
       const response = await fetch(`/api/contracts/${contractId}/versions/compare`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -83,6 +86,7 @@ export function VersionHistoryPanel({
       setComparison(data.comparison);
     } catch (err) {
       console.error("Comparison error:", err);
+      setComparisonError("Failed to load comparison. Please try again.");
     } finally {
       setLoadingComparison(false);
     }
@@ -411,6 +415,14 @@ export function VersionHistoryPanel({
                   </>
                 )}
               </button>
+
+              {/* Comparison Error */}
+              {comparisonError && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {comparisonError}
+                </div>
+              )}
 
               {/* Comparison Results */}
               {comparison && (

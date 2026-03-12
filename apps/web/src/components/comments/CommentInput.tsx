@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Send, X, Loader2 } from "lucide-react";
+import toast from "@/lib/toast";
 
 interface CommentInputProps {
   onSubmit: (content: string) => Promise<void>;
@@ -39,6 +40,7 @@ export function CommentInput({
       setContent("");
     } catch (error) {
       console.error("Failed to submit comment:", error);
+      toast.error("Failed to post comment. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

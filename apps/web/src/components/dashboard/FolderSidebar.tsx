@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Folder, Plus, MoreVertical, Edit2, Trash2 } from "lucide-react";
+import toast from "@/lib/toast";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 
 interface FolderItem {
@@ -37,9 +38,12 @@ export function FolderSidebar({
       if (response.ok) {
         const data = await response.json();
         setFolders(data.folders || []);
+      } else {
+        toast.error("Failed to load folders.");
       }
     } catch (error) {
       console.error("Failed to load folders:", error);
+      toast.error("Failed to load folders.");
     } finally {
       setLoading(false);
     }
@@ -60,9 +64,12 @@ export function FolderSidebar({
         if (selectedFolderId === folderId) {
           onSelectFolder(null);
         }
+      } else {
+        toast.error("Failed to delete folder. Please try again.");
       }
     } catch (error) {
       console.error("Failed to delete folder:", error);
+      toast.error("Failed to delete folder. Please try again.");
     }
   }
 

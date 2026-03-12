@@ -18,7 +18,9 @@ import {
   Loader2,
   Crown,
   ShoppingCart,
+  AlertCircle,
 } from "lucide-react";
+import toast from "@/lib/toast";
 import type { Template } from "@/db/types";
 
 // Contract type icons
@@ -155,9 +157,13 @@ export function TemplateCard({
       } else if (data.success) {
         // Pro/Team user - template was granted for free
         setOwnershipStatus({ owned: true, reason: "subscription" });
+        toast.success("Template unlocked!");
+      } else {
+        toast.error(data.error || "Failed to start purchase. Please try again.");
       }
     } catch (error) {
       console.error("Failed to purchase template:", error);
+      toast.error("Failed to start purchase. Please try again.");
     } finally {
       setIsPurchasing(false);
     }
@@ -176,9 +182,13 @@ export function TemplateCard({
         if (response.ok) {
           const { contract } = await response.json();
           router.push(`/contracts/${contract.id}/edit`);
+        } else {
+          const data = await response.json().catch(() => ({}));
+          toast.error(data.error || "Failed to create contract from template.");
         }
       } catch (error) {
         console.error("Failed to use template:", error);
+        toast.error("Failed to create contract from template. Please try again.");
       } finally {
         setIsUsing(false);
       }

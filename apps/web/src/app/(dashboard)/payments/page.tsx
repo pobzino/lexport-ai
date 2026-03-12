@@ -54,6 +54,7 @@ interface PaymentStats {
 
 export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [stats, setStats] = useState<PaymentStats>({
@@ -66,12 +67,15 @@ export default function PaymentsPage() {
   // Fetch all data
   const fetchData = async () => {
     setLoading(true);
+    setError(null);
     try {
       // Fetch Connect status
       const connectResponse = await fetch("/api/stripe/connect");
       if (connectResponse.ok) {
         const connectData = await connectResponse.json();
         setConnectStatus(connectData);
+      } else {
+        setError("Failed to load payment account status.");
       }
 
       // Fetch payments
@@ -87,9 +91,12 @@ export default function PaymentsPage() {
             pendingAmount: 0,
           }
         );
+      } else {
+        setError("Failed to load payment data.");
       }
     } catch (error) {
       console.error("Error fetching data:", error);
+      setError("Failed to load payment settings. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -186,6 +193,22 @@ export default function PaymentsPage() {
           Refresh
         </Button>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-red-800 font-medium">{error}</p>
+          </div>
+          <button
+            onClick={fetchData}
+            className="text-sm font-medium text-red-700 hover:text-red-900 whitespace-nowrap"
+          >
+            Try again
+          </button>
+        </div>
+      )}
 
       {/* Connect Account Banner */}
       {!connectStatus?.connected && (

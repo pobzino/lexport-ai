@@ -11,6 +11,7 @@ import {
   Loader2,
   ExternalLink,
 } from "lucide-react";
+import toast from "@/lib/toast";
 import type { CommentWithUser } from "@/db/types";
 
 interface CommentItemProps {
@@ -52,6 +53,7 @@ export function CommentItem({
       setIsEditing(false);
     } catch (error) {
       console.error("Failed to save edit:", error);
+      toast.error("Failed to save edit. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -64,6 +66,7 @@ export function CommentItem({
       await onDelete(comment.id);
     } catch (error) {
       console.error("Failed to delete:", error);
+      toast.error("Failed to delete comment. Please try again.");
       setIsDeleting(false);
     }
   };
