@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { ArrowRight, Crown, Sparkles, Check } from "lucide-react";
 import { trackTemplateCTAClicked, trackTemplatePurchaseStarted, trackTemplateUsed } from "@/lib/analytics";
+import { TemplateDisclaimerInline } from "@/components/templates/LegalDisclaimer";
 
 interface TemplateUseCTAProps {
   templateId: string | null;
@@ -167,8 +168,11 @@ export function TemplateUseCTA({
           Get Started Free
           <ArrowRight className="w-4 h-4" />
         </Link>
-        <p className="text-white/50 text-xs text-center mt-3">
+        <p className="text-white/50 text-xs text-center mt-2">
           No credit card required
+        </p>
+        <p className="text-white/40 text-xs text-center mt-1">
+          AI-generated template — not legal advice
         </p>
       </div>
     );

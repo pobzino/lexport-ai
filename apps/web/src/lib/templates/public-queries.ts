@@ -176,9 +176,15 @@ export async function getTemplateForTypeAndJurisdiction(
     const clauses = (systemTemplate.clauses as Array<{ title?: string }>) ?? [];
     const clauseTitles = clauses
       .map((c) => c.title)
-      .filter((t): t is string => !!t);
+      .filter((t): t is string => !!t)
+      .map((t) => t.replace(/^(?:CLAUSE\s+\d+:\s*)?(\d+\.\s*)?/i, ""));
 
-    const preamble = (systemTemplate.preamble as string) ?? "";
+    const rawPreamble = (systemTemplate.preamble as string) ?? "";
+    // Strip redundant title from start of preamble
+    const titleStr = systemTemplate.title ?? "";
+    const preamble = rawPreamble.startsWith(titleStr)
+      ? rawPreamble.slice(titleStr.length).trimStart()
+      : rawPreamble;
     const previewText = preamble.slice(0, 200) + (preamble.length > 200 ? "..." : "");
 
     return {
@@ -213,7 +219,8 @@ export async function getTemplateForTypeAndJurisdiction(
 
     const clauseTitles = (content?.clauses ?? [])
       .map((c) => c.title)
-      .filter((t): t is string => !!t);
+      .filter((t): t is string => !!t)
+      .map((t) => t.replace(/^(?:CLAUSE\s+\d+:\s*)?(\d+\.\s*)?/i, ""));
 
     const preamble = content?.preamble ?? "";
     const previewText = preamble.slice(0, 200) + (preamble.length > 200 ? "..." : "");

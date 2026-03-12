@@ -6,7 +6,7 @@ export const metadata: Metadata = {
 };
 
 export default function TermsPage() {
-  const lastUpdated = "December 29, 2024";
+  const lastUpdated = "March 12, 2026";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -246,9 +246,89 @@ export default function TermsPage() {
               </p>
             </section>
 
+            <section id="templates" className="mb-8">
+              <h2 className="text-xl font-semibold text-slate-900 mb-4">
+                11. AI-Generated Contract Templates
+              </h2>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 mb-4">
+                <h3 className="font-semibold text-amber-900 mb-3">
+                  IMPORTANT: Template Disclaimer
+                </h3>
+                <p className="text-amber-800 leading-relaxed">
+                  Contract templates provided through Lexport are generated using
+                  artificial intelligence and are intended as starting points for common
+                  legal agreements. They do not constitute legal advice and do not create
+                  an attorney-client relationship between you and Lexport.
+                </p>
+              </div>
+
+              <h3 className="font-semibold text-slate-800 mb-2">
+                11.1 No Legal Advice
+              </h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                Lexport is a technology platform, not a law firm. The templates, contract
+                generation tools, and any related content provided through our service are
+                for informational and convenience purposes only. Nothing on our platform
+                should be construed as legal advice for any particular situation.
+              </p>
+
+              <h3 className="font-semibold text-slate-800 mb-2">
+                11.2 Professional Review Recommended
+              </h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                We strongly recommend that you have any contract reviewed by a qualified
+                attorney before signing, especially for high-value transactions, complex
+                business relationships, or matters involving significant legal risk.
+                Templates may not address all legal requirements applicable to your
+                specific circumstances, jurisdiction, or industry.
+              </p>
+
+              <h3 className="font-semibold text-slate-800 mb-2">
+                11.3 No Warranty of Legal Compliance
+              </h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                While we strive to create templates that reflect general legal principles,
+                Lexport makes no representation or warranty that any template is complete,
+                accurate, up-to-date, or suitable for your particular use case. Laws vary
+                by jurisdiction and change over time. You are solely responsible for
+                ensuring that any contract you use complies with applicable laws and
+                regulations.
+              </p>
+
+              <h3 className="font-semibold text-slate-800 mb-2">
+                11.4 Limitation of Liability for Templates
+              </h3>
+              <p className="text-slate-600 leading-relaxed mb-4">
+                To the maximum extent permitted by law, Lexport shall not be liable for
+                any damages, losses, or claims arising from your use of or reliance on
+                any AI-generated template, including but not limited to: unenforceable
+                provisions, missing clauses, jurisdictional non-compliance, or any
+                business losses resulting from contracts based on our templates.
+              </p>
+
+              <h3 className="font-semibold text-slate-800 mb-2">
+                11.5 Your Responsibility
+              </h3>
+              <ul className="list-disc pl-6 text-slate-600 space-y-2">
+                <li>
+                  You are responsible for reviewing and customizing any template before
+                  use to ensure it meets your specific needs.
+                </li>
+                <li>
+                  You acknowledge that AI-generated content may contain errors or
+                  omissions and that you will not rely solely on such content for
+                  important legal decisions.
+                </li>
+                <li>
+                  By using a template, you accept full responsibility for the resulting
+                  contract and its legal consequences.
+                </li>
+              </ul>
+            </section>
+
             <section>
               <h2 className="text-xl font-semibold text-slate-900 mb-4">
-                11. Contact Information
+                12. Contact Information
               </h2>
               <p className="text-slate-600 leading-relaxed">
                 If you have questions about these Terms of Service or need to

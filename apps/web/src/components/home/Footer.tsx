@@ -114,6 +114,7 @@ export function Footer() {
                     <div className="flex gap-4 sm:gap-6">
                         <Link href="/privacy" className="text-slate-400 hover:text-slate-600 text-xs transition-colors">Privacy</Link>
                         <Link href="/terms" className="text-slate-400 hover:text-slate-600 text-xs transition-colors">Terms</Link>
+                        <Link href="/terms#templates" className="text-slate-400 hover:text-slate-600 text-xs transition-colors">Disclaimer</Link>
                         <Link href="/contact" className="text-slate-400 hover:text-slate-600 text-xs transition-colors">Contact</Link>
                     </div>
                 </div>
