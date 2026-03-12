@@ -142,6 +142,7 @@ import {
   type RecentContractTypeEntry,
   upsertRecentContractType,
 } from "./recent-types";
+import { trackContractCreated } from "@/lib/gtm";
 
 const SMART_STEPS = [
   { id: 1, name: "Describe", description: "Tell us what you need" },
@@ -958,6 +959,7 @@ export default function NewContractPage() {
             typeof statusPayload.contractId === "string"
           ) {
             completeStep("first_contract");
+            trackContractCreated(selectedType);
             trackRecentType({
               type: selectedType,
               contractId: statusPayload.contractId,
@@ -1033,6 +1035,7 @@ export default function NewContractPage() {
                 break;
               case "complete":
                 completeStep("first_contract");
+                trackContractCreated(selectedType);
                 trackRecentType({
                   type: selectedType,
                   contractId: typeof data.contractId === "string" ? data.contractId : null,

@@ -25,6 +25,7 @@ import {
   getTierBadgeColor,
 } from "@/lib/hooks/useSubscription";
 import type { SubscriptionTier } from "@/db/types";
+import { trackSubscription } from "@/lib/gtm";
 
 const PLANS: Array<{
   id: SubscriptionTier;
@@ -122,6 +123,10 @@ export default function BillingPage() {
               ? "Your subscription is active!"
               : "Your subscription has been activated successfully!"
           );
+          // Track conversion
+          if (data.status !== "already_active") {
+            trackSubscription(data.plan || "pro");
+          }
           // Refresh subscription data
           subscription.refetch();
         } else {

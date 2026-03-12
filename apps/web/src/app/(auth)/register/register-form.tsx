@@ -8,6 +8,7 @@ import { ValidatedInput, FormError } from "@/components/forms";
 import { RefreshCw } from "lucide-react";
 import { required, email as emailValidator, minLength, all } from "@/lib/validation";
 import { getAuthCallbackUrl } from "@/lib/auth-urls";
+import { trackSignUp } from "@/lib/gtm";
 
 // Google OAuth is enabled in Supabase
 const GOOGLE_OAUTH_ENABLED = true;
@@ -109,6 +110,7 @@ export function RegisterForm({ action, prompt, returnTo }: RegisterFormProps) {
       return;
     }
 
+    trackSignUp("email");
     setSuccess(true);
     setLoading(false);
   };
@@ -127,6 +129,8 @@ export function RegisterForm({ action, prompt, returnTo }: RegisterFormProps) {
     if (error) {
       setError(error.message);
       setLoading(false);
+    } else {
+      trackSignUp("google");
     }
   };
 

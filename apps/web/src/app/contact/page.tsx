@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   Clock,
 } from "lucide-react";
+import { trackContactSubmit } from "@/lib/gtm";
 
 export default function ContactPage() {
   const [name, setName] = useState("");
@@ -44,6 +45,7 @@ export default function ContactPage() {
         throw new Error(data.error || "Failed to send message");
       }
 
+      trackContactSubmit();
       setSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message. Please try again.");

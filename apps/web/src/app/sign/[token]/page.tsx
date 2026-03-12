@@ -37,6 +37,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { PDFSigningView } from "@/components/pdf-signing-view";
+import { trackSignatureCompleted } from "@/lib/gtm";
 
 // Signature font styles for "Select Style" mode
 const SIGNATURE_FONTS = [
@@ -895,6 +896,7 @@ export default function SignContractPage() {
         }
       }
 
+      trackSignatureCompleted();
       setSigned(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sign");
