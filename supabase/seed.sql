@@ -1,0 +1,2 @@
+-- Local seed file placeholder.
+-- Keep this tracked so `supabase db reset` does not fail on a missing path.
