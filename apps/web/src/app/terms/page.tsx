@@ -2,7 +2,17 @@ import { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Terms of Service - Lexport",
-  description: "Terms of Service and Electronic Signature Consent for Lexport",
+  description: "Terms of Service and Electronic Signature Consent for Lexport AI — the AI-powered platform for contracts, e-signatures, and payments.",
+  openGraph: {
+    title: "Terms of Service - Lexport",
+    description: "Terms of Service and Electronic Signature Consent for Lexport AI.",
+    url: "https://lexportai.com/terms",
+  },
+  twitter: {
+    title: "Terms of Service - Lexport",
+    description: "Terms of Service and Electronic Signature Consent for Lexport AI.",
+  },
+  alternates: { canonical: "https://lexportai.com/terms" },
 };
 
 export default function TermsPage() {

@@ -20,6 +20,16 @@ import {
 export const metadata = {
     title: "Lexport for Freelancers | Get Contracts Signed & Paid Faster",
     description: "Stop chasing payments. Generate professional contracts, get e-signatures, and collect payment — all in one workflow.",
+    openGraph: {
+        title: "Lexport for Freelancers - Get Paid Faster",
+        description: "Stop chasing payments. Generate professional contracts, get e-signatures, and collect payment — all in one workflow.",
+        url: "https://lexportai.com/for/freelancers",
+    },
+    twitter: {
+        title: "Lexport for Freelancers - Get Paid Faster",
+        description: "Stop chasing payments. Generate professional contracts, get e-signatures, and collect payment — all in one workflow.",
+    },
+    alternates: { canonical: "https://lexportai.com/for/freelancers" },
 };
 
 const problems = [

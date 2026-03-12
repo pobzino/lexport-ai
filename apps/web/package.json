@@ -51,6 +51,7 @@
     "nodemailer": "^8.0.2",
     "openai": "^6.15.0",
     "pdf-lib": "^1.17.1",
+    "posthog-js": "^1.360.1",
     "qrcode": "^1.5.4",
     "re-resizable": "^6.11.2",
     "react": "^19.2.3",

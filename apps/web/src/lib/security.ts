@@ -30,6 +30,10 @@ const contentSecurityPolicyDirectives = [
         "https://app.posthog.com",
         "https://*.sentry.io",
         "https://unpkg.com",
+        "https://www.googletagmanager.com",
+        "https://www.google-analytics.com",
+        "https://googleads.g.doubleclick.net",
+        "https://www.google.com",
         !isProduction ? "'unsafe-eval'" : null,
     ]
         .filter(Boolean)
@@ -57,6 +61,11 @@ const contentSecurityPolicyDirectives = [
         "https://us.i.posthog.com",
         "https://*.sentry.io",
         "https://unpkg.com",
+        "https://www.google-analytics.com",
+        "https://analytics.google.com",
+        "https://*.google-analytics.com",
+        "https://*.analytics.google.com",
+        "https://stats.g.doubleclick.net",
         ...localSupabaseConnectSources,
     ]
         .filter(Boolean)
@@ -69,6 +78,7 @@ const contentSecurityPolicyDirectives = [
         "https://connect-js.stripe.com",
         "https://connect.stripe.com",
         "https://hooks.stripe.com",
+        "https://www.googletagmanager.com",
         ...localSupabaseFrameSources,
     ]
         .filter(Boolean)

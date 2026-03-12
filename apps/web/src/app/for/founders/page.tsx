@@ -20,6 +20,16 @@ import {
 export const metadata = {
     title: "Lexport for Founders | Fast, Professional Contracts for Startups",
     description: "SAFE notes, NDAs, contractor agreements. Everything you need to move fast without expensive lawyers.",
+    openGraph: {
+        title: "Lexport for Founders - Fast Contracts for Startups",
+        description: "SAFE notes, NDAs, contractor agreements. Everything you need to move fast without expensive lawyers.",
+        url: "https://lexportai.com/for/founders",
+    },
+    twitter: {
+        title: "Lexport for Founders - Fast Contracts for Startups",
+        description: "SAFE notes, NDAs, contractor agreements. Everything you need to move fast without expensive lawyers.",
+    },
+    alternates: { canonical: "https://lexportai.com/for/founders" },
 };
 
 const features = [

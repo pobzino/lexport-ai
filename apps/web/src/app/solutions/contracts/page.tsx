@@ -24,6 +24,16 @@ import {
 export const metadata = {
     title: "AI Contract Generation",
     description: "Generate legally-binding contracts in minutes with AI. Jurisdiction-aware templates, risk analysis, and clause explanations.",
+    openGraph: {
+        title: "AI Contract Generation - Lexport",
+        description: "Generate legally-binding contracts in minutes with AI. Jurisdiction-aware templates, risk analysis, and clause explanations.",
+        url: "https://lexportai.com/solutions/contracts",
+    },
+    twitter: {
+        title: "AI Contract Generation - Lexport",
+        description: "Generate legally-binding contracts in minutes with AI. Jurisdiction-aware templates, risk analysis, and clause explanations.",
+    },
+    alternates: { canonical: "https://lexportai.com/solutions/contracts" },
 };
 
 const features = [

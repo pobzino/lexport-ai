@@ -20,6 +20,16 @@ import {
 export const metadata = {
     title: "Lexport for Business Owners | Streamline Your Contract Process",
     description: "Professional contracts for vendors, clients, and employees. Save hours and protect your business.",
+    openGraph: {
+        title: "Lexport for Business Owners - Streamline Contracts",
+        description: "Professional contracts for vendors, clients, and employees. Save hours and protect your business.",
+        url: "https://lexportai.com/for/business-owners",
+    },
+    twitter: {
+        title: "Lexport for Business Owners - Streamline Contracts",
+        description: "Professional contracts for vendors, clients, and employees. Save hours and protect your business.",
+    },
+    alternates: { canonical: "https://lexportai.com/for/business-owners" },
 };
 
 const features = [

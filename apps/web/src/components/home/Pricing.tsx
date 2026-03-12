@@ -105,13 +105,13 @@ export function Pricing() {
                                 <span className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight">$19.99</span>
                                 <span className="text-slate-600 font-medium">/month</span>
                             </div>
-                            <p className="text-xs sm:text-sm text-slate-500 mt-2 mb-4 sm:mb-6">billed monthly</p>
+                            <p className="text-xs sm:text-sm text-emerald-600 font-medium mt-2 mb-4 sm:mb-6">50% off your first month</p>
 
                             <Link
                                 href="/register"
                                 className="w-full inline-flex items-center justify-center bg-[#202e46] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-semibold hover:bg-[#1a2539] transition-all hover:shadow-lg text-sm sm:text-base"
                             >
-                                Start free trial
+                                Get 50% off first month
                                 <ArrowRight className="w-4 h-4 ml-2" />
                             </Link>
 

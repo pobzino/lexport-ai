@@ -74,7 +74,7 @@ export function ContractPaywall({ type, currentUsage, limit }: ContractPaywallPr
             </Link>
 
             <p className="text-xs text-slate-500">
-              Cancel anytime. 7-day free trial included.
+              Cancel anytime. 50% off your first month.
             </p>
           </div>
         </div>

@@ -20,6 +20,16 @@ import {
 export const metadata = {
     title: "Lexport for Contractors | Professional Contracts Made Easy",
     description: "Create professional contractor agreements, collect deposits, and protect your business with legally-binding contracts.",
+    openGraph: {
+        title: "Lexport for Contractors - Professional Contracts Made Easy",
+        description: "Create professional contractor agreements, collect deposits, and protect your business with legally-binding contracts.",
+        url: "https://lexportai.com/for/contractors",
+    },
+    twitter: {
+        title: "Lexport for Contractors - Professional Contracts Made Easy",
+        description: "Create professional contractor agreements, collect deposits, and protect your business with legally-binding contracts.",
+    },
+    alternates: { canonical: "https://lexportai.com/for/contractors" },
 };
 
 const benefits = [

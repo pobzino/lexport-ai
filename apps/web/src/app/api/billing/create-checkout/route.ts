@@ -9,6 +9,9 @@ const PRICE_IDS: Record<string, string> = {
   team: process.env.STRIPE_TEAM_PRICE_ID || "",
 };
 
+// 50% off first month coupon — auto-applied to all new subscriptions
+const FIRST_MONTH_COUPON = "FIRST50";
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -107,9 +110,8 @@ export async function POST(request: NextRequest) {
             user_id: user.id,
             created_by_user_id: user.id,
           },
-          trial_period_days: 7,
         },
-        allow_promotion_codes: true,
+        discounts: [{ coupon: FIRST_MONTH_COUPON }],
       });
 
       return NextResponse.json({ url: session.url });
@@ -168,15 +170,8 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // Apply promo code if provided, otherwise allow manual entry and offer trial
-    if (promoCode) {
-      checkoutConfig.discounts = [{ coupon: promoCode }];
-    } else {
-      checkoutConfig.allow_promotion_codes = true;
-      if (checkoutConfig.subscription_data) {
-        checkoutConfig.subscription_data.trial_period_days = 7;
-      }
-    }
+    // Auto-apply 50% off first month; override with specific promo if provided
+    checkoutConfig.discounts = [{ coupon: promoCode || FIRST_MONTH_COUPON }];
 
     const session = await stripe.checkout.sessions.create(checkoutConfig);
 

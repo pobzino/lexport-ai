@@ -20,6 +20,16 @@ import {
 export const metadata = {
     title: "Invoicing & Payments",
     description: "Get paid faster with built-in invoicing and payment collection. Collect deposits, full payments, or offer payment plans.",
+    openGraph: {
+        title: "Invoicing & Payments - Lexport",
+        description: "Get paid faster with built-in invoicing and payment collection. Collect deposits, full payments, or offer payment plans.",
+        url: "https://lexportai.com/solutions/invoicing",
+    },
+    twitter: {
+        title: "Invoicing & Payments - Lexport",
+        description: "Get paid faster with built-in invoicing and payment collection. Collect deposits, full payments, or offer payment plans.",
+    },
+    alternates: { canonical: "https://lexportai.com/solutions/invoicing" },
 };
 
 const features = [

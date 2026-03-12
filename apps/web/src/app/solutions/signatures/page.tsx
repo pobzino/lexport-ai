@@ -20,6 +20,16 @@ import {
 export const metadata = {
     title: "E-Signatures",
     description: "Legally-binding e-signatures with full audit trails. ESIGN, UETA, and UK ECA 2000 compliant.",
+    openGraph: {
+        title: "E-Signatures - Lexport",
+        description: "Legally-binding e-signatures with full audit trails. ESIGN, UETA, and UK ECA 2000 compliant.",
+        url: "https://lexportai.com/solutions/signatures",
+    },
+    twitter: {
+        title: "E-Signatures - Lexport",
+        description: "Legally-binding e-signatures with full audit trails. ESIGN, UETA, and UK ECA 2000 compliant.",
+    },
+    alternates: { canonical: "https://lexportai.com/solutions/signatures" },
 };
 
 const features = [

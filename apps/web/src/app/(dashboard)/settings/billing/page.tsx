@@ -543,9 +543,9 @@ export default function BillingPage() {
             </p>
           </div>
           <div>
-            <h3 className="font-medium text-slate-900">Do you offer a free trial?</h3>
+            <h3 className="font-medium text-slate-900">Do you offer any discounts?</h3>
             <p className="text-sm text-slate-600 mt-1">
-              Yes! Pro and Team plans include a 7-day free trial. If you're not satisfied, cancel within the trial period for a full refund.
+              Yes! All paid plans include 50% off your first month. We also have a generous free tier so you can try Lexport before upgrading.
             </p>
           </div>
         </div>

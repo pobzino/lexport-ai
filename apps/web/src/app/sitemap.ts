@@ -12,7 +12,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // Static marketing pages
   const staticRoutes = [
     "",
+    "/about",
     "/contact",
+    "/docs",
     "/privacy",
     "/terms",
     "/solutions/contracts",
