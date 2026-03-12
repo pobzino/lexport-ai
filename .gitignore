@@ -42,3 +42,12 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Turbo
 .turbo/
+
+# Playwright
+.playwright-cli/
+
+# VS Code
+.vscode/
+
+# Corrupt/broken Next.js caches
+.next-*
