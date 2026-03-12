@@ -96,7 +96,7 @@ export default function CreateTemplatePage() {
       }
 
       setSuccess(true);
-      setTimeout(() => router.push("/templates"), 1500);
+      setTimeout(() => router.push("/my-templates"), 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save template");
     } finally {

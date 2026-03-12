@@ -65,7 +65,7 @@ export function NoTemplates({
       {showCta && (
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <Link
-            href="/templates/generate"
+            href="/my-templates/generate"
             className="inline-flex items-center gap-2 px-6 py-3 bg-[#202e46] text-white rounded-lg hover:bg-[#1a2539] transition-colors font-medium"
           >
             <Sparkles className="w-4 h-4" />

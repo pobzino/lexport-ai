@@ -948,7 +948,7 @@ function TemplateBrowser({
           {/* Link to full template library */}
           <div className="text-center pt-4">
             <Link
-              href="/templates"
+              href="/my-templates"
               className="text-sm text-[#529ec6] hover:text-[#202e46] font-medium inline-flex items-center gap-1"
             >
               Browse all templates

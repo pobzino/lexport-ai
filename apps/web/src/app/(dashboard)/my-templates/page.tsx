@@ -28,7 +28,7 @@ export default async function TemplatesPage() {
           </p>
         </div>
         <Link
-          href="/templates/generate"
+          href="/my-templates/generate"
           className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#202e46] rounded-lg hover:bg-[#1a2539] transition-colors"
         >
           <Sparkles className="w-4 h-4" />

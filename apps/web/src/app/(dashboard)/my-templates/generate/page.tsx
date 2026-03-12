@@ -125,7 +125,7 @@ export default function GenerateTemplatePage() {
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
         <Link
-          href="/templates"
+          href="/my-templates"
           className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-slate-600" />
@@ -466,7 +466,7 @@ export default function GenerateTemplatePage() {
                   </p>
                 </div>
                 <Link
-                  href={`/templates/${generatedTemplate.id}`}
+                  href={`/my-templates/${generatedTemplate.id}`}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#529ec6] bg-[#529ec6]/5 rounded-lg hover:bg-[#529ec6]/10 transition-colors"
                 >
                   <Eye className="w-4 h-4" />
@@ -532,7 +532,7 @@ export default function GenerateTemplatePage() {
 
           <div className="flex justify-between">
             <button
-              onClick={() => router.push("/templates")}
+              onClick={() => router.push("/my-templates")}
               className="px-6 py-2.5 text-slate-600 font-medium rounded-lg hover:bg-slate-100 transition-colors"
             >
               Back to Templates

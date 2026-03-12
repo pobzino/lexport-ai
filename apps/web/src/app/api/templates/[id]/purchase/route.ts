@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
 
-const TEMPLATE_PRICE_CENTS = 1000; // $10.00
+const TEMPLATE_PRICE_CENTS = 999; // $9.99
 
 export async function POST(
   request: NextRequest,
@@ -124,8 +124,8 @@ export async function POST(
           quantity: 1,
         },
       ],
-      success_url: `${baseUrl}/templates?purchase=success&template_id=${templateId}`,
-      cancel_url: `${baseUrl}/templates?purchase=canceled`,
+      success_url: `${baseUrl}/my-templates?purchase=success&template_id=${templateId}`,
+      cancel_url: `${baseUrl}/my-templates?purchase=canceled`,
       metadata: {
         user_id: user.id,
         template_id: templateId,

@@ -215,7 +215,7 @@ export default function TemplateDetailPage() {
       });
 
       if (response.ok) {
-        router.push("/templates");
+        router.push("/my-templates");
       } else {
         throw new Error("Failed to delete");
       }
@@ -280,7 +280,7 @@ export default function TemplateDetailPage() {
         <div className="text-center py-12">
           <p className="text-red-600 mb-4">{error || "Template not found"}</p>
           <Link
-            href="/templates"
+            href="/my-templates"
             className="text-[#529ec6] hover:text-[#202e46] font-medium"
           >
             Back to Templates

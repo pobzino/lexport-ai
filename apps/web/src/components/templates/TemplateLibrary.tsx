@@ -97,7 +97,7 @@ export function TemplateLibrary({
 
   // Handlers
   const handleEdit = (template: Template) => {
-    router.push(`/templates/${template.id}`);
+    router.push(`/my-templates/${template.id}`);
   };
 
   const handleDelete = async (template: Template) => {
@@ -304,7 +304,7 @@ export function TemplateLibrary({
             showCreateButton && (
               <div className="flex gap-3">
                 <button
-                  onClick={() => router.push("/templates/generate")}
+                  onClick={() => router.push("/my-templates/generate")}
                   className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#202e46] rounded-lg hover:bg-[#1a2539] transition-colors"
                 >
                   <Sparkles className="w-4 h-4" />
