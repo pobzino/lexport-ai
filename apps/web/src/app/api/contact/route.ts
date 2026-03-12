@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { sendSupportEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
@@ -31,13 +32,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send the support email
-    await sendSupportEmail({
+    const trimmed = {
       name: name.trim(),
       email: email.trim(),
       subject: subject.trim(),
       message: message.trim(),
-    });
+    };
+
+    // Save to database first (reliable)
+    const supabase = createAdminClient();
+    const { error: dbError } = await supabase
+      .from("contact_submissions")
+      .insert(trimmed);
+
+    if (dbError) {
+      console.error("Failed to save contact submission:", dbError);
+      return NextResponse.json(
+        { error: "Failed to send message. Please try again later." },
+        { status: 500 }
+      );
+    }
+
+    // Send email notification (best-effort — don't fail the request)
+    try {
+      await sendSupportEmail(trimmed);
+    } catch (emailErr) {
+      console.error("Contact email notification failed (submission saved):", emailErr);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

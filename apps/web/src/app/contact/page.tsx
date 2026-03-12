@@ -3,13 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  Mail,
-  MessageSquare,
   Send,
   Loader2,
   CheckCircle2,
   ArrowLeft,
-  MapPin,
   Clock,
 } from "lucide-react";
 
@@ -111,34 +108,6 @@ export default function ContactPage() {
             <div className="space-y-6">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 bg-[#529ec6]/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Mail className="w-6 h-6 text-[#529ec6]" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900 mb-1">Email</h3>
-                  <p className="text-slate-600">support@lexport.ai</p>
-                  <p className="text-sm text-slate-500 mt-1">
-                    For general inquiries and support
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-[#529ec6]/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <MessageSquare className="w-6 h-6 text-[#529ec6]" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900 mb-1">
-                    Live Chat
-                  </h3>
-                  <p className="text-slate-600">Available in the app</p>
-                  <p className="text-sm text-slate-500 mt-1">
-                    Get instant help from our team
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-[#529ec6]/10 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Clock className="w-6 h-6 text-[#529ec6]" />
                 </div>
                 <div>
@@ -148,21 +117,6 @@ export default function ContactPage() {
                   <p className="text-slate-600">Within 24 hours</p>
                   <p className="text-sm text-slate-500 mt-1">
                     Usually much faster during business hours
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-[#529ec6]/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <MapPin className="w-6 h-6 text-[#529ec6]" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900 mb-1">
-                    Headquarters
-                  </h3>
-                  <p className="text-slate-600">San Francisco, CA</p>
-                  <p className="text-sm text-slate-500 mt-1">
-                    United States
                   </p>
                 </div>
               </div>
