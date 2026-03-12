@@ -16,6 +16,7 @@ import {
   CreditCard,
   Activity,
   Receipt,
+  Mail,
   Upload,
   Menu,
   X,
@@ -37,6 +38,7 @@ const navItems = [
   { href: "/my-templates", label: "Templates", icon: FileStack },
   { href: "/signatures", label: "Signatures", icon: FileSignature },
   { href: "/payments", label: "Payments", icon: CreditCard },
+  { href: "/inbox", label: "Inbox", icon: Mail },
   { href: "/activity", label: "Activity", icon: Activity },
 ];
 

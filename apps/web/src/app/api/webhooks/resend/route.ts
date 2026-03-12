@@ -31,6 +31,9 @@ const RECEIVING_ADDRESSES = [
   "hello@lexportai.com",
 ];
 
+// Map receiving addresses to inbox owner account email
+const INBOX_OWNER_EMAIL = "akpobor2000@gmail.com";
+
 export async function POST(request: NextRequest) {
   const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
 
@@ -105,24 +108,20 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ received: true });
         }
 
-        // Route based on receiving address
-        // hello@lexportai.com → general inbox, notify all admins or owner
+        // Route to inbox owner — all hello@lexportai.com emails go to the site owner
         let userId: string | null = null;
 
-        if (matchedAddress === "hello@lexportai.com") {
-          // Try to find the sender in our contacts/users to associate the email
-          const senderEmail = data.from.match(/<(.+?)>/)?.[1] || data.from;
+        const { data: owner } = await supabase
+          .from("users")
+          .select("id")
+          .eq("email", INBOX_OWNER_EMAIL)
+          .limit(1)
+          .single();
 
-          const { data: user } = await supabase
-            .from("users")
-            .select("id")
-            .eq("email", senderEmail.toLowerCase().trim())
-            .limit(1)
-            .single();
-
-          if (user) {
-            userId = user.id;
-          }
+        if (owner) {
+          userId = owner.id;
+        } else {
+          console.error(`Inbox owner not found: ${INBOX_OWNER_EMAIL}`);
         }
 
         // Store the received email
