@@ -53,11 +53,11 @@ export function PDFPreviewModal({
   const contractIdRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Set up PDF.js worker on client side
+  // Set up PDF.js worker on client side — only mark ready after worker is configured
   useEffect(() => {
-    setIsClient(true);
     import("react-pdf").then((pdfjs) => {
       pdfjs.pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+      setIsClient(true);
     });
   }, []);
 
