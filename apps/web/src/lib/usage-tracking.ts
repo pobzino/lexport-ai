@@ -61,7 +61,10 @@ export async function getUserTier(userId: string): Promise<SubscriptionTier> {
     }
 
     // Individual subscription - check tier (with active status)
-    if (user.subscription_tier === "pro" && user.subscription_status === "active") return "pro";
+    if (user.subscription_status === "active") {
+        if (user.subscription_tier === "team") return "team";
+        if (user.subscription_tier === "pro") return "pro";
+    }
 
     return "free";
 }
