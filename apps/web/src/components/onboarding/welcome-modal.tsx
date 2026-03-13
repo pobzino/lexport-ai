@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Briefcase, Users, Building2, Sparkles, ArrowRight } from "lucide-react";
+import { Briefcase, Users, Building2, Sparkles, ArrowRight, X } from "lucide-react";
 import { useOnboarding, type UserType } from "./onboarding-context";
 
 const USER_TYPES = [
@@ -42,7 +42,7 @@ const USER_TYPES = [
 ];
 
 export function WelcomeModal() {
-  const { showWelcome, setUserType } = useOnboarding();
+  const { showWelcome, setShowWelcome, setUserType } = useOnboarding();
   const [selectedType, setSelectedType] = useState<UserType>(null);
   const [step, setStep] = useState<"select" | "examples">("select");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,9 +71,14 @@ export function WelcomeModal() {
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
         {/* Header */}
-        {/* Header */}
-        <div className="bg-[#202e46] px-6 py-8 text-white text-center">
-
+        <div className="bg-[#202e46] px-6 py-8 text-white text-center relative">
+          <button
+            onClick={() => setShowWelcome(false)}
+            className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
           <h1 className="text-2xl font-bold">Welcome to Lexport</h1>
           <p className="text-slate-300 mt-2">
             {step === "select"
@@ -133,6 +138,12 @@ export function WelcomeModal() {
               <p className="text-xs text-slate-400 text-center mt-4">
                 You can change this later in settings
               </p>
+              <button
+                onClick={() => setShowWelcome(false)}
+                className="w-full text-xs text-slate-400 hover:text-slate-600 text-center mt-2 transition-colors"
+              >
+                Skip for now
+              </button>
             </>
           ) : (
             <>

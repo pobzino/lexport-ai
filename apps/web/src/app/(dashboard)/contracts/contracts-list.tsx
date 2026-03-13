@@ -37,6 +37,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Contract {
     id: string;
@@ -482,6 +483,7 @@ interface ContractsListProps {
 
 export function ContractsList({ contracts }: ContractsListProps) {
     const toast = useToast();
+    const { confirm } = useConfirmDialog();
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
@@ -642,7 +644,8 @@ export function ContractsList({ contracts }: ContractsListProps) {
 
     // Delete contract (memoized)
     const deleteContract = useCallback(async function deleteContract(contractId: string) {
-        if (!confirm("Are you sure you want to delete this contract? This cannot be undone.")) return;
+        const confirmed = await confirm({ title: "Delete Contract", message: "Are you sure you want to delete this contract? This cannot be undone.", variant: "danger", confirmText: "Delete" });
+        if (!confirmed) return;
         try {
             const { error } = await supabase
                 .from("contracts")
@@ -656,7 +659,7 @@ export function ContractsList({ contracts }: ContractsListProps) {
             console.error("Error deleting contract:", error);
         }
         setOpenDropdown(null);
-    }, [supabase]);
+    }, [supabase, confirm]);
 
     // Duplicate contract (memoized)
     const duplicateContract = useCallback(async function duplicateContract(contractId: string) {

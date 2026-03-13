@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Suspense } from "react";
+import Script from "next/script";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/toast";
@@ -43,7 +44,7 @@ export const metadata: Metadata = {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
     ],
-    apple: "/apple-touch-icon.svg",
+    apple: "/apple-touch-icon.png",
   },
   manifest: "/manifest.json",
   openGraph: {
@@ -56,7 +57,7 @@ export const metadata: Metadata = {
       "Generate legally binding contracts with AI in minutes. E-signatures, payment collection, and contract management for startups and freelancers.",
     images: [
       {
-        url: "/og-image.svg",
+        url: "/og-image.png",
         width: 1200,
         height: 630,
         alt: "Lexport - AI-Powered Legal Contracts",
@@ -68,7 +69,7 @@ export const metadata: Metadata = {
     title: "Lexport - AI-Powered Legal Contracts & E-Signatures",
     description:
       "Generate legally binding contracts with AI in minutes. E-signatures and payment collection for startups and freelancers.",
-    images: ["/og-image.svg"],
+    images: ["/og-image.png"],
     creator: "@lexport_ai",
   },
   robots: {
@@ -98,8 +99,15 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {process.env.DEPLOY_ID ? (
+          <meta name="x-deployment-id" content={process.env.DEPLOY_ID} />
+        ) : null}
+      </head>
+      <body className={`${inter.variable} font-sans`}>
         {/* Google Tag Manager */}
-        <script
+        <Script
+          id="gtm"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -108,19 +116,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 })(window,document,'script','dataLayer','GTM-P5CLFJ88');`,
           }}
         />
-        {process.env.DEPLOY_ID ? (
-          <meta name="x-deployment-id" content={process.env.DEPLOY_ID} />
-        ) : null}
-        {/* Google Fonts for signature styles */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Allura&family=Caveat:wght@700&family=Dancing+Script&family=Great+Vibes&family=Pacifico&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body className={`${inter.variable} font-sans`}>
-        {/* Google Tag Manager (noscript) */}
         <noscript>
           <iframe
             src="https://www.googletagmanager.com/ns.html?id=GTM-P5CLFJ88"

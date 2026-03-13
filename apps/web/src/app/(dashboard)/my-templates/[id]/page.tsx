@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+import { showError } from "@/lib/toast";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   ArrowLeft,
   FileText,
@@ -71,6 +73,7 @@ export default function TemplateDetailPage() {
   const params = useParams();
   const templateId = params.id as string;
   const subscription = useSubscription();
+  const { confirm } = useConfirmDialog();
 
   const [template, setTemplate] = useState<Template | null>(null);
   const [loading, setLoading] = useState(true);
@@ -198,14 +201,15 @@ export default function TemplateDetailPage() {
       }
     } catch (err) {
       console.error("Error saving template:", err);
-      alert("Failed to save template");
+      showError("Failed to save template");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this template? This cannot be undone.")) {
+    const confirmed = await confirm({ title: "Delete Template", message: "Are you sure you want to delete this template? This cannot be undone.", variant: "danger", confirmText: "Delete" });
+    if (!confirmed) {
       return;
     }
 
@@ -221,7 +225,7 @@ export default function TemplateDetailPage() {
       }
     } catch (err) {
       console.error("Error deleting template:", err);
-      alert("Failed to delete template");
+      showError("Failed to delete template");
     }
   };
 
@@ -240,7 +244,7 @@ export default function TemplateDetailPage() {
       }
     } catch (err) {
       console.error("Error using template:", err);
-      alert("Failed to create contract from template");
+      showError("Failed to create contract from template");
     } finally {
       setIsUsing(false);
     }

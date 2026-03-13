@@ -493,7 +493,7 @@ export default function BillingPage() {
                           <ArrowRight className="w-4 h-4" />
                         </>
                       ) : (
-                        "Current or Lower Tier"
+                        "Current Plan"
                       )}
                     </button>
                   )}

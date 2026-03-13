@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Bell, BellOff, Clock, AlertCircle, RefreshCw, Send } from "lucide-react";
+import { showError } from "@/lib/toast";
 
 interface SignatureRequest {
   id: string;
@@ -81,11 +82,11 @@ export function ReminderSettingsPanel({
         onUpdate?.();
       } else {
         const data = await response.json();
-        alert(data.error || "Failed to update reminder setting");
+        showError(data.error || "Failed to update reminder setting");
       }
     } catch (error) {
       console.error("Failed to toggle reminder:", error);
-      alert("Failed to update reminder setting");
+      showError("Failed to update reminder setting");
     } finally {
       setToggling(null);
     }
@@ -101,7 +102,7 @@ export function ReminderSettingsPanel({
       await fetchReminderHistory();
     } catch (error) {
       console.error("Failed to resend signing request:", error);
-      alert("Failed to resend signing request");
+      showError("Failed to resend signing request");
     } finally {
       setResending(null);
     }

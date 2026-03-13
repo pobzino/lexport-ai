@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
+import Link from "next/link";
+import Image from "next/image";
 import {
   FileText,
   MessageSquare,
@@ -17,6 +19,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { showError } from "@/lib/toast";
 
 interface ReviewRequest {
   id: string;
@@ -250,6 +253,7 @@ export default function ReviewPage({
       }
     } catch (err) {
       console.error("Failed to add comment:", err);
+      showError("Failed to add comment. Please try again.");
     } finally {
       setSubmittingComment(false);
     }
@@ -276,9 +280,12 @@ export default function ReviewPage({
           prev ? { ...prev, status: data.status, respondedAt: new Date().toISOString() } : null
         );
         setShowResponseModal(false);
+      } else {
+        showError(data.error || "Failed to submit response. Please try again.");
       }
     } catch (err) {
       console.error("Failed to submit response:", err);
+      showError("Failed to submit response. Please try again.");
     } finally {
       setSubmittingResponse(false);
     }
@@ -318,6 +325,9 @@ export default function ReviewPage({
             Unable to Load Review
           </h1>
           <p className="text-slate-600">{error}</p>
+          <Link href="/" className="inline-flex items-center gap-2 mt-4 text-sm text-[#529ec6] hover:text-[#4189b1] transition-colors">
+            Go to Lexport
+          </Link>
         </div>
       </div>
     );
@@ -336,6 +346,10 @@ export default function ReviewPage({
         <div className="max-w-6xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
+              <Link href="/" className="flex-shrink-0">
+                <Image src="/light-logo.png" alt="Lexport" width={100} height={30} className="h-7 w-auto" />
+              </Link>
+              <div className="w-px h-8 bg-white/20" />
               <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
                 <FileText className="w-5 h-5" />
               </div>

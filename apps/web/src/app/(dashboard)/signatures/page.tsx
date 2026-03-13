@@ -4,7 +4,6 @@ import {
   Clock,
   Eye,
   Send,
-  Download,
   AlertCircle,
   XCircle,
   Mail,
@@ -383,12 +382,6 @@ export default async function SignaturesPage() {
                       >
                         <Eye className="w-4 h-4" />
                       </Link>
-                      <button
-                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                        title="Download Certificate"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
                     </div>
                   </div>
                 </div>

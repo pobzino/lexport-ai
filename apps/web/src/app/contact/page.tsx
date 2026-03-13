@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Send,
   Loader2,
@@ -86,11 +87,8 @@ export default function ContactPage() {
       {/* Header */}
       <div className="border-b border-slate-200 bg-white/80 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto px-4 py-4">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#202e46] rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">L</span>
-            </div>
-            <span className="font-semibold text-slate-900">Lexport</span>
+          <Link href="/" className="flex items-center">
+            <Image src="/dark-logo.png" alt="Lexport" width={120} height={36} className="h-8 w-auto" />
           </Link>
         </div>
       </div>

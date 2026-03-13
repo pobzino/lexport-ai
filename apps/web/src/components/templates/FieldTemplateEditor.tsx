@@ -13,6 +13,7 @@ import {
   Lock,
   Trash2,
 } from "lucide-react";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { SignatureField } from "@/components/signature-field-editor";
 
 interface FieldTemplate {
@@ -52,6 +53,7 @@ export function FieldTemplateEditor({
   onApplyTemplate,
   onFieldsChange,
 }: FieldTemplateEditorProps) {
+  const { confirm } = useConfirmDialog();
   const [templates, setTemplates] = useState<FieldTemplate[]>([]);
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -197,7 +199,8 @@ export function FieldTemplateEditor({
 
   const handleDeleteTemplate = async (templateId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Delete this field template?")) return;
+    const confirmed = await confirm({ title: "Delete Field Template", message: "Delete this field template?", variant: "danger", confirmText: "Delete" });
+    if (!confirmed) return;
 
     try {
       const response = await fetch(`/api/field-templates/${templateId}`, {

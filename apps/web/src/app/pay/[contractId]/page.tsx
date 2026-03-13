@@ -552,7 +552,7 @@ export default function PaymentPage() {
                 appearance: {
                   theme: "stripe",
                   variables: {
-                    colorPrimary: "#7c3aed",
+                    colorPrimary: "#529ec6",
                     borderRadius: "8px",
                   },
                 },

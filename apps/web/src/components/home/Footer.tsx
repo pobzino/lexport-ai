@@ -50,7 +50,7 @@ export function Footer() {
                                 </Link>
                             </li>
                             <li>
-                                <Link href="/contracts/new" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
+                                <Link href="/create" className="text-slate-500 hover:text-brand-600 text-xs sm:text-sm transition-colors">
                                     Create Contract
                                 </Link>
                             </li>

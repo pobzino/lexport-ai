@@ -53,7 +53,7 @@ function VerifyContent() {
         <>
             {status === "loading" && (
                 <>
-                    <div className="w-16 h-16 bg-[#529ec6]/50/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <div className="w-16 h-16 bg-[#529ec6]/20 rounded-full flex items-center justify-center mx-auto mb-6">
                         <Loader2 className="w-8 h-8 text-[#529ec6] animate-spin" />
                     </div>
                     <h1 className="text-2xl font-bold text-white mb-3">
@@ -105,7 +105,7 @@ function VerifyContent() {
 function LoadingFallback() {
     return (
         <>
-            <div className="w-16 h-16 bg-[#529ec6]/50/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className="w-16 h-16 bg-[#529ec6]/20 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Loader2 className="w-8 h-8 text-[#529ec6] animate-spin" />
             </div>
             <h1 className="text-2xl font-bold text-white mb-3">

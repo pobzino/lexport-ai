@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { ArrowRight, Crown, Sparkles, Check } from "lucide-react";
+import { showError } from "@/lib/toast";
 import { trackTemplateCTAClicked, trackTemplatePurchaseStarted, trackTemplateUsed } from "@/lib/analytics";
 import { TemplateDisclaimerInline } from "@/components/templates/LegalDisclaimer";
 
@@ -133,9 +134,9 @@ export function TemplateUseCTA({
       }
 
       const errorData = await res.json().catch(() => null);
-      alert(errorData?.error || "Failed to start purchase. Please try again.");
+      showError(errorData?.error || "Failed to start purchase. Please try again.");
     } catch {
-      alert("Something went wrong. Please try again.");
+      showError("Something went wrong. Please try again.");
     }
     setBuying(false);
   };

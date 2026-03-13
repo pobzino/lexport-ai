@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Folder, Plus, MoreVertical, Edit2, Trash2 } from "lucide-react";
 import toast from "@/lib/toast";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 
 interface FolderItem {
@@ -23,6 +24,7 @@ export function FolderSidebar({
   onSelectFolder,
   uncategorizedCount,
 }: FolderSidebarProps) {
+  const { confirm } = useConfirmDialog();
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -50,7 +52,8 @@ export function FolderSidebar({
   }
 
   async function deleteFolder(folderId: string) {
-    if (!confirm("Delete this folder? Contracts will be moved to uncategorized.")) {
+    const confirmed = await confirm({ title: "Delete Folder", message: "Delete this folder? Contracts will be moved to uncategorized.", variant: "danger", confirmText: "Delete" });
+    if (!confirmed) {
       return;
     }
 

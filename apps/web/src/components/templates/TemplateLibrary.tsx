@@ -13,6 +13,7 @@ import {
   Lock,
   Crown,
 } from "lucide-react";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TemplateCard, TemplateCardSkeleton } from "./TemplateCard";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 import type { Template } from "@/db/types";
@@ -52,6 +53,7 @@ export function TemplateLibrary({
 }: TemplateLibraryProps) {
   const router = useRouter();
   const subscription = useSubscription();
+  const { confirm } = useConfirmDialog();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -101,7 +103,8 @@ export function TemplateLibrary({
   };
 
   const handleDelete = async (template: Template) => {
-    if (!confirm(`Delete "${template.name}"? This cannot be undone.`)) return;
+    const confirmed = await confirm({ title: "Delete Template", message: `Delete "${template.name}"? This cannot be undone.`, variant: "danger", confirmText: "Delete" });
+    if (!confirmed) return;
 
     try {
       const response = await fetch(`/api/templates/${template.id}`, {

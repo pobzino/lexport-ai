@@ -67,6 +67,7 @@ import type { ContractVersion, ContractContent as ContractContentType } from "@/
 import type { RiskAnalysisResult } from "@/types/risk-analysis";
 import { ContractChat } from "@/components/contract-chat";
 import { useOnboarding } from "@/components/onboarding";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 import { ContractPaywall } from "@/components/paywall/ContractPaywall";
 import { TagInput } from "@/components/dashboard/TagInput";
@@ -174,6 +175,7 @@ export default function ContractEditorPage() {
   const params = useParams();
   const router = useRouter();
   const { completeStep } = useOnboarding();
+  const { confirm: confirmDialog } = useConfirmDialog();
   const contractId = params.id as string;
   const subscription = useSubscription();
 
@@ -2115,11 +2117,12 @@ export default function ContractEditorPage() {
                                   )}
                                   {!isLocked && (
                                     <button
-                                      onClick={(e) => {
+                                      onClick={async (e) => {
                                         e.stopPropagation();
                                         // Require confirmation for standard clauses, quick delete for others
                                         if (clause.type === "standard") {
-                                          if (confirm(`"${clause.title}" is a standard clause that's typically required in this type of contract.\n\nAre you sure you want to remove it?`)) {
+                                          const confirmed = await confirmDialog({ title: "Remove Standard Clause", message: `"${clause.title}" is a standard clause that's typically required in this type of contract. Are you sure you want to remove it?`, variant: "warning", confirmText: "Remove" });
+                                          if (confirmed) {
                                             removeClause(clause.id);
                                           }
                                         } else {

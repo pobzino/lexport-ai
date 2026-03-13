@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { showError } from "@/lib/toast";
 import {
   ArrowLeft,
   Download,
@@ -188,7 +189,7 @@ export default function InvoiceDetailPage() {
       }
       await fetchInvoice();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to send");
+      showError(err instanceof Error ? err.message : "Failed to send");
     } finally {
       setActionLoading(null);
     }
@@ -235,7 +236,7 @@ export default function InvoiceDetailPage() {
       await fetchInvoice();
       setShowStatusModal(false);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update");
+      showError(err instanceof Error ? err.message : "Failed to update");
     } finally {
       setActionLoading(null);
     }

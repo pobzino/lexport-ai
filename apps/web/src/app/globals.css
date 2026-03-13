@@ -2,18 +2,18 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  /* Colors - Refined SaaS palette (Linear/Vercel inspired) */
-  --color-brand-50: #f8fafc;
-  --color-brand-100: #f1f5f9;
-  --color-brand-200: #e2e8f0;
-  --color-brand-300: #cbd5e1;
-  --color-brand-400: #94a3b8;
-  --color-brand-500: #64748b;
-  --color-brand-600: #475569;
-  --color-brand-700: #334155;
-  --color-brand-800: #1e293b;
-  --color-brand-900: #0f172a;
-  --color-brand-950: #020617;
+  /* Colors - Lexport brand blue palette */
+  --color-brand-50: #f0f7fb;
+  --color-brand-100: #e0eff7;
+  --color-brand-200: #b8d9ec;
+  --color-brand-300: #8dc2df;
+  --color-brand-400: #6bb3d4;
+  --color-brand-500: #529ec6;
+  --color-brand-600: #4189b1;
+  --color-brand-700: #356e8e;
+  --color-brand-800: #2a566e;
+  --color-brand-900: #202e46;
+  --color-brand-950: #141d2e;
 
   /* Lexport brand colors */
   --color-lexport-blue: #529ec6;

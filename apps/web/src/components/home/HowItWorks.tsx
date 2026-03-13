@@ -82,7 +82,7 @@ function SignDemo() {
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-slate-700 truncate">You (Sender)</p>
-                        <p className="text-[10px] text-emerald-600">Signed Jan 15</p>
+                        <p className="text-[10px] text-emerald-600">Signed Mar 10</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2.5 p-2.5 bg-amber-50 rounded-lg border border-amber-200">
@@ -138,7 +138,7 @@ function PaymentDemo() {
                     </div>
                     <div className="flex items-center justify-between text-xs">
                         <span className="text-slate-500">Date</span>
-                        <span className="text-slate-700">Jan 15, 2025</span>
+                        <span className="text-slate-700">Mar 10, 2026</span>
                     </div>
                 </div>
             </div>

@@ -137,6 +137,27 @@ export default function SignContractPage() {
   const searchParams = useSearchParams();
   const returnTo = searchParams.get("returnTo");
 
+  // Load signature fonts on demand
+  useEffect(() => {
+    const linkId = "signature-fonts";
+    if (!document.getElementById(linkId)) {
+      const preconnect1 = document.createElement("link");
+      preconnect1.rel = "preconnect";
+      preconnect1.href = "https://fonts.googleapis.com";
+      document.head.appendChild(preconnect1);
+      const preconnect2 = document.createElement("link");
+      preconnect2.rel = "preconnect";
+      preconnect2.href = "https://fonts.gstatic.com";
+      preconnect2.crossOrigin = "anonymous";
+      document.head.appendChild(preconnect2);
+      const link = document.createElement("link");
+      link.id = linkId;
+      link.rel = "stylesheet";
+      link.href = "https://fonts.googleapis.com/css2?family=Allura&family=Caveat:wght@700&family=Dancing+Script&family=Great+Vibes&family=Pacifico&display=swap";
+      document.head.appendChild(link);
+    }
+  }, []);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [alreadySigned, setAlreadySigned] = useState(false);
@@ -297,6 +318,17 @@ export default function SignContractPage() {
     fetchData();
   }, [token, router]);
 
+  // Helper to get scaled canvas coordinates (CSS size may differ from canvas resolution)
+  const getCanvasCoords = (canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+    };
+  };
+
   // Canvas drawing functions
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -305,9 +337,7 @@ export default function SignContractPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const { x, y } = getCanvasCoords(canvas, e.clientX, e.clientY);
 
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -323,9 +353,7 @@ export default function SignContractPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const { x, y } = getCanvasCoords(canvas, e.clientX, e.clientY);
 
     ctx.lineTo(x, y);
     ctx.strokeStyle = "#1e293b";
@@ -348,10 +376,8 @@ export default function SignContractPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
     const touch = e.touches[0];
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
+    const { x, y } = getCanvasCoords(canvas, touch.clientX, touch.clientY);
 
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -368,10 +394,8 @@ export default function SignContractPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
     const touch = e.touches[0];
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
+    const { x, y } = getCanvasCoords(canvas, touch.clientX, touch.clientY);
 
     ctx.lineTo(x, y);
     ctx.strokeStyle = "#1e293b";
@@ -2060,8 +2084,9 @@ export default function SignContractPage() {
                       <div className="border-2 border-dashed border-slate-200 rounded-lg overflow-hidden bg-white touch-none">
                         <canvas
                           ref={canvasRef}
-                          width={300}
-                          height={150}
+                          width={600}
+                          height={300}
+                          aria-label="Signature drawing area"
                           className="w-full cursor-crosshair touch-none"
                           onMouseDown={startDrawing}
                           onMouseMove={draw}

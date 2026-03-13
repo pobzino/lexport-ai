@@ -53,6 +53,15 @@ export function Navbar() {
         }, 150);
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setSolutionsOpen((prev) => !prev);
+        } else if (e.key === "Escape") {
+            setSolutionsOpen(false);
+        }
+    };
+
     return (
         <nav
             className={cn(
@@ -85,6 +94,10 @@ export function Navbar() {
                                 onMouseLeave={handleMouseLeave}
                             >
                                 <button
+                                    onClick={() => setSolutionsOpen((prev) => !prev)}
+                                    onKeyDown={handleKeyDown}
+                                    aria-expanded={solutionsOpen}
+                                    aria-haspopup="menu"
                                     className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900 transition-colors"
                                 >
                                     Solutions
@@ -95,7 +108,10 @@ export function Navbar() {
                                 </button>
 
                                 {/* Dropdown Menu */}
-                                <div className={cn(
+                                <div
+                                    role="menu"
+                                    aria-label="Solutions"
+                                    className={cn(
                                     "absolute top-full left-0 pt-2 transition-all duration-200",
                                     solutionsOpen
                                         ? "opacity-100 translate-y-0 pointer-events-auto"
@@ -106,6 +122,8 @@ export function Navbar() {
                                             <Link
                                                 key={solution.name}
                                                 href={solution.href}
+                                                role="menuitem"
+                                                onClick={() => setSolutionsOpen(false)}
                                                 className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors group"
                                             >
                                                 <div className="w-10 h-10 bg-[#529ec6]/10 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-[#529ec6]/20 transition-colors">

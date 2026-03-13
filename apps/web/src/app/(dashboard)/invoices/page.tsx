@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
 import Link from "next/link";
+import { showError } from "@/lib/toast";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Plus,
   Search,
@@ -277,6 +279,7 @@ const InvoiceCard = memo(function InvoiceCard(props: InvoiceRowProps) {
 });
 
 export default function InvoicesPage() {
+  const { confirm } = useConfirmDialog();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -347,7 +350,8 @@ export default function InvoicesPage() {
   }, [debouncedSearch, statusFilter, showStandalone]);
 
   const handleDelete = async (invoiceId: string) => {
-    if (!confirm("Are you sure you want to delete this invoice?")) return;
+    const confirmed = await confirm({ title: "Delete Invoice", message: "Are you sure you want to delete this invoice?", variant: "danger", confirmText: "Delete" });
+    if (!confirmed) return;
 
     try {
       const response = await fetch(`/api/invoices/${invoiceId}`, {
@@ -358,7 +362,7 @@ export default function InvoicesPage() {
       }
       fetchInvoices();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete");
+      showError(err instanceof Error ? err.message : "Failed to delete");
     }
   };
 
@@ -377,7 +381,7 @@ export default function InvoicesPage() {
       // Show success feedback
       fetchInvoices();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to send invoice");
+      showError(err instanceof Error ? err.message : "Failed to send invoice");
     } finally {
       setActionLoading(null);
     }

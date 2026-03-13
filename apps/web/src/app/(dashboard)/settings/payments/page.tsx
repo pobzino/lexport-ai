@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   ConnectComponentsProvider,
   ConnectAccountOnboarding,
@@ -76,6 +77,7 @@ const SUPPORTED_COUNTRIES = [
 export default function PaymentSettingsPage() {
   const searchParams = useSearchParams();
   const { completeStep } = useOnboarding();
+  const { confirm } = useConfirmDialog();
   const [status, setStatus] = useState<ConnectStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
@@ -153,7 +155,7 @@ export default function PaymentSettingsPage() {
         appearance: {
           overlays: "dialog",
           variables: {
-            colorPrimary: "#7c3aed",
+            colorPrimary: "#529ec6",
             colorBackground: "#ffffff",
             colorText: "#0f172a",
             colorDanger: "#dc2626",
@@ -162,7 +164,7 @@ export default function PaymentSettingsPage() {
             fontFamily: "Inter, system-ui, sans-serif",
             fontSizeBase: "14px",
             spacingUnit: "4px",
-            buttonPrimaryColorBackground: "#7c3aed",
+            buttonPrimaryColorBackground: "#529ec6",
             buttonPrimaryColorText: "#ffffff",
             badgeSuccessColorBackground: "#dcfce7",
             badgeSuccessColorText: "#166534",
@@ -223,7 +225,8 @@ export default function PaymentSettingsPage() {
 
   // Disconnect account
   const handleDisconnect = async () => {
-    if (!confirm("Are you sure you want to disconnect your payment account? You will not be able to receive payments until you reconnect.")) {
+    const confirmed = await confirm({ title: "Disconnect Payment Account", message: "Are you sure you want to disconnect your payment account? You will not be able to receive payments until you reconnect.", variant: "warning", confirmText: "Disconnect" });
+    if (!confirmed) {
       return;
     }
 
@@ -768,6 +771,9 @@ export default function PaymentSettingsPage() {
 
                 {viewMode === "account" && (
                   <div className="bg-slate-50 rounded-xl p-6 -mx-6 -mb-6">
+                    <p className="text-sm text-slate-500 mb-4">
+                      Account settings are managed by Stripe. You may need to sign in to your Stripe account to view or edit details.
+                    </p>
                     <ConnectAccountManagement />
                   </div>
                 )}
