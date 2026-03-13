@@ -1516,7 +1516,7 @@ export default function ContractEditorPage() {
                 </button>
 
                 {showToolsMenu && (
-                  <div className="absolute right-0 lg:right-[420px] top-full mt-1 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-[100] animate-in fade-in zoom-in-95 duration-100">
+                  <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-[100] animate-in fade-in zoom-in-95 duration-100">
                     {/* Save action - hidden when locked */}
                     {!isLocked && (
                       <button
