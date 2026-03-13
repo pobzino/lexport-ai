@@ -26,11 +26,11 @@ if (!isProduction) {
 // 'unsafe-eval' is only needed in development for hot reload
 const ContentSecurityPolicy = `
   default-src 'self';
-  script-src 'self' 'unsafe-inline' https://js.stripe.com https://connect-js.stripe.com https://app.posthog.com https://*.sentry.io https://www.googletagmanager.com https://www.google-analytics.com https://googleads.g.doubleclick.net https://www.google.com ${isDevelopment ? "'unsafe-eval'" : ""};
+  script-src 'self' 'unsafe-inline' https://js.stripe.com https://connect-js.stripe.com https://app.posthog.com https://*.posthog.com https://*.i.posthog.com https://*.sentry.io https://www.googletagmanager.com https://www.google-analytics.com https://googleads.g.doubleclick.net https://www.google.com ${isDevelopment ? "'unsafe-eval'" : ""};
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src 'self' https://fonts.gstatic.com;
   img-src 'self' data: blob: https: http:;
-  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://connect.stripe.com https://connect-js.stripe.com https://merchant-ui-api.stripe.com https://m.stripe.network https://api.openai.com https://app.posthog.com https://us.i.posthog.com https://*.sentry.io https://www.google-analytics.com https://analytics.google.com https://*.google-analytics.com https://*.analytics.google.com https://stats.g.doubleclick.net ${localSupabaseConnectSources.join(" ")};
+  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://connect.stripe.com https://connect-js.stripe.com https://merchant-ui-api.stripe.com https://m.stripe.network https://api.openai.com https://app.posthog.com https://*.posthog.com https://*.i.posthog.com https://*.sentry.io https://www.google-analytics.com https://analytics.google.com https://*.google-analytics.com https://*.analytics.google.com https://stats.g.doubleclick.net ${localSupabaseConnectSources.join(" ")};
   frame-src 'self' blob: https://*.supabase.co https://js.stripe.com https://connect-js.stripe.com https://connect.stripe.com https://hooks.stripe.com https://www.googletagmanager.com ${localSupabaseConnectSources[0] ?? ""};
   frame-ancestors 'self';
   form-action 'self';
