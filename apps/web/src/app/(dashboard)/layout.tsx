@@ -31,7 +31,7 @@ export default async function DashboardLayout({
         isInboxOwner={user.email === "akpobor2000@gmail.com"}
       />
       {/* Main content: pt-16 on mobile for fixed header, lg:ml-64 for sidebar */}
-      <main className="min-h-screen pt-16 lg:pt-0 lg:ml-64">
+      <main className="min-h-screen pt-16 lg:pt-0 lg:ml-64 overflow-x-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
           <DashboardHeader />
           <KeyboardShortcutsProvider>{children}</KeyboardShortcutsProvider>

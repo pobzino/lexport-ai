@@ -775,7 +775,7 @@ export function ContractsList({ contracts }: ContractsListProps) {
     const [showMobileFilters, setShowMobileFilters] = useState(false);
 
     return (
-        <div className="flex gap-6">
+        <div className="flex gap-6 min-w-0 overflow-hidden">
             {/* Mobile Sidebar Overlay */}
             {showMobileSidebar && (
                 <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setShowMobileSidebar(false)}>
@@ -1035,7 +1035,7 @@ export function ContractsList({ contracts }: ContractsListProps) {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 space-y-4">
+            <div className="flex-1 min-w-0 space-y-4">
                 {/* Search and Filter Bar */}
                 <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
                     {/* Top row: always visible — search + mobile toggle buttons */}
