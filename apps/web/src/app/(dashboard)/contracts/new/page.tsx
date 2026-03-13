@@ -30,11 +30,13 @@ import {
   ShoppingCart,
   ChevronDown,
   ChevronUp,
+  Crown,
 } from "lucide-react";
 import { ContractGeneratingOverlay } from "@/components/contract-generating-overlay";
 import { ContractPreviewModal } from "@/components/contract-preview-modal";
 import { EnhancedPlaceholderModal } from "@/components/contracts/EnhancedPlaceholderModal";
 import { useOnboarding, type UserType } from "@/components/onboarding";
+import { useSubscription } from "@/lib/hooks/useSubscription";
 
 type CreationMode = "smart" | "manual" | "template";
 type ManualCategory = "all" | "confidentiality" | "services" | "fundraising" | "company" | "commercial";
@@ -250,10 +252,12 @@ export default function NewContractPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { completeStep, userType } = useOnboarding();
+  const subscription = useSubscription();
   const hasInitialized = useRef(false);
   const [step, setStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showLimitPaywall, setShowLimitPaywall] = useState(false);
 
   // Streaming progress state
   const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
@@ -830,8 +834,15 @@ export default function NewContractPage() {
       return;
     }
 
+    // Pre-check contract limit before starting generation
+    if (!subscription.isLoading && !subscription.canCreateContract) {
+      setShowLimitPaywall(true);
+      return;
+    }
+
     setIsGenerating(true);
     setError(null);
+    setShowLimitPaywall(false);
     setGenerationProgress(0);
     setGenerationStatus("Starting...");
     setGenerationLastEventAt(Date.now());
@@ -898,6 +909,13 @@ export default function NewContractPage() {
         } | null;
 
         if (!response.ok || !payload || typeof payload.jobId !== "string") {
+          // Show upgrade paywall for limit errors instead of generic error
+          if (response.status === 403 && typeof payload?.error === "string" && payload.error.includes("limit")) {
+            setIsGenerating(false);
+            setShowLimitPaywall(true);
+            subscription.refetch();
+            return;
+          }
           const message =
             typeof payload?.error === "string"
               ? payload.error
@@ -2412,7 +2430,33 @@ export default function NewContractPage() {
               </div>
             </div>
 
-            {error && (
+            {showLimitPaywall && (
+              <div className="bg-gradient-to-br from-[#202e46]/5 to-[#529ec6]/10 border border-[#202e46]/20 rounded-xl p-6 text-center">
+                <div className="w-12 h-12 bg-[#202e46]/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Crown className="w-6 h-6 text-[#202e46]" />
+                </div>
+                <h3 className="font-semibold text-slate-900 mb-1">
+                  {subscription.tier === "free"
+                    ? "You\u2019ve used your free contract this month"
+                    : "Monthly contract limit reached"}
+                </h3>
+                <p className="text-sm text-slate-600 mb-4">
+                  {subscription.tier === "free"
+                    ? "Upgrade to Pro to generate up to 50 contracts per month."
+                    : `You\u2019ve used ${subscription.contractsUsed} of ${subscription.contractsLimit} contracts. Your limit resets next month.`}
+                </p>
+                <Link
+                  href="/settings/billing"
+                  className="inline-flex items-center gap-2 bg-[#202e46] text-white px-5 py-2.5 rounded-lg font-medium hover:bg-[#1a2539] transition-colors text-sm"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {subscription.tier === "free" ? "Upgrade to Pro \u2014 50% off first month" : "Manage subscription"}
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            )}
+
+            {error && !showLimitPaywall && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
                 <div>{error}</div>
                 <div className="mt-3">
