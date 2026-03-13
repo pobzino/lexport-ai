@@ -319,60 +319,38 @@ const ContractRow = memo(function ContractRow({
     const TypeIcon = typeDisplay.icon;
 
     return (
-        <div className="flex items-center justify-between p-3 sm:p-4 hover:bg-slate-50 transition-colors group">
-            <Link
-                href={`/contracts/${contract.id}/edit`}
-                className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0"
-            >
-                <div className={`w-9 h-9 sm:w-10 sm:h-10 ${typeDisplay.bg} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                    <TypeIcon className={`w-4 h-4 sm:w-5 sm:h-5 ${typeDisplay.color}`} />
-                </div>
-                <div className="min-w-0 flex-1">
-                    <p className="font-medium text-slate-900 truncate text-sm sm:text-base">{contract.title}</p>
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-0.5">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${typeDisplay.bg} ${typeDisplay.color}`}>
-                            {typeDisplay.label}
-                        </span>
-                        {contract.source_type === "uploaded" && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700">
-                                <Upload className="w-3 h-3" />
-                                Uploaded
-                            </span>
-                        )}
-                        <span className="hidden sm:inline-flex items-center gap-1 text-xs text-slate-500">
-                            <span>{jurisdictionDisplay.flag}</span>
-                            <span>{jurisdictionDisplay.label}</span>
-                        </span>
+        <div className="p-3 sm:p-4 hover:bg-slate-50 transition-colors group">
+            <div className="flex items-start gap-3 sm:gap-4">
+                {/* Type Icon */}
+                <Link href={`/contracts/${contract.id}/edit`} className="flex-shrink-0">
+                    <div className={`w-9 h-9 sm:w-10 sm:h-10 ${typeDisplay.bg} rounded-lg flex items-center justify-center`}>
+                        <TypeIcon className={`w-4 h-4 sm:w-5 sm:h-5 ${typeDisplay.color}`} />
                     </div>
-                </div>
-            </Link>
+                </Link>
 
-            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-2">
-                <div className="hidden sm:block">
-                    <PaymentBadge contract={contract} />
-                </div>
-                <div className="hidden sm:block">
-                    <StatusBadge status={contract.status} />
-                </div>
-                {/* Mobile: compact status */}
-                <div className="sm:hidden">
-                    <StatusBadge status={contract.status} />
-                </div>
-                <span className="text-sm text-slate-500 hidden md:block min-w-[80px] text-right">
-                    {formatTimeAgo(contract.updated_at)}
-                </span>
-                <div className="relative">
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setOpenDropdown(openDropdown === contract.id ? null : contract.id);
-                        }}
-                        className="p-2.5 hover:bg-slate-100 rounded-lg transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 min-h-[36px] min-w-[36px] flex items-center justify-center"
-                        aria-label="More actions"
-                    >
-                        <MoreHorizontal className="w-4 h-4 text-slate-500" />
-                    </button>
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                    {/* Title + Actions row */}
+                    <div className="flex items-start justify-between gap-2">
+                        <Link href={`/contracts/${contract.id}/edit`} className="min-w-0 flex-1">
+                            <p className="font-medium text-slate-900 truncate text-sm sm:text-base">{contract.title}</p>
+                        </Link>
+                        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                            <span className="text-xs text-slate-400 hidden md:block whitespace-nowrap">
+                                {formatTimeAgo(contract.updated_at)}
+                            </span>
+                            <div className="relative">
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setOpenDropdown(openDropdown === contract.id ? null : contract.id);
+                                    }}
+                                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 min-h-[32px] min-w-[32px] flex items-center justify-center"
+                                    aria-label="More actions"
+                                >
+                                    <MoreHorizontal className="w-4 h-4 text-slate-500" />
+                                </button>
                     {openDropdown === contract.id && (
                         <>
                             <div className="fixed inset-0 z-10" onClick={() => setOpenDropdown(null)} />
@@ -468,10 +446,31 @@ const ContractRow = memo(function ContractRow({
                             </div>
                         </>
                     )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Badges row */}
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1.5">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${typeDisplay.bg} ${typeDisplay.color}`}>
+                            {typeDisplay.label}
+                        </span>
+                        {contract.source_type === "uploaded" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700">
+                                <Upload className="w-3 h-3" />
+                                Uploaded
+                            </span>
+                        )}
+                        <StatusBadge status={contract.status} />
+                        <span className="hidden sm:inline-flex items-center gap-1 text-xs text-slate-500">
+                            <span>{jurisdictionDisplay.flag}</span>
+                            <span>{jurisdictionDisplay.label}</span>
+                        </span>
+                        <div className="hidden sm:block">
+                            <PaymentBadge contract={contract} />
+                        </div>
+                    </div>
                 </div>
-                <Link href={`/contracts/${contract.id}/edit`}>
-                    <ArrowRight className="w-4 h-4 text-slate-400" />
-                </Link>
             </div>
         </div>
     );
