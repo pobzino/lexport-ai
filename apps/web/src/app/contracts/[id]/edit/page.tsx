@@ -195,7 +195,7 @@ export default function ContractEditorPage() {
   const [editingClause, setEditingClause] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState<string>("");
   const [editedTitle, setEditedTitle] = useState<string>("");
-  const [showChat, setShowChat] = useState(true);
+  const [showChat, setShowChat] = useState(false);
   const [expandedClauses, setExpandedClauses] = useState<Set<string>>(new Set());
 
   // Signature field state
@@ -287,7 +287,18 @@ export default function ContractEditorPage() {
   type PanelName = 'chat' | 'signerPanel' | 'fillBlanksPanel' | 'paymentSettings' |
     'invoicePanel' | 'comments' | 'versionHistory' | 'riskAnalysis' | 'reviewPanel' | 'sectionExplainer';
 
-  const [openPanels, setOpenPanels] = useState<PanelName[]>(['chat']); // chat is open by default
+  // Chat open by default on desktop only (lg: 1024px+)
+  const [openPanels, setOpenPanels] = useState<PanelName[]>([]);
+  const hasInitPanels = useRef(false);
+  useEffect(() => {
+    if (!hasInitPanels.current) {
+      hasInitPanels.current = true;
+      if (window.innerWidth >= 1024) {
+        setOpenPanels(['chat']);
+        setShowChat(true);
+      }
+    }
+  }, []);
 
   // Helper to open a panel while enforcing max 2 limit
   const openPanel = useCallback((panelName: PanelName) => {
@@ -1379,11 +1390,11 @@ export default function ContractEditorPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              {/* Payment Settings */}
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              {/* Payment Settings — hidden on mobile, in tools menu */}
               <button
                 onClick={() => togglePanel('paymentSettings')}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showPaymentSettings
+                className={`hidden sm:flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showPaymentSettings
                   ? "bg-emerald-600 text-white"
                   : paymentRequired
                     ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
@@ -1399,7 +1410,7 @@ export default function ContractEditorPage() {
               {/* AI Chat Toggle */}
               <button
                 onClick={() => togglePanel('chat')}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showChat
+                className={`flex items-center gap-1.5 px-2 sm:px-3 py-2 text-sm rounded-lg transition-all ${showChat
                   ? "bg-[#529ec6] text-white"
                   : "text-slate-600 hover:bg-slate-100"
                   }`}
@@ -1408,7 +1419,7 @@ export default function ContractEditorPage() {
                 <span className="hidden sm:inline">AI</span>
               </button>
 
-              {/* Risk Analysis */}
+              {/* Risk Analysis — hidden on mobile, in tools menu */}
               <button
                 onClick={() => {
                   if (showRiskAnalysis) {
@@ -1418,7 +1429,7 @@ export default function ContractEditorPage() {
                     if (!riskAnalysis) fetchRiskAnalysis();
                   }
                 }}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showRiskAnalysis
+                className={`hidden sm:flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showRiskAnalysis
                   ? "bg-amber-500 text-white"
                   : "text-slate-600 hover:bg-slate-100"
                   }`}
@@ -1427,11 +1438,11 @@ export default function ContractEditorPage() {
                 <span className="hidden sm:inline">Risk</span>
               </button>
 
-              {/* Review Panel - hide for sign_only contracts */}
+              {/* Review Panel — hidden on mobile */}
               {contract.processing_mode !== "sign_only" && (
                 <button
                   onClick={() => togglePanel('reviewPanel')}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showReviewPanel
+                  className={`hidden sm:flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showReviewPanel
                     ? "bg-[#202e46] text-white"
                     : "text-slate-600 hover:bg-slate-100"
                     }`}
@@ -1441,22 +1452,22 @@ export default function ContractEditorPage() {
                 </button>
               )}
 
-              {/* Signature Fields - prominent button for sign_only contracts */}
+              {/* Signature Fields — keep visible (primary action for uploaded) */}
               {contract.processing_mode === "sign_only" && !isLocked && (
                 <button
                   onClick={() => setShowDefineSigners(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all bg-[#529ec6] text-white hover:bg-[#4a8db3]"
+                  className="flex items-center gap-1.5 px-2 sm:px-3 py-2 text-sm rounded-lg transition-all bg-[#529ec6] text-white hover:bg-[#4a8db3]"
                 >
                   <PenTool className="w-4 h-4" />
                   <span className="hidden sm:inline">Place Fields</span>
                 </button>
               )}
 
-              {/* Fill Blanks - only show if there are blanks and not locked */}
+              {/* Fill Blanks — hidden on mobile, in tools menu */}
               {blankCounts.total > 0 && !isLocked && (
                 <button
                   onClick={() => togglePanel('fillBlanksPanel')}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showFillBlanksPanel
+                  className={`hidden sm:flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showFillBlanksPanel
                     ? "bg-amber-500 text-white"
                     : blankCounts.filled === blankCounts.total
                       ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
@@ -1476,10 +1487,10 @@ export default function ContractEditorPage() {
                 </button>
               )}
 
-              {/* Section Guide */}
+              {/* Section Guide — hidden on mobile */}
               <button
                 onClick={() => togglePanel('sectionExplainer')}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showSectionExplainer
+                className={`hidden sm:flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg transition-all ${showSectionExplainer
                   ? "bg-[#529ec6] text-white"
                   : "text-slate-600 hover:bg-slate-100"
                   }`}
@@ -1490,7 +1501,7 @@ export default function ContractEditorPage() {
               </button>
 
               {/* Divider */}
-              <div className="w-px h-6 bg-slate-200 mx-1" />
+              <div className="w-px h-6 bg-slate-200 mx-0.5 sm:mx-1" />
 
               {/* More Dropdown */}
               <div className="relative" ref={toolsMenuRef}>
@@ -1711,10 +1722,10 @@ export default function ContractEditorPage() {
               {/* Primary CTA */}
               <Link
                 href={`/contracts/${contractId}/sign`}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all"
+                className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all"
               >
                 <Send className="w-4 h-4" />
-                <span>Send</span>
+                <span className="hidden sm:inline">Send</span>
               </Link>
             </div>
           </div>
