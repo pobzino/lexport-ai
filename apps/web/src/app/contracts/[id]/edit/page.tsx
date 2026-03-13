@@ -590,8 +590,8 @@ export default function ContractEditorPage() {
   };
 
   const renderClauseContent = (content: string, clauseId: string) => {
-    // Pattern matches 5+ underscores (the standard blank format)
-    const blankPattern = /_{5,}/g;
+    // Pattern matches _____[Label]_____ (new labeled format) or plain _____ (legacy)
+    const blankPattern = /_{5,}(?:\[([^\]]+)\]_{5,})?/g;
     const parts: (string | React.ReactNode)[] = [];
     let lastIndex = 0;
     let match;
@@ -607,10 +607,16 @@ export default function ContractEditorPage() {
       const blankKey = `${clauseId}-blank-${blankIndex}`;
       const filledValue = filledBlanks.get(blankKey) || "";
 
-      // Infer label from surrounding text
-      const contextBefore = content.slice(Math.max(0, match.index - 80), match.index);
-      const contextAfter = content.slice(match.index + match[0].length, match.index + match[0].length + 40);
-      const label = inferBlankLabel(contextBefore, contextAfter);
+      // Use AI-provided label if available, otherwise infer from context
+      const aiLabel = match[1]; // Captured from [Label] in the pattern
+      let label: string;
+      if (aiLabel) {
+        label = aiLabel;
+      } else {
+        const contextBefore = content.slice(Math.max(0, match.index - 80), match.index);
+        const contextAfter = content.slice(match.index + match[0].length, match.index + match[0].length + 40);
+        label = inferBlankLabel(contextBefore, contextAfter);
+      }
 
       // Add the fillable blank input
       parts.push(
@@ -665,7 +671,7 @@ export default function ContractEditorPage() {
   const countBlanks = (): { total: number; filled: number } => {
     if (!contract) return { total: 0, filled: 0 };
 
-    const blankPattern = /_{5,}/g;
+    const blankPattern = /_{5,}(?:\[[^\]]+\]_{5,})?/g;
     let totalBlanks = 0;
     let filledCount = 0;
 
@@ -711,6 +717,7 @@ export default function ContractEditorPage() {
     sectionTitle: string;
     contextBefore: string;
     contextAfter: string;
+    aiLabel?: string;
     index: number;
   }
 
@@ -718,7 +725,6 @@ export default function ContractEditorPage() {
     if (!contract) return [];
 
     const blanks: BlankInfo[] = [];
-    const blankPattern = /_{5,}/g;
 
     // Helper to extract context around a blank
     const getContext = (text: string, matchIndex: number, matchLength: number) => {
@@ -734,7 +740,7 @@ export default function ContractEditorPage() {
     // Extract from preamble
     let match;
     let blankIndex = 0;
-    const preambleRegex = /_{5,}/g;
+    const preambleRegex = /_{5,}(?:\[([^\]]+)\]_{5,})?/g;
     while ((match = preambleRegex.exec(contract.content.preamble)) !== null) {
       const context = getContext(contract.content.preamble, match.index, match[0].length);
       blanks.push({
@@ -742,6 +748,7 @@ export default function ContractEditorPage() {
         sectionId: "preamble",
         sectionTitle: "Preamble",
         ...context,
+        aiLabel: match[1],
         index: blankIndex,
       });
       blankIndex++;
@@ -750,7 +757,7 @@ export default function ContractEditorPage() {
     // Extract from recitals
     if (contract.content.recitals) {
       blankIndex = 0;
-      const recitalsRegex = /_{5,}/g;
+      const recitalsRegex = /_{5,}(?:\[([^\]]+)\]_{5,})?/g;
       while ((match = recitalsRegex.exec(contract.content.recitals)) !== null) {
         const context = getContext(contract.content.recitals, match.index, match[0].length);
         blanks.push({
@@ -758,6 +765,7 @@ export default function ContractEditorPage() {
           sectionId: "recitals",
           sectionTitle: "Recitals",
           ...context,
+          aiLabel: match[1],
           index: blankIndex,
         });
         blankIndex++;
@@ -767,7 +775,7 @@ export default function ContractEditorPage() {
     // Extract from clauses
     for (const clause of contract.content.clauses) {
       blankIndex = 0;
-      const clauseRegex = /_{5,}/g;
+      const clauseRegex = /_{5,}(?:\[([^\]]+)\]_{5,})?/g;
       while ((match = clauseRegex.exec(clause.content)) !== null) {
         const context = getContext(clause.content, match.index, match[0].length);
         blanks.push({
@@ -775,6 +783,7 @@ export default function ContractEditorPage() {
           sectionId: clause.id,
           sectionTitle: clause.title,
           ...context,
+          aiLabel: match[1],
           index: blankIndex,
         });
         blankIndex++;
@@ -1235,14 +1244,14 @@ export default function ContractEditorPage() {
 
   // Apply filled blanks to content string
   const applyFilledBlanks = (content: string, sectionId: string): string => {
-    const blankPattern = /_{5,}/g;
+    const blankPattern = /_{5,}(?:\[[^\]]+\]_{5,})?/g;
     let blankIndex = 0;
-    return content.replace(blankPattern, () => {
+    return content.replace(blankPattern, (fullMatch) => {
       const blankKey = `${sectionId}-blank-${blankIndex}`;
       const filledValue = filledBlanks.get(blankKey);
       blankIndex++;
-      // Keep the underscores if not filled, otherwise use the value
-      return filledValue || "_____";
+      // Keep the original placeholder if not filled, otherwise use the value
+      return filledValue || fullMatch;
     });
   };
 
@@ -2464,9 +2473,9 @@ export default function ContractEditorPage() {
                         </button>
                       </div>
 
-                      {/* Inferred label */}
+                      {/* Label — AI-provided or inferred from context */}
                       {(() => {
-                        const label = inferBlankLabel(blank.contextBefore, blank.contextAfter);
+                        const label = blank.aiLabel || inferBlankLabel(blank.contextBefore, blank.contextAfter);
                         return label !== "fill in" ? (
                           <p className={`text-xs font-semibold mb-1.5 ${isFilled ? "text-emerald-700" : "text-amber-700"}`}>
                             {label}
@@ -2488,7 +2497,7 @@ export default function ContractEditorPage() {
                         type="text"
                         value={filledBlanks.get(blank.key) || ""}
                         onChange={(e) => handleBlankChange(blank.key, e.target.value)}
-                        placeholder={inferBlankLabel(blank.contextBefore, blank.contextAfter)}
+                        placeholder={blank.aiLabel || inferBlankLabel(blank.contextBefore, blank.contextAfter)}
                         className={`w-full px-3 py-2 text-sm rounded-md border transition-all focus:outline-none focus:ring-2 ${isFilled
                           ? "border-emerald-300 bg-white focus:ring-emerald-400"
                           : "border-amber-300 bg-white focus:ring-amber-400"

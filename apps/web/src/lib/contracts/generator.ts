@@ -386,7 +386,7 @@ FORMATTING REQUIREMENTS:
 2. Include a Definitions section for key terms
 3. Use professional signature block with "By:" line format
 4. Generate clauses appropriate for this specific contract type
-5. For optional fields not provided, use placeholder format: _____ (5 underscores)
+5. For optional fields not provided, use labeled placeholder format: _____[Description]_____ where Description is a short label for what should be filled in (e.g., _____[Company Name]_____, _____[Effective Date]_____, _____[Payment Amount]_____). Always include a descriptive label.
 
 Key requirements for ${jurisdictionName}:
 ${getJurisdictionRequirements(jurisdiction)}
@@ -553,7 +553,7 @@ FORMATTING REQUIREMENTS:
 2. Include a Definitions section for key terms
 3. Use professional signature block with "By:" line format
 4. All clauses must be appropriate for the specific contract type
-5. For optional fields not provided, use placeholder format: _____ (5 underscores) that users can fill in later
+5. For optional fields not provided, use labeled placeholder format: _____[Description]_____ where Description is a short label for what should be filled in (e.g., _____[Company Name]_____, _____[Effective Date]_____, _____[State of Incorporation]_____, _____[Payment Amount]_____). Always include a descriptive label between the brackets.
 
 SIGNATURE BLOCK FOR MULTIPLE SIGNERS:
 When there are multiple signers for the same party (e.g., multiple investors, multiple founders, co-clients):
