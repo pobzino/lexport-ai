@@ -1534,11 +1534,13 @@ export default function NewContractPage() {
                           <div key={key} className="flex gap-2">
                             <span className="text-slate-500">{formatFieldLabel(key)}:</span>
                             <span className="text-slate-900 font-medium">{
-                              Array.isArray(value)
-                                ? value.map(v => (typeof v === "object" && v !== null ? (v as Record<string, unknown>).name || JSON.stringify(v) : String(v))).join(", ")
-                                : typeof value === "object" && value !== null
-                                  ? (value as Record<string, unknown>).name ? String((value as Record<string, unknown>).name) : JSON.stringify(value)
-                                  : String(value)
+                              value === null || value === undefined
+                                ? "Not specified"
+                                : Array.isArray(value)
+                                  ? value.map(v => (typeof v === "object" && v !== null ? (v as Record<string, unknown>).name || JSON.stringify(v) : String(v))).join(", ") || "Not specified"
+                                  : typeof value === "object" && value !== null
+                                    ? (value as Record<string, unknown>).name ? String((value as Record<string, unknown>).name) : JSON.stringify(value)
+                                    : String(value) === "null" ? "Not specified" : String(value)
                             }</span>
                           </div>
                         ))}
@@ -4314,12 +4316,20 @@ function formatFieldLabel(key: string): string {
 }
 
 function formatFieldValue(value: unknown): string {
+  if (value === null || value === undefined) return "Not specified";
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "object" && item !== null && "name" in item ? (item as { name: string }).name : String(item)))
+      .filter(Boolean)
+      .join(", ") || "Not specified";
+  }
   if (typeof value === "object" && value !== null) {
     if ("name" in value) return (value as { name: string }).name;
     return JSON.stringify(value);
   }
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  return String(value);
+  const str = String(value);
+  return str === "null" || str === "undefined" ? "Not specified" : str;
 }
 
 type SignerSyncMapping = {
