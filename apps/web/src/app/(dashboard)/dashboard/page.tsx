@@ -306,18 +306,18 @@ export default async function DashboardPage() {
       <UsageWarning />
 
       {/* Welcome + New Contract CTA */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
             Welcome back, {firstName}
           </h1>
-          <p className="text-slate-500 mt-1">
+          <p className="text-slate-500 mt-0.5 text-sm sm:text-base">
             Create and manage your legal contracts
           </p>
         </div>
         <Link
           href="/contracts/new"
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#202e46] text-white text-sm font-semibold rounded-xl hover:bg-[#1a2539] transition-colors"
+          className="inline-flex items-center justify-center sm:justify-start gap-2 px-4 py-2.5 bg-[#202e46] text-white text-sm font-semibold rounded-xl hover:bg-[#1a2539] transition-colors flex-shrink-0"
         >
           <Plus className="w-4 h-4" />
           New Contract
@@ -325,36 +325,36 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-3 sm:gap-4">
         <Link
           href="/contracts"
-          className="bg-white rounded-xl border border-slate-200 p-6 hover:border-slate-300 hover:shadow-sm transition-all group"
+          className="bg-white rounded-xl border border-slate-200 p-3 sm:p-6 hover:border-slate-300 hover:shadow-sm transition-all group"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-500">Total Contracts</p>
-              <p className="text-3xl font-bold text-slate-900">
+              <p className="text-xs sm:text-sm text-slate-500">Contracts</p>
+              <p className="text-xl sm:text-3xl font-bold text-slate-900">
                 {stats.totalContracts}
               </p>
             </div>
-            <div className="w-12 h-12 bg-[#529ec6]/10 rounded-lg flex items-center justify-center group-hover:bg-[#529ec6]/15 transition-colors">
-              <FileText className="w-6 h-6 text-[#529ec6]" />
+            <div className="w-9 h-9 sm:w-12 sm:h-12 bg-[#529ec6]/10 rounded-lg flex items-center justify-center group-hover:bg-[#529ec6]/15 transition-colors">
+              <FileText className="w-4 h-4 sm:w-6 sm:h-6 text-[#529ec6]" />
             </div>
           </div>
         </Link>
 
         <Link
           href="/contracts?status=pending_signature"
-          className="bg-white rounded-xl border border-slate-200 p-6 hover:border-slate-300 hover:shadow-sm transition-all group"
+          className="bg-white rounded-xl border border-slate-200 p-3 sm:p-6 hover:border-slate-300 hover:shadow-sm transition-all group"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-500">Pending Signatures</p>
-              <p className="text-3xl font-bold text-slate-900">
+              <p className="text-xs sm:text-sm text-slate-500">Pending</p>
+              <p className="text-xl sm:text-3xl font-bold text-slate-900">
                 {stats.pendingSignatures}
               </p>
             </div>
-            <div className="w-12 h-12 bg-amber-50 rounded-lg flex items-center justify-center group-hover:bg-amber-100 transition-colors">
+            <div className="hidden sm:flex w-12 h-12 bg-amber-50 rounded-lg items-center justify-center group-hover:bg-amber-100 transition-colors">
               <PenTool className="w-6 h-6 text-amber-600" />
             </div>
           </div>
@@ -362,16 +362,16 @@ export default async function DashboardPage() {
 
         <Link
           href="/contracts?status=signed"
-          className="bg-white rounded-xl border border-slate-200 p-6 hover:border-slate-300 hover:shadow-sm transition-all group"
+          className="bg-white rounded-xl border border-slate-200 p-3 sm:p-6 hover:border-slate-300 hover:shadow-sm transition-all group"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-500">Completed This Month</p>
-              <p className="text-3xl font-bold text-slate-900">
+              <p className="text-xs sm:text-sm text-slate-500">Completed</p>
+              <p className="text-xl sm:text-3xl font-bold text-slate-900">
                 {stats.completedThisMonth}
               </p>
             </div>
-            <div className="w-12 h-12 bg-emerald-50 rounded-lg flex items-center justify-center group-hover:bg-emerald-100 transition-colors">
+            <div className="hidden sm:flex w-12 h-12 bg-emerald-50 rounded-lg items-center justify-center group-hover:bg-emerald-100 transition-colors">
               <Clock className="w-6 h-6 text-emerald-600" />
             </div>
           </div>
