@@ -539,6 +539,56 @@ export default function ContractEditorPage() {
   }, []);
 
   // Render clause content with fillable blanks highlighted
+  // Infer a descriptive placeholder label from surrounding text context
+  const inferBlankLabel = (textBefore: string, textAfter: string): string => {
+    const before = textBefore.toLowerCase().trim();
+    const after = textAfter.toLowerCase().trim();
+
+    // Party/entity patterns
+    if (/\(\d+\)\s*$/.test(before) || /^this\s/.test(before)) return "Party Name";
+    if (/,\s*a\s*$/.test(before) && /organized|incorporated|formed/.test(after)) return "Entity Type";
+    if (/laws of\s*$/.test(before)) return "State / Jurisdiction";
+    if (/place of business at\s*$/.test(before) || /address[:\s]*$/i.test(before) || /located at\s*$/i.test(before)) return "Address";
+    if (/\("\s*$/.test(before) || /\(\s*"$/.test(before)) return "Short Name";
+    if (/between\s*$/i.test(before)) return "Party Name";
+    if (/hereinafter\s*(referred to as\s*)?$/i.test(before)) return "Short Name";
+
+    // Date patterns
+    if (/dated?\s*$/i.test(before) || /effective\s*(as\s*of\s*)?$/i.test(before) || /entered into\s*(on\s*)?$/i.test(before)) return "Date";
+    if (/day of\s*$/i.test(before)) return "Month, Year";
+    if (/on this\s*$/i.test(before)) return "Date";
+    if (/^,?\s*\d{4}/i.test(after)) return "Month and Day";
+    if (/commencing\s*(on\s*)?$/i.test(before) || /beginning\s*(on\s*)?$/i.test(before)) return "Start Date";
+    if (/expir(ing|es|ation)\s*(on\s*)?$/i.test(before) || /terminat(ing|es)\s*(on\s*)?$/i.test(before) || /ending\s*(on\s*)?$/i.test(before)) return "End Date";
+
+    // Financial patterns
+    if (/\$\s*$/.test(before) || /amount of\s*$/i.test(before) || /sum of\s*$/i.test(before) || /fee of\s*$/i.test(before)) return "Amount";
+    if (/rate of\s*$/i.test(before)) return "Rate";
+    if (/payment of\s*$/i.test(before)) return "Payment Amount";
+
+    // People/role patterns
+    if (/name[:\s]*$/i.test(before)) return "Full Name";
+    if (/email[:\s]*$/i.test(before)) return "Email Address";
+    if (/phone[:\s]*$/i.test(before) || /telephone[:\s]*$/i.test(before)) return "Phone Number";
+    if (/title[:\s]*$/i.test(before) || /position[:\s]*$/i.test(before)) return "Title";
+    if (/by[:\s]*$/i.test(before) && /title|name|its/i.test(after)) return "Signatory Name";
+
+    // Duration/time patterns
+    if (/period of\s*$/i.test(before) || /term of\s*$/i.test(before) || /within\s*$/i.test(before)) return "Time Period";
+    if (/\b(days?|months?|years?|weeks?|hours?)\s*$/i.test(after)) return "Number";
+
+    // Location patterns
+    if (/state of\s*$/i.test(before) || /county of\s*$/i.test(before)) return "Location";
+    if (/in\s*$/i.test(before) && /,?\s*(state|county|province)/i.test(after)) return "City";
+    if (/governed by.*laws of\s*$/i.test(before) || /governing law.*$/i.test(before)) return "Governing State";
+
+    // Description patterns
+    if (/services?\s*(include|described|consisting)\s*$/i.test(before) || /scope of work/i.test(before)) return "Description";
+    if (/project\s*(titled?|named?|called)\s*$/i.test(before)) return "Project Name";
+
+    return "fill in";
+  };
+
   const renderClauseContent = (content: string, clauseId: string) => {
     // Pattern matches 5+ underscores (the standard blank format)
     const blankPattern = /_{5,}/g;
@@ -557,6 +607,11 @@ export default function ContractEditorPage() {
       const blankKey = `${clauseId}-blank-${blankIndex}`;
       const filledValue = filledBlanks.get(blankKey) || "";
 
+      // Infer label from surrounding text
+      const contextBefore = content.slice(Math.max(0, match.index - 80), match.index);
+      const contextAfter = content.slice(match.index + match[0].length, match.index + match[0].length + 40);
+      const label = inferBlankLabel(contextBefore, contextAfter);
+
       // Add the fillable blank input
       parts.push(
         <span key={blankKey} className="inline-block relative mx-0.5">
@@ -565,7 +620,7 @@ export default function ContractEditorPage() {
             type="text"
             value={filledValue}
             onChange={(e) => handleBlankChange(blankKey, e.target.value)}
-            placeholder="fill in"
+            placeholder={label}
             className={`
               inline-block min-w-[80px] max-w-[200px] px-2 py-0.5
               text-center font-medium rounded
@@ -577,7 +632,7 @@ export default function ContractEditorPage() {
                 : "bg-amber-50 border-amber-400 text-amber-700 focus:ring-amber-400 animate-pulse"
               }
             `}
-            style={{ width: `${Math.max(80, filledValue.length * 10 + 20)}px` }}
+            style={{ width: `${Math.max(filledValue ? 80 : Math.max(80, label.length * 8 + 20), filledValue.length * 10 + 20)}px` }}
             onClick={(e) => e.stopPropagation()}
           />
           {!filledValue && (
@@ -2409,6 +2464,16 @@ export default function ContractEditorPage() {
                         </button>
                       </div>
 
+                      {/* Inferred label */}
+                      {(() => {
+                        const label = inferBlankLabel(blank.contextBefore, blank.contextAfter);
+                        return label !== "fill in" ? (
+                          <p className={`text-xs font-semibold mb-1.5 ${isFilled ? "text-emerald-700" : "text-amber-700"}`}>
+                            {label}
+                          </p>
+                        ) : null;
+                      })()}
+
                       {/* Context preview */}
                       <p className="text-xs text-slate-600 mb-2 leading-relaxed">
                         <span className="text-slate-400">{blank.contextBefore}</span>
@@ -2423,7 +2488,7 @@ export default function ContractEditorPage() {
                         type="text"
                         value={filledBlanks.get(blank.key) || ""}
                         onChange={(e) => handleBlankChange(blank.key, e.target.value)}
-                        placeholder="Enter value..."
+                        placeholder={inferBlankLabel(blank.contextBefore, blank.contextAfter)}
                         className={`w-full px-3 py-2 text-sm rounded-md border transition-all focus:outline-none focus:ring-2 ${isFilled
                           ? "border-emerald-300 bg-white focus:ring-emerald-400"
                           : "border-amber-300 bg-white focus:ring-amber-400"
