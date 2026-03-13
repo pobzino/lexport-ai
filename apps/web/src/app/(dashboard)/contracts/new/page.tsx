@@ -746,10 +746,8 @@ export default function NewContractPage() {
         setJurisdiction(data.analysis.jurisdiction as Jurisdiction);
       }
 
-      // Pre-fill extracted fields into form data
-      if (data.analysis.extractedFields) {
-        setFormData(prev => ({ ...prev, ...data.analysis.extractedFields }));
-      }
+      // Replace form data with freshly extracted fields (clear stale data from previous intake)
+      setFormData(data.analysis.extractedFields ?? {});
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {

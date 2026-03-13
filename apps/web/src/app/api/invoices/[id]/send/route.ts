@@ -129,7 +129,7 @@ export async function POST(
         </tr>
         <tr style="border-top: 1px solid #e5e7eb;">
           <td style="padding: 16px 0 8px; color: #111827; font-size: 16px; font-weight: 600;">Amount Due</td>
-          <td style="padding: 16px 0 8px; text-align: right; font-size: 20px; font-weight: 700; color: #7c3aed;">${formattedAmount}</td>
+          <td style="padding: 16px 0 8px; text-align: right; font-size: 20px; font-weight: 700; color: #529ec6;">${formattedAmount}</td>
         </tr>
       </table>
     </div>
@@ -142,14 +142,14 @@ export async function POST(
     ` : ""}
 
     <div style="text-align: center; margin: 32px 0;">
-      <a href="${paymentUrl}" style="display: inline-block; background-color: #7c3aed; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">View &amp; Pay Invoice</a>
+      <a href="${paymentUrl}" style="display: inline-block; background-color: #529ec6; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">View &amp; Pay Invoice</a>
     </div>
 
     <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
 
     <p style="margin: 16px 0; font-size: 12px; color: #9ca3af;">
       If the button doesn't work, copy and paste this link into your browser:<br>
-      <a href="${paymentUrl}" style="color: #7c3aed; word-break: break-all;">${paymentUrl}</a>
+      <a href="${paymentUrl}" style="color: #529ec6; word-break: break-all;">${paymentUrl}</a>
     </p>
   </div>
 
