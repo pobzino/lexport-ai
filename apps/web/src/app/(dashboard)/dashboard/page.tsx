@@ -381,16 +381,16 @@ export default async function DashboardPage() {
       {/* Attention Feed */}
       {attentionItems.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">What needs attention</h2>
-              <p className="text-sm text-slate-500">Sorted by urgency</p>
+              <h2 className="text-base sm:text-lg font-semibold text-slate-900">What needs attention</h2>
+              <p className="text-xs sm:text-sm text-slate-500">Sorted by urgency</p>
             </div>
             <Link
               href="/contracts"
-              className="text-sm text-[#529ec6] hover:underline"
+              className="text-xs sm:text-sm text-[#529ec6] hover:underline flex-shrink-0"
             >
-              View all contracts
+              View all
             </Link>
           </div>
           <div className="divide-y divide-slate-100">
@@ -405,29 +405,33 @@ export default async function DashboardPage() {
                       : CheckCircle2;
 
               return (
-                <div key={item.id} className="px-6 py-5 flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-full ${item.iconBg} flex items-center justify-center flex-shrink-0`}>
-                    <Icon className={`w-5 h-5 ${item.iconColor}`} />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-semibold text-slate-900 truncate">{item.title}</p>
-                      <span className={`text-xs px-3 py-1 rounded-full font-medium ${item.badgeColor}`}>
-                        {item.badge}
-                      </span>
+                <div key={item.id} className="px-4 sm:px-6 py-3 sm:py-5">
+                  {/* Top: icon + title + badge */}
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-full ${item.iconBg} flex items-center justify-center flex-shrink-0`}>
+                      <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${item.iconColor}`} />
                     </div>
-                    <p className="text-slate-500 mt-1">{item.subtitle}</p>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{item.title}</p>
+                        <span className={`text-xs px-2 sm:px-3 py-0.5 sm:py-1 rounded-full font-medium ${item.badgeColor}`}>
+                          {item.badge}
+                        </span>
+                      </div>
+                      <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">{item.subtitle}</p>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Actions: below content on mobile, inline on desktop */}
+                  <div className="flex items-center gap-2 mt-2.5 sm:mt-0 sm:float-right sm:-translate-y-full ml-12 sm:ml-0">
                     {item.actions.map((action) =>
                       action.download ? (
                         <a
                           key={`${item.id}-${action.label}`}
                           href={action.href}
                           download
-                          className={`inline-flex items-center px-5 py-2.5 rounded-full text-sm font-medium transition-colors ${action.primary
+                          className={`inline-flex items-center px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${action.primary
                             ? "bg-[#202e46] text-white hover:bg-[#1a2539]"
                             : "border border-slate-200 text-slate-700 hover:bg-slate-50"
                             }`}
@@ -438,7 +442,7 @@ export default async function DashboardPage() {
                         <Link
                           key={`${item.id}-${action.label}`}
                           href={action.href}
-                          className={`inline-flex items-center px-5 py-2.5 rounded-full text-sm font-medium transition-colors ${action.primary
+                          className={`inline-flex items-center px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${action.primary
                             ? "bg-[#202e46] text-white hover:bg-[#1a2539]"
                             : "border border-slate-200 text-slate-700 hover:bg-slate-50"
                             }`}
