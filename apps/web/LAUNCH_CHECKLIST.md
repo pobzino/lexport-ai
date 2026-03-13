@@ -1,5 +1,8 @@
 # Lexport AI — Production Launch Checklist
 
+> Items marked `[x]` have been verified during development/testing.
+> Items marked `[ ]` still need manual verification before launch.
+
 ## Critical Path (Must Pass Before Launch)
 
 ### Authentication & Accounts
@@ -8,27 +11,28 @@
 - [ ] Email/password login works
 - [ ] Password reset flow sends email and completes
 - [ ] Logout clears session properly
-- [ ] Protected routes redirect unauthenticated users to login
+- [x] Protected routes redirect unauthenticated users to login
 - [ ] OAuth callback handles errors gracefully
-- [ ] Session persists across page refreshes
+- [x] Session persists across page refreshes
 
 ### Contract Creation (Core Flow)
-- [ ] Smart intake: type a description → AI analyzes and recommends contract type
-- [ ] Intake follow-up questions appear and are required
-- [ ] Details step: signers, agreement details, optional clauses all render
-- [ ] Review step: summary displays correctly (no raw JSON, no "null" values)
-- [ ] AI generation completes successfully (streaming)
-- [ ] Generated contract renders in editor with all clauses
-- [ ] Template match: instant generation from pre-built templates works
+- [x] Smart intake: type a description → AI analyzes and recommends contract type
+- [x] Intake follow-up questions appear and are required
+- [x] Details step: signers, agreement details, optional clauses all render
+- [x] Review step: summary displays correctly (no raw JSON, no "null" values)
+- [ ] AI generation completes successfully (streaming) — *OpenAI transient error hit during testing, retry needed*
+- [x] Generated contract renders in editor with all clauses
+- [x] Template match: instant generation from pre-built templates works
 - [ ] Contract saved to database after generation
 - [ ] Contract appears in dashboard contracts list
+- [x] Stale draft data cleared on new intake (no cross-type field corruption)
 
 ### Contract Editor
-- [ ] All clauses render with correct formatting
-- [ ] Labeled blanks display with descriptive labels (not generic "fill in")
-- [ ] Fill Blanks side panel opens and lists all blanks with labels
+- [x] All clauses render with correct formatting
+- [x] Labeled blanks display with descriptive labels (not generic "fill in")
+- [x] Fill Blanks side panel opens and lists all blanks with labels
 - [ ] Filling a blank updates the document inline
-- [ ] Blanks counter updates (e.g., "3/15 completed")
+- [x] Blanks counter updates (e.g., "0/15 completed")
 - [ ] AI chat panel opens and responds to questions
 - [ ] Edit clause inline works
 - [ ] Save/auto-save works
@@ -51,10 +55,10 @@
 - [ ] Stripe checkout: upgrade from free to pro works
 - [ ] Stripe checkout: upgrade from free to team works
 - [ ] Stripe webhook processes subscription events correctly
-- [ ] Post-checkout verification syncs subscription status
-- [ ] Subscription tier reflected in UI (dashboard, settings)
-- [ ] Usage limits enforced per tier (free: 1 contract/month)
-- [ ] Upgrade prompt shown when limit reached
+- [x] Post-checkout verification syncs subscription status
+- [x] Subscription tier reflected in UI (dashboard, settings)
+- [x] Usage limits enforced per tier (free: 1 contract/month)
+- [x] Upgrade prompt shown when limit reached
 - [ ] Stripe customer portal accessible from settings
 - [ ] Payment collection in contracts (if enabled) works
 
@@ -70,25 +74,25 @@
 ## Infrastructure & Deployment
 
 ### Environment Variables
-- [ ] `NEXT_PUBLIC_SUPABASE_URL` set in Netlify
-- [ ] `NEXT_PUBLIC_SUPABASE_ANON_KEY` set in Netlify
-- [ ] `SUPABASE_SERVICE_ROLE_KEY` set in Netlify
-- [ ] `OPENAI_API_KEY` set and valid (check balance/quota)
+- [x] `NEXT_PUBLIC_SUPABASE_URL` set in Netlify
+- [x] `NEXT_PUBLIC_SUPABASE_ANON_KEY` set in Netlify
+- [x] `SUPABASE_SERVICE_ROLE_KEY` set in Netlify
+- [x] `OPENAI_API_KEY` set and valid (check balance/quota)
 - [ ] `STRIPE_SECRET_KEY` set (production key, not test)
 - [ ] `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` set (production)
 - [ ] `STRIPE_WEBHOOK_SECRET` set for production endpoint
-- [ ] `RESEND_API_KEY` set and verified domain
-- [ ] `NEXT_PUBLIC_GTM_ID` set for Google Tag Manager
-- [ ] `NEXT_PUBLIC_POSTHOG_KEY` set for analytics
+- [x] `RESEND_API_KEY` set and verified domain
+- [x] `NEXT_PUBLIC_GTM_ID` set for Google Tag Manager
+- [x] `NEXT_PUBLIC_POSTHOG_KEY` set for analytics
 - [ ] No test/development keys in production env
 
 ### Supabase
-- [ ] All migrations applied to production database
-- [ ] RLS policies enabled on all tables
-- [ ] RLS policies tested (users can only access own data)
+- [x] All migrations applied to production database
+- [x] RLS policies enabled on all tables
+- [x] RLS policies tested (users can only access own data)
 - [ ] Storage buckets configured with correct permissions
 - [ ] Auth email templates customized (not default Supabase)
-- [ ] Auth redirect URLs set to production domain (lexportai.com)
+- [x] Auth redirect URLs set to production domain (lexportai.com)
 - [ ] Google OAuth redirect URI points to production
 - [ ] Database backups enabled / point-in-time recovery on
 
@@ -100,17 +104,17 @@
 - [ ] Verify webhook delivery in Stripe dashboard
 
 ### Netlify / Hosting
-- [ ] Production build succeeds (`bun run build`)
-- [ ] No TypeScript errors (`bun run typecheck`)
+- [x] Production build succeeds (`bun run build`)
+- [x] No TypeScript errors (`bun run typecheck`)
 - [ ] No lint errors (`bun run lint`)
-- [ ] Custom domain `lexportai.com` configured and SSL active
+- [x] Custom domain `lexportai.com` configured and SSL active
 - [ ] `www.lexportai.com` redirects to `lexportai.com`
-- [ ] Netlify environment variables set (not committed to repo)
+- [x] Netlify environment variables set (not committed to repo)
 - [ ] Deploy previews disabled or restricted (to avoid leaking env vars)
 - [ ] Edge functions / serverless function timeout adequate (contract generation ~45s)
 
 ### DNS & Email
-- [ ] DNS records point to Netlify
+- [x] DNS records point to Netlify
 - [ ] SPF, DKIM, DMARC records set for `lexportai.com`
 - [ ] Resend domain verified for sending from `@lexportai.com`
 - [ ] Test email delivery (signature requests, invoice emails, password reset)
@@ -121,18 +125,18 @@
 ## SEO & Marketing Site
 
 ### Meta & OG Tags
-- [ ] `og:image` is PNG format (not SVG) — 1200x630
-- [ ] `apple-touch-icon` is PNG format (not SVG) — 180x180
-- [ ] Title and description set on all public pages
+- [x] `og:image` is PNG format (not SVG) — 1200x630
+- [x] `apple-touch-icon` is PNG format (not SVG) — 180x180
+- [x] Title and description set on all public pages
 - [ ] OG tags render correctly (test with opengraph.xyz or Twitter card validator)
-- [ ] Favicon renders in all browsers
+- [x] Favicon renders in all browsers
 
 ### Homepage
 - [ ] Hero section renders, CTA buttons work
 - [ ] Pricing section shows correct tiers and prices
 - [ ] FAQ section loads, accordion opens/closes
-- [ ] Footer links all resolve (no broken links)
-- [ ] `#faq` anchor scrolls to FAQ section
+- [x] Footer links all resolve (no broken links)
+- [x] `#faq` anchor scrolls to FAQ section
 - [ ] Navbar mobile menu opens/closes
 - [ ] "Get Started" / "Try Free" CTAs link to `/register`
 
@@ -147,10 +151,10 @@
 ## UX & Accessibility
 
 ### Dialogs & Feedback
-- [ ] No native `alert()` or `confirm()` calls anywhere (all replaced with toast/confirm dialog)
-- [ ] Destructive actions use confirmation dialog (delete contract, delete template, etc.)
-- [ ] Success/error feedback via toast notifications
-- [ ] Error states show meaningful messages (not raw error objects)
+- [x] No native `alert()` or `confirm()` calls anywhere (all replaced with toast/confirm dialog)
+- [x] Destructive actions use confirmation dialog (delete contract, delete template, etc.)
+- [x] Success/error feedback via toast notifications
+- [x] Error states show meaningful messages (not raw error objects)
 
 ### Responsive / Mobile
 - [ ] Homepage renders correctly on 375px viewport
@@ -160,14 +164,15 @@
 - [ ] Signing page works on mobile (canvas, form fields)
 
 ### Loading & Error States
-- [ ] Dashboard routes have `loading.tsx` (skeleton/spinner)
-- [ ] Dashboard routes have `error.tsx` (error boundary with retry)
-- [ ] Contract generation shows progress overlay
+- [x] Dashboard routes have `loading.tsx` (skeleton/spinner)
+- [x] Dashboard routes have `error.tsx` (error boundary with retry)
+- [x] Contract generation shows progress overlay
 - [ ] API errors don't show blank screens
 
 ### Brand & Visual
-- [ ] `--color-brand-600` is Lexport blue (#529ec6), not gray
-- [ ] Stripe embedded forms use Lexport blue (not purple #7c3aed)
+- [x] `--color-brand-600` is Lexport blue (#529ec6), not gray
+- [x] Stripe embedded forms use Lexport blue (not purple #7c3aed)
+- [x] Invoice email template uses Lexport blue (not purple)
 - [ ] Google OAuth button shows proper Google logo colors
 - [ ] Consistent typography and spacing across pages
 
@@ -176,16 +181,16 @@
 ## Security
 
 ### Data Protection
-- [ ] All API routes verify authenticated user
-- [ ] All API routes verify user owns the resource (contract, invoice, etc.)
+- [x] All API routes verify authenticated user
+- [x] All API routes verify user owns the resource (contract, invoice, etc.)
 - [ ] No hardcoded admin emails in source (use env var or DB flag)
-- [ ] Rate limiting active on AI generation endpoints
-- [ ] Rate limiting active on email-sending endpoints
+- [x] Rate limiting active on AI generation endpoints
+- [x] Rate limiting active on email-sending endpoints
 - [ ] Input sanitization on user-generated content
 - [ ] No secrets in client-side code or localStorage
 
 ### Headers & Config
-- [ ] HTTPS enforced (HTTP redirects to HTTPS)
+- [x] HTTPS enforced (HTTP redirects to HTTPS)
 - [ ] CORS configured correctly (no wildcard in production)
 - [ ] Content Security Policy headers set
 - [ ] X-Frame-Options set to prevent clickjacking
@@ -199,11 +204,11 @@
 - [ ] Unhandled errors logged (Sentry, LogRocket, or similar)
 - [ ] API route errors logged server-side with context
 - [ ] OpenAI API failures logged with request IDs
-- [ ] Stripe webhook failures logged
+- [x] Stripe webhook failures logged
 
 ### Analytics
-- [ ] PostHog tracking active on production
-- [ ] GTM loads via `next/script` (not `dangerouslySetInnerHTML`)
+- [x] PostHog tracking active on production
+- [x] GTM loads via `next/script` (not `dangerouslySetInnerHTML`)
 - [ ] Key events tracked: sign up, contract created, signature sent, payment completed
 - [ ] Conversion funnel visible in analytics dashboard
 
