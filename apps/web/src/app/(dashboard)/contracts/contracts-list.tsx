@@ -772,6 +772,7 @@ export function ContractsList({ contracts }: ContractsListProps) {
     }, [contracts]);
 
     const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+    const [showMobileFilters, setShowMobileFilters] = useState(false);
 
     return (
         <div className="flex gap-6">
@@ -1036,31 +1037,53 @@ export function ContractsList({ contracts }: ContractsListProps) {
             {/* Main Content */}
             <div className="flex-1 space-y-4">
                 {/* Search and Filter Bar */}
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <div className="flex flex-col sm:flex-row gap-3">
+                <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4">
+                    {/* Top row: always visible — search + mobile toggle buttons */}
+                    <div className="flex items-center gap-2 sm:gap-3">
                         {/* Mobile Folders Button */}
                         <button
                             onClick={() => setShowMobileSidebar(true)}
-                            className="lg:hidden flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+                            className="lg:hidden flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 flex-shrink-0"
                         >
                             <Folder className="w-4 h-4" />
-                            Folders & Tags
+                            <span className="hidden sm:inline">Folders & Tags</span>
                             {(selectedFolderId || selectedTagId) && (
                                 <span className="w-2 h-2 bg-[#529ec6] rounded-full" />
                             )}
                         </button>
                         {/* Search Input */}
-                        <div className="relative flex-1">
+                        <div className="relative flex-1 min-w-0">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Search contracts..."
+                                placeholder="Search contracts by title..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm"
                             />
                         </div>
+                        {/* Mobile Filters Toggle */}
+                        <button
+                            onClick={() => setShowMobileFilters(!showMobileFilters)}
+                            className={cn(
+                                "sm:hidden flex items-center gap-1.5 px-3 py-2 text-sm border rounded-lg flex-shrink-0 min-h-[36px]",
+                                showMobileFilters || hasActiveFilters
+                                    ? "border-[#529ec6] text-[#529ec6] bg-[#529ec6]/5"
+                                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                            )}
+                        >
+                            <Filter className="w-4 h-4" />
+                            {hasActiveFilters && (
+                                <span className="w-2 h-2 bg-[#529ec6] rounded-full" />
+                            )}
+                        </button>
+                    </div>
 
+                    {/* Filter dropdowns — always visible on sm+, collapsible on mobile */}
+                    <div className={cn(
+                        "flex flex-col sm:flex-row gap-3 mt-3 pt-3 border-t border-slate-100",
+                        showMobileFilters ? "flex" : "hidden sm:flex"
+                    )}>
                         {/* Status Filter */}
                         <select
                             value={statusFilter}
@@ -1101,20 +1124,6 @@ export function ContractsList({ contracts }: ContractsListProps) {
                             ))}
                         </select>
 
-                        {/* Clear Filters */}
-                        {hasActiveFilters && (
-                            <button
-                                onClick={clearFilters}
-                                className="flex items-center gap-1 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-                            >
-                                <X className="w-4 h-4" />
-                                Clear
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Second row: Jurisdiction and Sort */}
-                    <div className="flex flex-col sm:flex-row gap-3 mt-3 pt-3 border-t border-slate-100">
                         {/* Jurisdiction Filter (if contracts have multiple) */}
                         {uniqueJurisdictions.length > 1 && (
                             <select
@@ -1131,14 +1140,11 @@ export function ContractsList({ contracts }: ContractsListProps) {
                             </select>
                         )}
 
-                        {/* Spacer to push sort to right */}
-                        <div className="flex-1" />
-
                         {/* Sort */}
                         <select
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value)}
-                            className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer sm:min-w-[160px]"
+                            className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm appearance-none bg-white cursor-pointer sm:min-w-[160px] sm:ml-auto"
                         >
                             {SORT_OPTIONS.map((option) => (
                                 <option key={option.value} value={option.value}>
@@ -1146,6 +1152,17 @@ export function ContractsList({ contracts }: ContractsListProps) {
                                 </option>
                             ))}
                         </select>
+
+                        {/* Clear Filters */}
+                        {hasActiveFilters && (
+                            <button
+                                onClick={clearFilters}
+                                className="flex items-center gap-1 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                                Clear
+                            </button>
+                        )}
                     </div>
 
                     {/* Active filter count */}
