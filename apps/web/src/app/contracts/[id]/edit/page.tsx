@@ -554,7 +554,7 @@ export default function ContractEditorPage() {
     if (/hereinafter\s*(referred to as\s*)?$/i.test(before)) return "Short Name";
 
     // Date patterns
-    if (/dated?\s*$/i.test(before) || /effective\s*(as\s*of\s*)?$/i.test(before) || /entered into\s*(on\s*)?$/i.test(before)) return "Date";
+    if (/dated?\s*$/i.test(before) || /effective\s*(as\s*of\s*)?$/i.test(before) || /entered into\s*(on\s*|as\s*of\s*)?$/i.test(before) || /as\s*of\s*$/i.test(before)) return "Date";
     if (/day of\s*$/i.test(before)) return "Month, Year";
     if (/on this\s*$/i.test(before)) return "Date";
     if (/^,?\s*\d{4}/i.test(after)) return "Month and Day";
