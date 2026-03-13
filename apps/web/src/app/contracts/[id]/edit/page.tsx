@@ -1770,7 +1770,7 @@ export default function ContractEditorPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Contract Editor */}
         <main
-          className="flex-1 overflow-auto p-4 lg:p-6"
+          className="flex-1 overflow-auto p-2 sm:p-4 lg:p-6"
         >
           <div className="max-w-4xl mx-auto">
             {/* Payment Settings Panel */}
@@ -2018,32 +2018,34 @@ export default function ContractEditorPage() {
                               {/* Clause Header */}
                               <div
                                 onClick={() => toggleClause(clause.id)}
-                                className="w-full px-8 py-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer"
+                                className="w-full px-4 sm:px-8 py-3 sm:py-4 flex items-start sm:items-center justify-between hover:bg-slate-50 cursor-pointer gap-2"
                               >
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-start sm:items-center gap-2 sm:gap-3 min-w-0 flex-1">
                                   {expandedClauses.has(clause.id) ? (
-                                    <ChevronDown className="w-5 h-5 text-slate-400" />
+                                    <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 flex-shrink-0 mt-0.5 sm:mt-0" />
                                   ) : (
-                                    <ChevronRight className="w-5 h-5 text-slate-400" />
+                                    <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 flex-shrink-0 mt-0.5 sm:mt-0" />
                                   )}
-                                  <span className="font-semibold text-slate-900">
-                                    {clause.title}
-                                  </span>
-                                  {clause.isEdited && (
-                                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full">
-                                      Edited
+                                  <div className="min-w-0">
+                                    <span className="font-semibold text-slate-900 text-sm sm:text-base line-clamp-2 sm:line-clamp-none">
+                                      {clause.title}
                                     </span>
-                                  )}
-                                  <span
-                                    className={`px-2 py-0.5 text-xs rounded-full ${clause.type === "standard"
-                                      ? "bg-slate-100 text-slate-600"
-                                      : clause.type === "negotiable"
-                                        ? "bg-blue-100 text-blue-700"
-                                        : "bg-purple-100 text-purple-700"
-                                      }`}
-                                  >
-                                    {clause.type}
-                                  </span>
+                                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                      {clause.isEdited && (
+                                        <span className="px-1.5 sm:px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] sm:text-xs rounded-full">
+                                          Edited
+                                        </span>
+                                      )}
+                                      <span
+                                        className={`px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs rounded-full ${clause.type === "standard"
+                                          ? "bg-slate-100 text-slate-600"
+                                          : clause.type === "negotiable"
+                                            ? "bg-blue-100 text-blue-700"
+                                            : "bg-purple-100 text-purple-700"
+                                          }`}
+                                      >
+                                        {clause.type}
+                                      </span>
                                   {/* Risk indicator */}
                                   {getClauseRiskLevel(clause.id) && (
                                     <button
@@ -2069,8 +2071,10 @@ export default function ContractEditorPage() {
                                         }`} />
                                     </button>
                                   )}
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                                   {/* Comment indicator */}
                                   <CommentIndicator
                                     count={commentCounts[clause.id] || 0}
@@ -2092,7 +2096,7 @@ export default function ContractEditorPage() {
                                       explainClause(clause.id);
                                       setShowChat(true);
                                     }}
-                                    className="p-2 hover:bg-slate-200 rounded-lg"
+                                    className="hidden sm:flex p-2 hover:bg-slate-200 rounded-lg"
                                     title="Explain this clause"
                                   >
                                     <Info className="w-4 h-4 text-slate-500" />
@@ -2103,10 +2107,10 @@ export default function ContractEditorPage() {
                                         e.stopPropagation();
                                         startEditing(clause);
                                       }}
-                                      className="p-2 hover:bg-slate-200 rounded-lg"
+                                      className="p-1.5 sm:p-2 hover:bg-slate-200 rounded-lg"
                                       title="Edit this clause"
                                     >
-                                      <Edit3 className="w-4 h-4 text-slate-500" />
+                                      <Edit3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500" />
                                     </button>
                                   )}
                                   {!isLocked && (
@@ -2138,7 +2142,7 @@ export default function ContractEditorPage() {
 
                               {/* Clause Content */}
                               {expandedClauses.has(clause.id) && (
-                                <div className="px-8 pb-6">
+                                <div className="px-4 sm:px-8 pb-4 sm:pb-6">
                                   {editingClause === clause.id ? (
                                     <div className="space-y-3">
                                       <div>
@@ -2149,7 +2153,7 @@ export default function ContractEditorPage() {
                                           type="text"
                                           value={editedTitle}
                                           onChange={(e) => setEditedTitle(e.target.value)}
-                                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent text-sm font-semibold"
+                                          className="w-full px-3 sm:px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent text-sm font-semibold"
                                           placeholder="Enter clause title..."
                                         />
                                       </div>
@@ -2160,7 +2164,7 @@ export default function ContractEditorPage() {
                                         <textarea
                                           value={editedContent}
                                           onChange={(e) => setEditedContent(e.target.value)}
-                                          className="w-full h-64 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent resize-none font-mono text-sm"
+                                          className="w-full h-48 sm:h-64 px-3 sm:px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent resize-none font-mono text-sm"
                                           placeholder="Enter clause content..."
                                         />
                                       </div>
@@ -2182,14 +2186,14 @@ export default function ContractEditorPage() {
                                       </div>
                                     </div>
                                   ) : (
-                                    <div className="pl-8">
+                                    <div className="pl-2 sm:pl-8">
                                       <HighlightedClauseContent
                                         clauseId={clause.id}
                                         content={clause.content}
                                         comments={comments.filter(c => c.clause_id === clause.id)}
                                         onHighlightClick={(commentId) => handleHighlightClick(commentId, clause.id)}
                                         onTextSelect={handleHighlightedTextSelect}
-                                        className="text-slate-700 leading-relaxed select-text"
+                                        className="text-slate-700 leading-relaxed select-text text-sm sm:text-base"
                                         filledBlanks={filledBlanks}
                                         onBlankChange={handleBlankChange}
                                       />
