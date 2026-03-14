@@ -2550,19 +2550,19 @@ export default function NewContractPage() {
             <div className="w-16 h-16 bg-[#202e46]/10 rounded-full flex items-center justify-center mx-auto mb-4">
               <Crown className="w-8 h-8 text-[#202e46]" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">
+            <h3 className="text-xl font-bold text-slate-900 mb-1">
               {subscription.tier === "free"
                 ? "You\u2019ve used your free contract this month"
                 : "Monthly contract limit reached"}
             </h3>
-            <p className="text-slate-600 mb-6">
-              {subscription.tier === "free"
-                ? "Upgrade to Pro to generate up to 50 contracts per month, plus unlimited signatures and AI contract review."
-                : `You\u2019ve used ${subscription.contractsUsed} of ${subscription.contractsLimit} contracts. Your limit resets next month.`}
-            </p>
+            {subscription.tier !== "free" && (
+              <p className="text-slate-600 mb-6">
+                {`You\u2019ve used ${subscription.contractsUsed} of ${subscription.contractsLimit} contracts. Your limit resets next month.`}
+              </p>
+            )}
 
             {subscription.tier === "free" && (
-              <div className="space-y-2.5 mb-6 text-left max-w-xs mx-auto">
+              <div className="space-y-2.5 mt-4 mb-6 text-left max-w-xs mx-auto">
                 {[
                   "50 AI contracts per month",
                   "Unlimited e-signatures",

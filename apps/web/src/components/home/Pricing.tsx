@@ -13,40 +13,22 @@ export function Pricing() {
         <section id="pricing" className="py-16 sm:py-20 lg:py-24 px-4 sm:px-6 lg:px-8 bg-slate-50">
             <div className="max-w-6xl mx-auto">
                 <div className="text-center mb-10 sm:mb-12 lg:mb-16">
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        className="inline-flex items-center gap-2 bg-[#202e46]/10 text-[#202e46] px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium mb-3 sm:mb-4"
-                    >
-                        Simple, transparent pricing
-                    </motion.div>
                     <motion.h2
                         initial={{ opacity: 0, y: 10 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        transition={{ delay: 0.1 }}
-                        className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-3 sm:mb-4"
+                        className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4 sm:mb-6"
                     >
-                        Choose your plan
+                        Simple, transparent pricing
                     </motion.h2>
-                    <motion.p
-                        initial={{ opacity: 0, y: 10 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: 0.2 }}
-                        className="text-sm sm:text-base text-slate-600 max-w-2xl mx-auto"
-                    >
-                        Start free and upgrade when you need more. No hidden fees.
-                    </motion.p>
 
                     {/* Billing cycle toggle */}
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        transition={{ delay: 0.3 }}
-                        className="flex items-center justify-center mt-6 sm:mt-8"
+                        transition={{ delay: 0.1 }}
+                        className="flex items-center justify-center"
                     >
                         <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
                             <button
