@@ -17,10 +17,19 @@ export function Pricing() {
                         initial={{ opacity: 0, y: 10 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4 sm:mb-6"
+                        className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-2 sm:mb-3"
                     >
                         Simple, transparent pricing
                     </motion.h2>
+                    <motion.p
+                        initial={{ opacity: 0, y: 10 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 0.05 }}
+                        className="text-sm sm:text-base text-slate-500 mb-4 sm:mb-6"
+                    >
+                        From first contract to full legal workflow — pick the plan that fits.
+                    </motion.p>
 
                     {/* Billing cycle toggle */}
                     <motion.div

@@ -20,17 +20,7 @@ export default function PricingPage() {
     <div className="min-h-screen bg-white">
       <Navbar />
 
-      {/* Hero */}
-      <section className="pt-24 sm:pt-32 pb-4 px-4 sm:px-6 lg:px-8 text-center">
-        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 mb-4">
-          Plans that scale with you
-        </h1>
-        <p className="text-base sm:text-lg text-slate-500 max-w-xl mx-auto">
-          From first contract to full legal workflow — pick the plan that fits.
-        </p>
-      </section>
-
-      {/* Reuse existing Pricing component */}
+      <div className="pt-16 sm:pt-20" />
       <Pricing />
 
       {/* FAQ */}
