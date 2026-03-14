@@ -156,22 +156,19 @@ export function DashboardNav({ user, isInboxOwner }: DashboardNavProps) {
       {!subscription.isLoading && subscription.tier === "free" && (
         <div className="px-3 pb-2">
           <Link
-            href="/settings/billing"
-            className="flex items-center gap-2.5 rounded-lg bg-[#202e46] px-4 py-3 hover:bg-[#1a2539] transition-colors group"
+            href={!subscription.hasSubscribedBefore ? "/settings/billing?promo=FIRST50" : "/settings/billing"}
+            className="flex flex-col gap-1 rounded-lg bg-[#202e46] px-4 py-3 hover:bg-[#1a2539] transition-colors group"
           >
-            <Zap className="w-4 h-4 text-[#4db8a4] flex-shrink-0" />
-            <span className="text-sm font-medium text-white flex-1">Upgrade to Pro</span>
-            {!subscription.hasSubscribedBefore ? (
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-[#4db8a4]">
-                $9.99/mo
-                <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-[#4db8a4] flex-shrink-0" />
+              <span className="text-sm font-medium text-white">Upgrade to Pro</span>
+            </div>
+            <div className="flex items-center gap-1.5 pl-6">
+              <span className="text-xs font-semibold text-[#4db8a4]">
+                {!subscription.hasSubscribedBefore ? "$9.99/mo" : "$19.99/mo"}
               </span>
-            ) : (
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-[#4db8a4]">
-                $19.99/mo
-                <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-              </span>
-            )}
+              <ArrowRight className="w-3 h-3 text-[#4db8a4] group-hover:translate-x-0.5 transition-transform" />
+            </div>
           </Link>
         </div>
       )}
