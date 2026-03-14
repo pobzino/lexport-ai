@@ -20,8 +20,10 @@ import {
   Upload,
   Menu,
   X,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSubscription } from "@/lib/hooks/useSubscription";
 
 interface DashboardNavProps {
   user: {
@@ -80,6 +82,8 @@ export function DashboardNav({ user, isInboxOwner }: DashboardNavProps) {
     router.push("/");
     router.refresh();
   };
+
+  const subscription = useSubscription();
 
   const NavContent = () => (
     <>
@@ -146,6 +150,35 @@ export function DashboardNav({ user, isInboxOwner }: DashboardNavProps) {
           );
         })}
       </nav>
+
+      {/* Upgrade CTA — free users only */}
+      {!subscription.isLoading && subscription.tier === "free" && (
+        <div className="px-3 pb-2">
+          <Link
+            href="/settings/billing"
+            className="block rounded-xl bg-gradient-to-br from-[#202e46] to-[#2a3d5c] p-4 hover:from-[#1a2539] hover:to-[#253652] transition-all group"
+          >
+            <div className="flex items-center gap-2.5 mb-1.5">
+              <div className="w-7 h-7 rounded-lg bg-[#4db8a4]/20 flex items-center justify-center">
+                <Zap className="w-3.5 h-3.5 text-[#4db8a4]" />
+              </div>
+              <span className="text-sm font-semibold text-white">Upgrade to Pro</span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Unlimited contracts, e-signatures &amp; AI chat
+            </p>
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-xs font-bold text-[#4db8a4]">
+                $9.99<span className="text-slate-500 font-normal">/mo</span>
+                <span className="text-slate-500 line-through font-normal ml-1.5">$19.99</span>
+              </span>
+              <span className="text-[10px] text-slate-400 group-hover:text-slate-300 transition-colors">
+                50% off &rarr;
+              </span>
+            </div>
+          </Link>
+        </div>
+      )}
 
       {/* Bottom Section */}
       <div className="border-t border-slate-100">

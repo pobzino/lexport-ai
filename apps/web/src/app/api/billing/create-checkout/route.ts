@@ -10,7 +10,7 @@ const PRICE_IDS: Record<string, string> = {
 };
 
 // 50% off first month coupon — auto-applied to all new subscriptions
-const FIRST_MONTH_COUPON = "FIRST50";
+const FIRST_MONTH_COUPON = process.env.STRIPE_FIRST_MONTH_COUPON_ID || "FIRST50";
 
 export async function POST(request: NextRequest) {
   try {
