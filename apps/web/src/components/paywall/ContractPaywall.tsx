@@ -2,6 +2,7 @@
 
 import { Lock, Sparkles, Check, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useSubscription } from "@/lib/hooks/useSubscription";
 
 interface ContractPaywallProps {
   type: "contract_limit" | "signature_limit";
@@ -11,6 +12,7 @@ interface ContractPaywallProps {
 
 export function ContractPaywall({ type, currentUsage, limit }: ContractPaywallProps) {
   const isContractLimit = type === "contract_limit";
+  const subscription = useSubscription();
 
   return (
     <div className="relative">
@@ -65,16 +67,16 @@ export function ContractPaywall({ type, currentUsage, limit }: ContractPaywallPr
 
           <div className="space-y-3">
             <Link
-              href="/settings/billing"
+              href={!subscription.hasSubscribedBefore ? "/settings/billing?promo=FIRST50" : "/settings/billing"}
               className="w-full inline-flex items-center justify-center bg-[#202e46] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#1a2539] transition-all hover:shadow-lg"
             >
               <Sparkles className="w-4 h-4 mr-2" />
-              Upgrade to Pro - $19.99/mo
+              Upgrade to Pro - {!subscription.hasSubscribedBefore ? "$9.99/mo" : "$19.99/mo"}
               <ArrowRight className="w-4 h-4 ml-2" />
             </Link>
 
             <p className="text-xs text-slate-500">
-              Cancel anytime. 50% off your first month.
+              Cancel anytime.{!subscription.hasSubscribedBefore && " 50% off your first month."}
             </p>
           </div>
         </div>

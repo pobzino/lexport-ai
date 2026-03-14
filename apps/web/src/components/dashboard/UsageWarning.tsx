@@ -78,7 +78,7 @@ export function UsageWarning() {
 
         {/* CTA */}
         <Link
-          href="/settings/billing?promo=FIRST50"
+          href={subscription.hasSubscribedBefore ? "/settings/billing" : "/settings/billing?promo=FIRST50"}
           className={`flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-lg transition-all active:scale-[0.98] ${
             atLimit
               ? "bg-red-600 text-white hover:bg-red-500"

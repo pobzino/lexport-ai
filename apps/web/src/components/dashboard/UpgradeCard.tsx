@@ -63,7 +63,7 @@ export function UpgradeCard() {
                 50 contracts &middot; Unlimited signatures &middot; AI chat{showDiscount && <> &middot; <span className="text-[#4db8a4]/80">Save $120/year</span></>}
               </p>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-3 flex-shrink-0">
               {showDiscount && <span className="text-xs text-slate-500 line-through">$19.99</span>}
               <Link
                 href={href}
