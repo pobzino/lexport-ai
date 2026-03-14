@@ -833,7 +833,12 @@ export default function NewContractPage() {
     }
 
     // Pre-check contract limit before starting generation
-    if (!subscription.isLoading && !subscription.canCreateContract) {
+    // If subscription is still loading, wait for it
+    if (subscription.isLoading) {
+      // Subscription data not ready — don't proceed
+      return;
+    }
+    if (!subscription.canCreateContract) {
       setShowLimitPaywall(true);
       return;
     }
@@ -2428,58 +2433,7 @@ export default function NewContractPage() {
               </div>
             </div>
 
-            {showLimitPaywall && (
-              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 max-w-lg mx-auto text-center">
-                <div className="w-16 h-16 bg-[#202e46]/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Crown className="w-8 h-8 text-[#202e46]" />
-                </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-2">
-                  {subscription.tier === "free"
-                    ? "You\u2019ve used your free contract this month"
-                    : "Monthly contract limit reached"}
-                </h3>
-                <p className="text-slate-600 mb-6">
-                  {subscription.tier === "free"
-                    ? "Upgrade to Pro to generate up to 50 contracts per month, plus unlimited signatures and AI contract review."
-                    : `You\u2019ve used ${subscription.contractsUsed} of ${subscription.contractsLimit} contracts. Your limit resets next month.`}
-                </p>
-
-                {subscription.tier === "free" && (
-                  <div className="space-y-2.5 mb-6 text-left max-w-xs mx-auto">
-                    {[
-                      "50 AI contracts per month",
-                      "Unlimited e-signatures",
-                      "All premium templates included",
-                      "AI contract chat & review",
-                    ].map((feature) => (
-                      <div key={feature} className="flex items-center gap-3 text-sm">
-                        <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                          <Check className="w-3 h-3 text-emerald-600" />
-                        </div>
-                        <span className="text-slate-700">{feature}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <Link
-                  href={!subscription.hasSubscribedBefore ? "/settings/billing?promo=FIRST50" : "/settings/billing"}
-                  className="inline-flex items-center gap-2 bg-[#202e46] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#1a2539] transition-all hover:shadow-lg text-sm"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  {subscription.tier === "free"
-                    ? `Upgrade to Pro \u2014 ${!subscription.hasSubscribedBefore ? "$9.99/mo" : "$19.99/mo"}`
-                    : "Manage subscription"}
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-
-                {subscription.tier === "free" && (
-                  <p className="text-xs text-slate-500 mt-3">
-                    Cancel anytime.{!subscription.hasSubscribedBefore && " 50% off your first month."}
-                  </p>
-                )}
-              </div>
-            )}
+            {/* Paywall is rendered as a fixed overlay below */}
 
             {error && !showLimitPaywall && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
@@ -2541,13 +2495,18 @@ export default function NewContractPage() {
             ) : (
               <button
                 onClick={handleGenerate}
-                disabled={isGenerating}
+                disabled={isGenerating || subscription.isLoading}
                 className="flex items-center gap-2 px-8 py-3 rounded-lg font-medium bg-gradient-to-r from-[#202e46] to-[#2a3d5c] text-white hover:from-[#1a2539] hover:to-[#202e46] transition-all disabled:opacity-50"
               >
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Generating...
+                  </>
+                ) : subscription.isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Checking...
                   </>
                 ) : (
                   <>
@@ -2576,6 +2535,68 @@ export default function NewContractPage() {
           isSubmitting={isUsingTemplate}
           jurisdiction={jurisdiction}
         />
+      )}
+
+      {/* Contract Limit Paywall Overlay */}
+      {showLimitPaywall && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 p-8 max-w-md mx-4 text-center animate-in fade-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setShowLimitPaywall(false)}
+              className="absolute top-4 right-4 p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <X className="w-4 h-4 text-slate-400" />
+            </button>
+            <div className="w-16 h-16 bg-[#202e46]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Crown className="w-8 h-8 text-[#202e46]" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">
+              {subscription.tier === "free"
+                ? "You\u2019ve used your free contract this month"
+                : "Monthly contract limit reached"}
+            </h3>
+            <p className="text-slate-600 mb-6">
+              {subscription.tier === "free"
+                ? "Upgrade to Pro to generate up to 50 contracts per month, plus unlimited signatures and AI contract review."
+                : `You\u2019ve used ${subscription.contractsUsed} of ${subscription.contractsLimit} contracts. Your limit resets next month.`}
+            </p>
+
+            {subscription.tier === "free" && (
+              <div className="space-y-2.5 mb-6 text-left max-w-xs mx-auto">
+                {[
+                  "50 AI contracts per month",
+                  "Unlimited e-signatures",
+                  "All premium templates included",
+                  "AI contract chat & review",
+                ].map((feature) => (
+                  <div key={feature} className="flex items-center gap-3 text-sm">
+                    <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                      <Check className="w-3 h-3 text-emerald-600" />
+                    </div>
+                    <span className="text-slate-700">{feature}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <Link
+              href={!subscription.hasSubscribedBefore ? "/settings/billing?promo=FIRST50" : "/settings/billing"}
+              className="inline-flex items-center gap-2 bg-[#202e46] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#1a2539] transition-all hover:shadow-lg text-sm"
+            >
+              <Sparkles className="w-4 h-4" />
+              {subscription.tier === "free"
+                ? `Upgrade to Pro \u2014 ${!subscription.hasSubscribedBefore ? "$9.99/mo" : "$19.99/mo"}`
+                : "Manage subscription"}
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+
+            {subscription.tier === "free" && (
+              <p className="text-xs text-slate-500 mt-3">
+                Cancel anytime.{!subscription.hasSubscribedBefore && " 50% off your first month."}
+              </p>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Contract Generation Overlay */}
