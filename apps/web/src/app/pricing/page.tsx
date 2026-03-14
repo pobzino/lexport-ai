@@ -20,7 +20,6 @@ export default function PricingPage() {
     <div className="min-h-screen bg-white">
       <Navbar />
 
-      <div className="pt-16 sm:pt-20" />
       <Pricing />
 
       {/* FAQ */}
