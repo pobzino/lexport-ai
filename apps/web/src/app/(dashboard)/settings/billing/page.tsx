@@ -27,21 +27,23 @@ import {
 import type { SubscriptionTier } from "@/db/types";
 import { trackSubscription } from "@/lib/gtm";
 
-const PLANS: Array<{
+interface PlanDef {
   id: SubscriptionTier;
   name: string;
-  price: number;
-  period: string;
+  monthlyPrice: number;
+  annualPrice: number;
   description: string;
   features: Array<{ text: string; included: boolean }>;
   cta: string;
   highlighted: boolean;
-}> = [
+}
+
+const PLANS: PlanDef[] = [
   {
     id: "free",
     name: "Free",
-    price: 0,
-    period: "forever",
+    monthlyPrice: 0,
+    annualPrice: 0,
     description: "Try it out",
     features: [
       { text: "1 AI contract/month", included: true },
@@ -57,8 +59,8 @@ const PLANS: Array<{
   {
     id: "pro",
     name: "Pro",
-    price: 19.99,
-    period: "month",
+    monthlyPrice: 19.99,
+    annualPrice: 149.99,
     description: "For freelancers & professionals",
     features: [
       { text: "50 AI contracts/month", included: true },
@@ -74,8 +76,8 @@ const PLANS: Array<{
   {
     id: "team",
     name: "Business",
-    price: 39.99,
-    period: "month",
+    monthlyPrice: 39.99,
+    annualPrice: 399.99,
     description: "For high-volume users",
     features: [
       { text: "200 AI contracts/month", included: true },
@@ -97,6 +99,7 @@ export default function BillingPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
 
   // Get promo code from URL (e.g., /settings/billing?promo=FIRST50)
   const promoCode = searchParams.get("promo");
@@ -152,7 +155,7 @@ export default function BillingPage() {
       const response = await fetch("/api/billing/create-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, promoCode: promoCode || undefined }),
+        body: JSON.stringify({ planId, promoCode: promoCode || undefined, billingCycle }),
       });
 
       if (!response.ok) {
@@ -417,7 +420,32 @@ export default function BillingPage() {
 
       {/* Plans */}
       <div className="mb-8">
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">Choose Your Plan</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-slate-900">Choose Your Plan</h2>
+          <div className="flex items-center bg-slate-100 rounded-lg p-1">
+            <button
+              onClick={() => setBillingCycle("monthly")}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                billingCycle === "monthly"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBillingCycle("annual")}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                billingCycle === "annual"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Annual
+              <span className="ml-1.5 text-xs font-semibold text-emerald-600">Save 37%</span>
+            </button>
+          </div>
+        </div>
         <div className="grid md:grid-cols-3 gap-6">
           {PLANS.map((plan) => {
             const isCurrent = plan.id === subscription.tier;
@@ -456,9 +484,33 @@ export default function BillingPage() {
                   <p className="text-slate-600 text-sm mt-1">{plan.description}</p>
 
                   <div className="mt-4 flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-slate-900">${plan.price}</span>
-                    <span className="text-slate-600">/{plan.period}</span>
+                    {plan.id === "free" ? (
+                      <>
+                        <span className="text-4xl font-bold text-slate-900">$0</span>
+                        <span className="text-slate-600">/forever</span>
+                      </>
+                    ) : billingCycle === "annual" ? (
+                      <>
+                        <span className="text-4xl font-bold text-slate-900">
+                          ${(plan.annualPrice / 12).toFixed(2)}
+                        </span>
+                        <span className="text-slate-600">/mo</span>
+                        <span className="ml-2 text-sm text-slate-400 line-through">
+                          ${plan.monthlyPrice}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-4xl font-bold text-slate-900">${plan.monthlyPrice}</span>
+                        <span className="text-slate-600">/month</span>
+                      </>
+                    )}
                   </div>
+                  {plan.id !== "free" && billingCycle === "annual" && (
+                    <p className="text-xs text-emerald-600 font-medium mt-1">
+                      ${plan.annualPrice}/year — save ${((plan.monthlyPrice * 12) - plan.annualPrice).toFixed(0)}/year
+                    </p>
+                  )}
 
                   {isBusinessPlan && !isCurrent ? (
                     <a
@@ -554,7 +606,9 @@ export default function BillingPage() {
           <div>
             <h3 className="font-medium text-slate-900">Do you offer any discounts?</h3>
             <p className="text-sm text-slate-600 mt-1">
-              Yes! All paid plans include 50% off your first month. We also have a generous free tier so you can try Lexport before upgrading.
+              {subscription.hasSubscribedBefore
+                ? "Save up to 37% with annual billing. We also have a generous free tier so you can try Lexport before upgrading."
+                : "New subscribers get 50% off their first month. You can also save up to 37% with annual billing."}
             </p>
           </div>
         </div>

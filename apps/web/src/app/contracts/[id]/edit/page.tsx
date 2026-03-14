@@ -269,6 +269,7 @@ export default function ContractEditorPage() {
   const [riskAnalysis, setRiskAnalysis] = useState<RiskAnalysisResult | null>(null);
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState<string | null>(null);
+  const [showRiskTeaser, setShowRiskTeaser] = useState(false);
 
   // Tools menu state
   const [showToolsMenu, setShowToolsMenu] = useState(false);
@@ -1340,11 +1341,13 @@ export default function ContractEditorPage() {
 
   // Fetch risk analysis
   const fetchRiskAnalysis = async (forceRefresh = false) => {
-    // Check subscription on frontend first to avoid unnecessary API call and loading state
+    // Show teaser for free users instead of making API call
     if (!subscription.hasRiskAnalysis) {
-      setRiskError("Risk Analysis is a Pro feature. Upgrade to access AI-powered contract risk analysis.");
+      setShowRiskTeaser(true);
+      setRiskError(null);
       return;
     }
+    setShowRiskTeaser(false);
 
     setRiskLoading(true);
     setRiskError(null);
@@ -2689,6 +2692,7 @@ export default function ContractEditorPage() {
             loading={riskLoading}
             error={riskError}
             onRefresh={() => fetchRiskAnalysis(true)}
+            showUpgradeTeaser={showRiskTeaser}
           />
         )}
 

@@ -2193,3 +2193,120 @@ Powered by Lexport
     return { success: false };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Upgrade nudge emails — sent when users hit their free tier limits
+// ---------------------------------------------------------------------------
+
+export interface LimitEmailParams {
+  to: string;
+  name: string;
+  used: number;
+  limit: number;
+}
+
+export async function sendContractLimitEmail({ to, name, used, limit }: LimitEmailParams) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
+
+  const content = `
+    <h2 style="color: ${BRAND.navy}; font-size: 22px; margin: 0 0 20px; text-align: center;">You've used your free contract</h2>
+
+    <p style="margin: 16px 0; color: #475569;">Hi ${name || "there"},</p>
+
+    <p style="margin: 16px 0; color: #475569;">
+      You've used <strong>${used} of ${limit}</strong> AI-generated contract${limit > 1 ? "s" : ""} this month on your Free plan. Upgrade to Pro to keep creating contracts without limits.
+    </p>
+
+    <div style="background: ${BRAND.lightSlate}; border-radius: 12px; padding: 20px; margin: 24px 0;">
+      <p style="margin: 0 0 12px; font-weight: 600; color: ${BRAND.navy};">Pro plan includes:</p>
+      <ul style="margin: 0; padding-left: 20px; color: #475569; font-size: 14px; line-height: 1.8;">
+        <li>50 AI contracts per month</li>
+        <li>Unlimited e-signatures</li>
+        <li>AI contract chat &amp; risk analysis</li>
+        <li>All premium templates</li>
+      </ul>
+    </div>
+
+    ${primaryButton(`${appUrl}/settings/billing`, "Upgrade to Pro — $19.99/mo")}
+
+    <p style="margin: 24px 0 0; font-size: 13px; color: #94a3b8; text-align: center;">
+      Your free limits reset on the 1st of each month.
+    </p>
+  `;
+
+  const html = emailWrapper(content);
+  const text = `You've used ${used} of ${limit} free contracts this month. Upgrade to Pro for 50 contracts/month at ${appUrl}/settings/billing`;
+
+  try {
+    const { data, error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to: [to],
+      subject: "You've reached your contract limit — unlock more with Pro",
+      html,
+      text,
+    });
+
+    if (error) {
+      console.error("Failed to send contract limit email:", error);
+      return { success: false };
+    }
+    console.log(`Contract limit email sent to ${to}:`, data?.id);
+    return { success: true, id: data?.id };
+  } catch (error) {
+    console.error("Error sending contract limit email:", error);
+    return { success: false };
+  }
+}
+
+export async function sendSignatureLimitEmail({ to, name, used, limit }: LimitEmailParams) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
+
+  const content = `
+    <h2 style="color: ${BRAND.navy}; font-size: 22px; margin: 0 0 20px; text-align: center;">Signature limit reached</h2>
+
+    <p style="margin: 16px 0; color: #475569;">Hi ${name || "there"},</p>
+
+    <p style="margin: 16px 0; color: #475569;">
+      You've used <strong>${used} of ${limit}</strong> signature request${limit > 1 ? "s" : ""} this month on your Free plan. Upgrade to Pro for unlimited signatures.
+    </p>
+
+    <div style="background: ${BRAND.lightSlate}; border-radius: 12px; padding: 20px; margin: 24px 0;">
+      <p style="margin: 0 0 12px; font-weight: 600; color: ${BRAND.navy};">Pro plan includes:</p>
+      <ul style="margin: 0; padding-left: 20px; color: #475569; font-size: 14px; line-height: 1.8;">
+        <li>Unlimited e-signatures</li>
+        <li>50 AI contracts per month</li>
+        <li>AI contract chat &amp; risk analysis</li>
+        <li>All premium templates</li>
+      </ul>
+    </div>
+
+    ${primaryButton(`${appUrl}/settings/billing`, "Upgrade to Pro — $19.99/mo")}
+
+    <p style="margin: 24px 0 0; font-size: 13px; color: #94a3b8; text-align: center;">
+      Your free limits reset on the 1st of each month.
+    </p>
+  `;
+
+  const html = emailWrapper(content);
+  const text = `You've used ${used} of ${limit} free signatures this month. Upgrade to Pro for unlimited signatures at ${appUrl}/settings/billing`;
+
+  try {
+    const { data, error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to: [to],
+      subject: "Signature limit reached — unlock unlimited with Pro",
+      html,
+      text,
+    });
+
+    if (error) {
+      console.error("Failed to send signature limit email:", error);
+      return { success: false };
+    }
+    console.log(`Signature limit email sent to ${to}:`, data?.id);
+    return { success: true, id: data?.id };
+  } catch (error) {
+    console.error("Error sending signature limit email:", error);
+    return { success: false };
+  }
+}

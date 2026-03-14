@@ -6,7 +6,7 @@ import { X, ArrowRight, Rocket } from "lucide-react";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 
 const DISMISS_KEY = "lexport_upgrade_card_dismissed";
-const DISMISS_DURATION = 2 * 60 * 60 * 1000; // 2 hours
+const DISMISS_DURATION = 30 * 60 * 1000; // 30 minutes
 
 export function UpgradeCard() {
   const subscription = useSubscription();

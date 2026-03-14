@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
-import { sendSigningInvitation } from "@/lib/email";
+import { sendSigningInvitation, sendSignatureLimitEmail } from "@/lib/email";
 import { generateContentHash } from "@/lib/document-integrity";
 import { auditLogger, getRequestContextFromRequest } from "@/lib/audit";
 
@@ -75,6 +75,16 @@ export async function POST(
       const signaturesRemaining = signaturesLimit - signaturesUsed;
 
       if (signaturesNeeded > signaturesRemaining) {
+        // Send upgrade email (fire-and-forget)
+        if (user.email) {
+          sendSignatureLimitEmail({
+            to: user.email,
+            name: user.user_metadata?.name || "",
+            used: signaturesUsed,
+            limit: signaturesLimit,
+          }).catch(() => {});
+        }
+
         return NextResponse.json(
           {
             error: "Signature limit reached",

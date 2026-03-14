@@ -14,6 +14,8 @@ import {
   MapPin,
   FileWarning,
   Lock,
+  ArrowRight,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { RiskCard, RiskCardSkeleton } from "./RiskCard";
@@ -33,6 +35,7 @@ interface RiskAnalysisPanelProps {
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
+  showUpgradeTeaser?: boolean;
 }
 
 export function RiskAnalysisPanel({
@@ -44,6 +47,7 @@ export function RiskAnalysisPanel({
   loading,
   error,
   onRefresh,
+  showUpgradeTeaser = false,
 }: RiskAnalysisPanelProps) {
   // Group risks by severity for display
   const groupedRisks = analysis
@@ -164,6 +168,72 @@ export function RiskAnalysisPanel({
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4 space-y-4">
+        {/* Upgrade teaser for free users */}
+        {showUpgradeTeaser && !loading && (
+          <div className="relative">
+            {/* Blurred sample content */}
+            <div className="select-none pointer-events-none blur-[6px] opacity-60">
+              <div className="p-3 rounded-lg border bg-amber-100 border-amber-200 mb-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-700" />
+                  <span className="text-sm font-medium text-amber-700">Medium Risk</span>
+                </div>
+                <p className="text-sm text-slate-600">AI has detected potential issues that need your attention.</p>
+              </div>
+
+              <div className="mb-3">
+                <h3 className="flex items-center gap-2 text-sm font-medium text-red-700 mb-2">
+                  <AlertCircle className="w-4 h-4" />
+                  Critical Issues (2)
+                </h3>
+                <div className="space-y-2">
+                  <div className="p-3 rounded-lg border border-red-200 bg-red-50">
+                    <p className="text-sm font-medium text-slate-900">Unlimited liability exposure</p>
+                    <p className="text-xs text-slate-500 mt-1">The liability cap may not adequately protect your interests.</p>
+                  </div>
+                  <div className="p-3 rounded-lg border border-red-200 bg-red-50">
+                    <p className="text-sm font-medium text-slate-900">Missing termination notice period</p>
+                    <p className="text-xs text-slate-500 mt-1">No minimum notice period is specified for contract termination.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="flex items-center gap-2 text-sm font-medium text-amber-700 mb-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  Warnings (3)
+                </h3>
+                <div className="space-y-2">
+                  <div className="p-3 rounded-lg border border-amber-200 bg-amber-50">
+                    <p className="text-sm font-medium text-slate-900">Broad non-compete clause</p>
+                    <p className="text-xs text-slate-500 mt-1">Geographic and temporal scope may be overly restrictive.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Upgrade overlay */}
+            <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-[1px]">
+              <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6 max-w-[280px] text-center">
+                <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Sparkles className="w-6 h-6 text-amber-600" />
+                </div>
+                <h4 className="font-semibold text-slate-900 mb-1">Unlock Risk Analysis</h4>
+                <p className="text-sm text-slate-600 mb-4">
+                  Get AI-powered analysis of potential risks, missing protections, and jurisdiction issues.
+                </p>
+                <Link
+                  href="/settings/billing"
+                  className="inline-flex items-center gap-1.5 bg-[#202e46] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#1a2539] transition-colors"
+                >
+                  Upgrade to Pro
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Loading state */}
         {loading && (
           <div className="space-y-3">

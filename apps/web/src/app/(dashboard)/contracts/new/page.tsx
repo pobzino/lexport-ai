@@ -2429,28 +2429,55 @@ export default function NewContractPage() {
             </div>
 
             {showLimitPaywall && (
-              <div className="bg-gradient-to-br from-[#202e46]/5 to-[#529ec6]/10 border border-[#202e46]/20 rounded-xl p-6 text-center">
-                <div className="w-12 h-12 bg-[#202e46]/10 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Crown className="w-6 h-6 text-[#202e46]" />
+              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 max-w-lg mx-auto text-center">
+                <div className="w-16 h-16 bg-[#202e46]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Crown className="w-8 h-8 text-[#202e46]" />
                 </div>
-                <h3 className="font-semibold text-slate-900 mb-1">
+                <h3 className="text-xl font-bold text-slate-900 mb-2">
                   {subscription.tier === "free"
                     ? "You\u2019ve used your free contract this month"
                     : "Monthly contract limit reached"}
                 </h3>
-                <p className="text-sm text-slate-600 mb-4">
+                <p className="text-slate-600 mb-6">
                   {subscription.tier === "free"
-                    ? "Upgrade to Pro to generate up to 50 contracts per month."
+                    ? "Upgrade to Pro to generate up to 50 contracts per month, plus unlimited signatures and AI contract review."
                     : `You\u2019ve used ${subscription.contractsUsed} of ${subscription.contractsLimit} contracts. Your limit resets next month.`}
                 </p>
+
+                {subscription.tier === "free" && (
+                  <div className="space-y-2.5 mb-6 text-left max-w-xs mx-auto">
+                    {[
+                      "50 AI contracts per month",
+                      "Unlimited e-signatures",
+                      "All premium templates included",
+                      "AI contract chat & review",
+                    ].map((feature) => (
+                      <div key={feature} className="flex items-center gap-3 text-sm">
+                        <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                          <Check className="w-3 h-3 text-emerald-600" />
+                        </div>
+                        <span className="text-slate-700">{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <Link
-                  href="/settings/billing"
-                  className="inline-flex items-center gap-2 bg-[#202e46] text-white px-5 py-2.5 rounded-lg font-medium hover:bg-[#1a2539] transition-colors text-sm"
+                  href={!subscription.hasSubscribedBefore ? "/settings/billing?promo=FIRST50" : "/settings/billing"}
+                  className="inline-flex items-center gap-2 bg-[#202e46] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#1a2539] transition-all hover:shadow-lg text-sm"
                 >
                   <Sparkles className="w-4 h-4" />
-                  {subscription.tier === "free" ? "Upgrade to Pro \u2014 50% off first month" : "Manage subscription"}
+                  {subscription.tier === "free"
+                    ? `Upgrade to Pro \u2014 ${!subscription.hasSubscribedBefore ? "$9.99/mo" : "$19.99/mo"}`
+                    : "Manage subscription"}
                   <ArrowRight className="w-4 h-4" />
                 </Link>
+
+                {subscription.tier === "free" && (
+                  <p className="text-xs text-slate-500 mt-3">
+                    Cancel anytime.{!subscription.hasSubscribedBefore && " 50% off your first month."}
+                  </p>
+                )}
               </div>
             )}
 

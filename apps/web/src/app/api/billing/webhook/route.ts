@@ -8,8 +8,12 @@ function buildPriceToTierMap(): Record<string, "pro" | "team"> {
   const map: Record<string, "pro" | "team"> = {};
   const proPrice = process.env.STRIPE_PRO_PRICE_ID;
   const teamPrice = process.env.STRIPE_TEAM_PRICE_ID;
+  const proAnnualPrice = process.env.STRIPE_PRO_ANNUAL_PRICE_ID;
+  const teamAnnualPrice = process.env.STRIPE_TEAM_ANNUAL_PRICE_ID;
   if (proPrice) map[proPrice] = "pro";
   if (teamPrice) map[teamPrice] = "team";
+  if (proAnnualPrice) map[proAnnualPrice] = "pro";
+  if (teamAnnualPrice) map[teamAnnualPrice] = "team";
   return map;
 }
 

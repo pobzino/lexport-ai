@@ -1,10 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Check, Sparkles, ArrowRight, X } from "lucide-react";
 import { motion } from "framer-motion";
 
 export function Pricing() {
+    const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
+    const isAnnual = billingCycle === "annual";
+
     return (
         <section id="pricing" className="py-16 sm:py-20 lg:py-24 px-4 sm:px-6 lg:px-8 bg-slate-50">
             <div className="max-w-6xl mx-auto">
@@ -35,6 +39,39 @@ export function Pricing() {
                     >
                         Start free and upgrade when you need more. No hidden fees.
                     </motion.p>
+
+                    {/* Billing cycle toggle */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 0.3 }}
+                        className="flex items-center justify-center mt-6 sm:mt-8"
+                    >
+                        <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+                            <button
+                                onClick={() => setBillingCycle("monthly")}
+                                className={`px-4 sm:px-5 py-2 text-sm font-medium rounded-lg transition-all ${
+                                    !isAnnual
+                                        ? "bg-[#202e46] text-white shadow-sm"
+                                        : "text-slate-500 hover:text-slate-700"
+                                }`}
+                            >
+                                Monthly
+                            </button>
+                            <button
+                                onClick={() => setBillingCycle("annual")}
+                                className={`px-4 sm:px-5 py-2 text-sm font-medium rounded-lg transition-all ${
+                                    isAnnual
+                                        ? "bg-[#202e46] text-white shadow-sm"
+                                        : "text-slate-500 hover:text-slate-700"
+                                }`}
+                            >
+                                Annual
+                                <span className="ml-1.5 text-xs font-semibold text-emerald-400">Save 37%</span>
+                            </button>
+                        </div>
+                    </motion.div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 items-start">
@@ -102,16 +139,28 @@ export function Pricing() {
                             <h3 className="text-xl sm:text-2xl font-bold text-slate-900">Pro</h3>
                             <p className="text-slate-600 mt-1 text-sm sm:text-base">For freelancers & professionals</p>
                             <div className="mt-4 sm:mt-6 flex items-baseline gap-1">
-                                <span className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight">$19.99</span>
-                                <span className="text-slate-600 font-medium">/month</span>
+                                {isAnnual ? (
+                                    <>
+                                        <span className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight">$12.50</span>
+                                        <span className="text-slate-600 font-medium">/mo</span>
+                                        <span className="ml-2 text-sm text-slate-400 line-through">$19.99</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight">$19.99</span>
+                                        <span className="text-slate-600 font-medium">/month</span>
+                                    </>
+                                )}
                             </div>
-                            <p className="text-xs sm:text-sm text-emerald-600 font-medium mt-2 mb-4 sm:mb-6">50% off your first month</p>
+                            <p className="text-xs sm:text-sm text-emerald-600 font-medium mt-2 mb-4 sm:mb-6">
+                                {isAnnual ? "$149.99/year — save $90" : "50% off your first month"}
+                            </p>
 
                             <Link
                                 href="/register"
                                 className="w-full inline-flex items-center justify-center bg-[#202e46] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-semibold hover:bg-[#1a2539] transition-all hover:shadow-lg text-sm sm:text-base"
                             >
-                                Get 50% off first month
+                                {isAnnual ? "Start with annual plan" : "Get 50% off first month"}
                                 <ArrowRight className="w-4 h-4 ml-2" />
                             </Link>
 
@@ -149,10 +198,22 @@ export function Pricing() {
                             <h3 className="text-xl sm:text-2xl font-bold text-slate-900">Business</h3>
                             <p className="text-slate-600 mt-1 text-sm sm:text-base">For high-volume users</p>
                             <div className="mt-4 sm:mt-6 flex items-baseline gap-1">
-                                <span className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight">$39.99</span>
-                                <span className="text-slate-600 font-medium">/month</span>
+                                {isAnnual ? (
+                                    <>
+                                        <span className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight">$33.33</span>
+                                        <span className="text-slate-600 font-medium">/mo</span>
+                                        <span className="ml-2 text-sm text-slate-400 line-through">$39.99</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight">$39.99</span>
+                                        <span className="text-slate-600 font-medium">/month</span>
+                                    </>
+                                )}
                             </div>
-                            <p className="text-xs sm:text-sm text-slate-500 mt-2 mb-4 sm:mb-6">billed monthly</p>
+                            <p className="text-xs sm:text-sm text-slate-500 mt-2 mb-4 sm:mb-6">
+                                {isAnnual ? "$399.99/year — save $80" : "billed monthly"}
+                            </p>
 
                             <a
                                 href="mailto:team@lexportai.com?subject=Lexport Business Plan Inquiry"

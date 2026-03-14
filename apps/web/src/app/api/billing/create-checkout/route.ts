@@ -4,9 +4,14 @@ import { getStripe } from "@/lib/stripe";
 import Stripe from "stripe";
 
 // Stripe price IDs for subscription plans (set these in your Stripe dashboard)
-const PRICE_IDS: Record<string, string> = {
+const MONTHLY_PRICE_IDS: Record<string, string> = {
   pro: process.env.STRIPE_PRO_PRICE_ID || "",
   team: process.env.STRIPE_TEAM_PRICE_ID || "",
+};
+
+const ANNUAL_PRICE_IDS: Record<string, string> = {
+  pro: process.env.STRIPE_PRO_ANNUAL_PRICE_ID || "",
+  team: process.env.STRIPE_TEAM_ANNUAL_PRICE_ID || "",
 };
 
 // 50% off first month coupon — auto-applied to all new subscriptions
@@ -25,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { planId, organizationId, promoCode } = body;
+    const { planId, organizationId, promoCode, billingCycle = "monthly" } = body;
 
     if (!planId || !["pro", "team"].includes(planId)) {
       return NextResponse.json(
@@ -34,7 +39,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const priceId = PRICE_IDS[planId];
+    const isAnnual = billingCycle === "annual";
+    const priceIds = isAnnual ? ANNUAL_PRICE_IDS : MONTHLY_PRICE_IDS;
+    const priceId = priceIds[planId];
     if (!priceId) {
       return NextResponse.json(
         { error: "Plan not configured. Please contact support." },
@@ -116,7 +123,8 @@ export async function POST(request: NextRequest) {
         },
       };
 
-      if (isFirstTimeOrg) {
+      // First-month coupon only applies to monthly billing
+      if (isFirstTimeOrg && !isAnnual) {
         orgCheckoutConfig.discounts = [{ coupon: FIRST_MONTH_COUPON }];
       }
 
@@ -181,10 +189,10 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // Apply discount: explicit promo code always applies, auto-coupon only for first-time subscribers
+    // Apply discount: explicit promo code always applies, auto-coupon only for monthly first-time subscribers
     if (promoCode) {
       checkoutConfig.discounts = [{ coupon: promoCode }];
-    } else if (isFirstTimeUser) {
+    } else if (isFirstTimeUser && !isAnnual) {
       checkoutConfig.discounts = [{ coupon: FIRST_MONTH_COUPON }];
     }
 

@@ -5,6 +5,7 @@ import { processContractGenerationJob } from "@/lib/contracts/generation-jobs";
 import { createBackgroundContractGeneration } from "@/lib/contracts/generator-streaming";
 import { checkContractLimit } from "@/lib/usage-tracking";
 import { TIER_LIMITS } from "@/lib/rate-limits";
+import { sendContractLimitEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,16 @@ export async function POST(request: NextRequest) {
 
     const limitCheck = await checkContractLimit(user.id);
     if (!limitCheck.allowed) {
+      // Send upgrade email (fire-and-forget, don't block the response)
+      if (user.email && limitCheck.tier === "free") {
+        sendContractLimitEmail({
+          to: user.email,
+          name: user.user_metadata?.name || "",
+          used: limitCheck.current,
+          limit: limitCheck.limit,
+        }).catch(() => {}); // Swallow errors — email is best-effort
+      }
+
       const tierLimits = TIER_LIMITS[limitCheck.tier];
       return NextResponse.json(
         {
