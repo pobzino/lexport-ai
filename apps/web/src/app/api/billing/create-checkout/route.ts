@@ -189,9 +189,9 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // Apply discount: explicit promo code always applies, auto-coupon only for monthly first-time subscribers
-    if (promoCode) {
-      checkoutConfig.discounts = [{ coupon: promoCode }];
+    // Apply discount: promo code maps to the first-month coupon, auto-coupon only for monthly first-time subscribers
+    if (promoCode === "FIRST50" && !isAnnual) {
+      checkoutConfig.discounts = [{ coupon: FIRST_MONTH_COUPON }];
     } else if (isFirstTimeUser && !isAnnual) {
       checkoutConfig.discounts = [{ coupon: FIRST_MONTH_COUPON }];
     }
