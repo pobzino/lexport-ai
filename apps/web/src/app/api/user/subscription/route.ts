@@ -112,6 +112,14 @@ export async function GET() {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Check if user has ever had a paid subscription (for first-time discount eligibility)
+    const { data: subHistory } = await supabase
+      .from("users")
+      .select("subscription_started_at")
+      .eq("id", user.id)
+      .single();
+    const hasSubscribedBefore = !!subHistory?.subscription_started_at;
+
     // Try to get effective subscription using RPC (which considers org override)
     const { data: effectiveData, error: rpcError } = await supabase
       .rpc("get_effective_subscription", { user_uuid: user.id })
@@ -159,6 +167,7 @@ export async function GET() {
           hasApiAccess: config.hasApiAccess,
           platformFeePercent: config.platformFeePercent,
           organizationName: null,
+        hasSubscribedBefore: false,
         });
       }
 
@@ -203,6 +212,7 @@ export async function GET() {
         hasApiAccess: config.hasApiAccess,
         platformFeePercent: config.platformFeePercent,
         organizationName: null,
+        hasSubscribedBefore,
       });
     }
 
@@ -255,6 +265,7 @@ export async function GET() {
       hasApiAccess: config.hasApiAccess,
       platformFeePercent: config.platformFeePercent,
       organizationName: effectiveData?.organization_name || null,
+      hasSubscribedBefore,
     });
   } catch (error) {
     console.error("Error fetching subscription:", error);

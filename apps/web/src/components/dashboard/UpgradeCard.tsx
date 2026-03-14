@@ -31,7 +31,8 @@ export function UpgradeCard() {
     return null;
   }
 
-  const href = "/settings/billing?promo=FIRST50";
+  const showDiscount = !subscription.hasSubscribedBefore;
+  const href = showDiscount ? "/settings/billing?promo=FIRST50" : "/settings/billing";
 
   return (
     <div className="relative rounded-xl p-[1.5px] overflow-hidden">
@@ -56,19 +57,19 @@ export function UpgradeCard() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-white">
-                Upgrade to Pro — <span className="text-[#4db8a4]">50% off</span>
+                Upgrade to Pro{showDiscount && <> — <span className="text-[#4db8a4]">50% off</span></>}
               </p>
               <p className="text-xs text-slate-400 mt-0.5">
-                50 contracts &middot; Unlimited signatures &middot; AI chat &middot; <span className="text-[#4db8a4]/80">Save $120/year</span>
+                50 contracts &middot; Unlimited signatures &middot; AI chat{showDiscount && <> &middot; <span className="text-[#4db8a4]/80">Save $120/year</span></>}
               </p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <span className="text-xs text-slate-500 line-through">$19.99</span>
+              {showDiscount && <span className="text-xs text-slate-500 line-through">$19.99</span>}
               <Link
                 href={href}
                 className="inline-flex items-center gap-1.5 px-5 py-2 bg-[#4db8a4] text-white text-sm font-semibold rounded-lg hover:bg-[#3dab8e] transition-all active:scale-[0.98] shadow-lg shadow-[#4db8a4]/25"
               >
-                $9.99/mo
+                {showDiscount ? "$9.99/mo" : "$19.99/mo"}
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
@@ -81,18 +82,22 @@ export function UpgradeCard() {
                 <Rocket className="w-4 h-4 text-[#4db8a4]" />
               </div>
               <p className="text-sm font-semibold text-white">
-                Upgrade to Pro — <span className="text-[#4db8a4]">50% off</span>
+                Upgrade to Pro{showDiscount && <> — <span className="text-[#4db8a4]">50% off</span></>}
               </p>
             </div>
             <p className="text-xs text-slate-400">
-              50 contracts &middot; Unlimited signatures &middot; AI chat &middot; <span className="text-[#4db8a4]/80">Save $120/year</span>
+              50 contracts &middot; Unlimited signatures &middot; AI chat{showDiscount && <> &middot; <span className="text-[#4db8a4]/80">Save $120/year</span></>}
             </p>
             <div className="flex items-center gap-3">
               <Link
                 href={href}
                 className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#4db8a4] text-white text-sm font-semibold rounded-lg hover:bg-[#3dab8e] transition-all active:scale-[0.98] shadow-lg shadow-[#4db8a4]/25"
               >
-                $9.99/mo <span className="text-white/60 line-through text-xs ml-1">$19.99</span>
+                {showDiscount ? (
+                  <>$9.99/mo <span className="text-white/60 line-through text-xs ml-1">$19.99</span></>
+                ) : (
+                  "$19.99/mo"
+                )}
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>

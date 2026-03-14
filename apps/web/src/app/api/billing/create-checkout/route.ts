@@ -58,10 +58,10 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Get org's Stripe customer
+      // Get org's Stripe customer and subscription history
       const { data: orgData } = await supabase
         .from("organizations")
-        .select("stripe_customer_id, name")
+        .select("stripe_customer_id, name, subscription_started_at")
         .eq("id", organizationId)
         .single();
 
@@ -88,10 +88,13 @@ export async function POST(request: NextRequest) {
         if (orgUpdateError) console.error("[checkout] Failed to save org stripe_customer_id:", orgUpdateError);
       }
 
+      // Only apply first-month discount for first-time subscribers
+      const isFirstTimeOrg = !orgData?.subscription_started_at;
+
       // Create checkout session for organization
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-      const session = await stripe.checkout.sessions.create({
+      const orgCheckoutConfig: Stripe.Checkout.SessionCreateParams = {
         customer: customerId,
         mode: "subscription",
         payment_method_types: ["card"],
@@ -111,8 +114,13 @@ export async function POST(request: NextRequest) {
             created_by_user_id: user.id,
           },
         },
-        discounts: [{ coupon: FIRST_MONTH_COUPON }],
-      });
+      };
+
+      if (isFirstTimeOrg) {
+        orgCheckoutConfig.discounts = [{ coupon: FIRST_MONTH_COUPON }];
+      }
+
+      const session = await stripe.checkout.sessions.create(orgCheckoutConfig);
 
       return NextResponse.json({ url: session.url });
     }
@@ -120,7 +128,7 @@ export async function POST(request: NextRequest) {
     // Individual user subscription
     const { data: userData } = await supabase
       .from("users")
-      .select("stripe_customer_id, email, name")
+      .select("stripe_customer_id, email, name, subscription_started_at")
       .eq("id", user.id)
       .single();
 
@@ -146,6 +154,9 @@ export async function POST(request: NextRequest) {
       if (custUpdateError) console.error("[checkout] Failed to save user stripe_customer_id:", custUpdateError);
     }
 
+    // Only apply first-month discount for first-time subscribers
+    const isFirstTimeUser = !userData?.subscription_started_at;
+
     // Create checkout session for individual user
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -170,8 +181,12 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // Auto-apply 50% off first month; override with specific promo if provided
-    checkoutConfig.discounts = [{ coupon: promoCode || FIRST_MONTH_COUPON }];
+    // Apply discount: explicit promo code always applies, auto-coupon only for first-time subscribers
+    if (promoCode) {
+      checkoutConfig.discounts = [{ coupon: promoCode }];
+    } else if (isFirstTimeUser) {
+      checkoutConfig.discounts = [{ coupon: FIRST_MONTH_COUPON }];
+    }
 
     const session = await stripe.checkout.sessions.create(checkoutConfig);
 

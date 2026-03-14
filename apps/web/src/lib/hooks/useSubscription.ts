@@ -35,6 +35,9 @@ export interface SubscriptionData {
   // Organization context
   organizationName: string | null;
 
+  // Billing history
+  hasSubscribedBefore: boolean;
+
   // Loading state
   isLoading: boolean;
   error: string | null;
@@ -73,6 +76,7 @@ const DEFAULT_DATA: Omit<SubscriptionData, "refetch"> = {
   hasApiAccess: false,
   platformFeePercent: 0,
   organizationName: null,
+  hasSubscribedBefore: false,
   isLoading: true,
   error: null,
 };
@@ -117,6 +121,8 @@ export function useSubscription(): SubscriptionData & LegacySubscriptionData {
         platformFeePercent: result.platformFeePercent ?? 0,
         // Organization
         organizationName: result.organizationName || null,
+        // Billing history
+        hasSubscribedBefore: result.hasSubscribedBefore ?? false,
         // State
         isLoading: false,
         error: null,
