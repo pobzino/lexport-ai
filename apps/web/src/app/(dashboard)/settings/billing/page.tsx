@@ -421,9 +421,11 @@ export default function BillingPage() {
         <div className="grid md:grid-cols-3 gap-6">
           {PLANS.map((plan) => {
             const isCurrent = plan.id === subscription.tier;
-            const isUpgrade =
-              (subscription.tier === "free" && plan.id === "pro") ||
-              (subscription.tier === "pro" && plan.id === "team");
+            const tierOrder: Record<string, number> = { free: 0, pro: 1, team: 2 };
+            const currentTierOrder = tierOrder[subscription.tier] ?? 0;
+            const planTierOrder = tierOrder[plan.id] ?? 0;
+            const isUpgrade = planTierOrder > currentTierOrder;
+            const isDowngrade = planTierOrder < currentTierOrder;
             const isBusinessPlan = plan.id === "team";
             const isManagedByOrg = subscription.source === "organization" && isCurrent;
 
@@ -492,6 +494,8 @@ export default function BillingPage() {
                           {plan.cta}
                           <ArrowRight className="w-4 h-4" />
                         </>
+                      ) : isDowngrade ? (
+                        "Included in your plan"
                       ) : (
                         "Current Plan"
                       )}
