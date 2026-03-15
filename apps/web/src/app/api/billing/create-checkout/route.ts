@@ -189,9 +189,13 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // Apply discount: promo code maps to the first-month coupon, auto-coupon only for monthly first-time subscribers
-    if (promoCode === "FIRST50" && !isAnnual) {
-      checkoutConfig.discounts = [{ coupon: FIRST_MONTH_COUPON }];
+    // Apply discount: known promo codes map to coupons, otherwise auto-coupon for monthly first-time subscribers
+    const PROMO_TO_COUPON: Record<string, string> = {
+      FIRST50: FIRST_MONTH_COUPON,
+      TEST100OFF: "TEST100OFF",
+    };
+    if (promoCode && PROMO_TO_COUPON[promoCode]) {
+      checkoutConfig.discounts = [{ coupon: PROMO_TO_COUPON[promoCode] }];
     } else if (isFirstTimeUser && !isAnnual) {
       checkoutConfig.discounts = [{ coupon: FIRST_MONTH_COUPON }];
     }
