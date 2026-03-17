@@ -2105,42 +2105,35 @@ export default function NewContractPage() {
 
                     {paymentRequired && (
                       <div className="mt-4 space-y-4">
-                        {/* Amount Display (derived from project details) */}
-                        <div className="grid md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">
-                              Amount
-                            </label>
-                            <div className="relative">
-                              <div className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 font-medium">
-                                {derivedPaymentAmount > 0 ? (
-                                  <span>${derivedPaymentAmount.toLocaleString()}</span>
-                                ) : (
-                                  <span className="text-slate-400">Enter amount in project details above</span>
-                                )}
+                        {/* Amount & Currency — only show when no amount in project details */}
+                        {derivedPaymentAmount <= 0 && (
+                          <div className="grid md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">
+                                Amount
+                              </label>
+                              <div className="w-full px-4 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-900">
+                                <span className="text-slate-400">Enter amount in project details above</span>
                               </div>
-                              {derivedPaymentAmount > 0 && (
-                                <p className="text-xs text-slate-500 mt-1">From Total Amount in project details</p>
-                              )}
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">
+                                Currency
+                              </label>
+                              <select
+                                value={paymentCurrency}
+                                onChange={(e) =>
+                                  setPaymentCurrency(e.target.value as "usd" | "eur" | "gbp")
+                                }
+                                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
+                              >
+                                <option value="usd">USD ($)</option>
+                                <option value="eur">EUR (€)</option>
+                                <option value="gbp">GBP (£)</option>
+                              </select>
                             </div>
                           </div>
-                          <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">
-                              Currency
-                            </label>
-                            <select
-                              value={paymentCurrency}
-                              onChange={(e) =>
-                                setPaymentCurrency(e.target.value as "usd" | "eur" | "gbp")
-                              }
-                              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
-                            >
-                              <option value="usd">USD ($)</option>
-                              <option value="eur">EUR (€)</option>
-                              <option value="gbp">GBP (£)</option>
-                            </select>
-                          </div>
-                        </div>
+                        )}
 
                         {/* Payment Structure */}
                         <div>
