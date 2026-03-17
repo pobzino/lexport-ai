@@ -138,6 +138,11 @@ export function useSubscription(): SubscriptionData & LegacySubscriptionData {
 
   useEffect(() => {
     fetchSubscription();
+
+    // Listen for subscription changes from other components
+    const handler = () => fetchSubscription();
+    window.addEventListener("subscription-updated", handler);
+    return () => window.removeEventListener("subscription-updated", handler);
   }, [fetchSubscription]);
 
   // Return with legacy field aliases and refetch function
@@ -146,8 +151,11 @@ export function useSubscription(): SubscriptionData & LegacySubscriptionData {
     // Legacy field names for backwards compatibility
     aiContractsUsed: data.contractsUsed,
     aiContractsLimit: data.contractsLimit,
-    // Refetch function
-    refetch: fetchSubscription,
+    // Refetch function — also notifies other useSubscription instances to refetch
+    refetch: async () => {
+      await fetchSubscription();
+      window.dispatchEvent(new Event("subscription-updated"));
+    },
   };
 }
 
