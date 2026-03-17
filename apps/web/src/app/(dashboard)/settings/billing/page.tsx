@@ -147,12 +147,14 @@ export default function BillingPage() {
     verifySession();
   }, [isSuccess, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll to plans section when promo code is present
+  // Auto-scroll to plans section when promo code is present (wait for subscription to load)
   useEffect(() => {
-    if (promoCode && plansSectionRef.current) {
-      plansSectionRef.current.scrollIntoView({ behavior: "smooth" });
+    if (promoCode && !subscription.isLoading && plansSectionRef.current) {
+      setTimeout(() => {
+        plansSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
     }
-  }, [promoCode]);
+  }, [promoCode, subscription.isLoading]);
 
   const handleUpgrade = async (planId: string) => {
     if (planId === subscription.tier) return;
