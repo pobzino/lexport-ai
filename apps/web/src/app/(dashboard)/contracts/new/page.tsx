@@ -337,6 +337,15 @@ export default function NewContractPage() {
     ? Math.round((derivedDepositAmount / derivedPaymentAmount) * 100)
     : 30;
 
+  // Auto-expand payment options when a payment amount is entered in any form
+  useEffect(() => {
+    if (derivedPaymentAmount > 0 && !paymentRequired) {
+      setPaymentRequired(true);
+      setShowAdvancedOptions(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [derivedPaymentAmount]);
+
   const wizardManualTypes = useMemo(
     () =>
       Object.values(CONTRACT_TYPES).filter(
@@ -747,7 +756,23 @@ export default function NewContractPage() {
       }
 
       // Replace form data with freshly extracted fields (clear stale data from previous intake)
-      setFormData(data.analysis.extractedFields ?? {});
+      const extractedFields = data.analysis.extractedFields ?? {};
+      setFormData(extractedFields);
+
+      // Apply payment preferences extracted by AI
+      if (extractedFields.paymentRequired === true) {
+        setPaymentRequired(true);
+        setShowAdvancedOptions(true);
+      }
+      if (["usd", "eur", "gbp"].includes(extractedFields.paymentCurrency as string)) {
+        setPaymentCurrency(extractedFields.paymentCurrency as "usd" | "eur" | "gbp");
+      }
+      if (["full", "deposit_balance", "bnpl"].includes(extractedFields.paymentStructure as string)) {
+        setPaymentStructure(extractedFields.paymentStructure as "full" | "deposit_balance" | "bnpl");
+      }
+      if (typeof extractedFields.depositPercentage === "number" && extractedFields.depositPercentage >= 10 && extractedFields.depositPercentage <= 90) {
+        setDepositPercent(extractedFields.depositPercentage);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -2057,7 +2082,7 @@ export default function NewContractPage() {
               customTitle={isCustomGenerationFlow ? intakeAnalysis?.contractTypeName || "Custom Contract" : undefined}
             />
 
-            {/* Advanced options - collapsed by default to keep step 2 focused on core contract details */}
+            {/* Payment options - collapsed by default, auto-expanded when AI detects payment or user enters amount */}
             {selectedType && !["nda_mutual", "nda_one_way", "safe_note"].includes(selectedType) && (
               <div className="bg-white rounded-xl border border-slate-200 p-6">
                 <button
@@ -2070,7 +2095,7 @@ export default function NewContractPage() {
                       <DollarSign className="w-5 h-5 text-emerald-600" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-slate-900">Advanced Options</h3>
+                      <h3 className="font-semibold text-slate-900">Payment Options</h3>
                       <p className="text-sm text-slate-500">Payment collection and payout settings</p>
                     </div>
                   </div>

@@ -25,6 +25,7 @@ Analyze the user's description and determine:
 2. The jurisdiction based on any location mentions (default to us_california if unclear)
 3. Extract any details mentioned (names, amounts, dates, scope, etc.)
 4. Identify what key information is still missing and formulate follow-up questions
+5. Extract payment preferences if the user mentions any payment, fee, rate, deposit, or installment terms
 
 Available contract types:
 ${CONTRACT_TYPE_DESCRIPTIONS}
@@ -65,6 +66,12 @@ IMPORTANT field naming conventions:
 - paymentFrequency: Must be one of: "hourly", "daily", "weekly", "monthly", "project", "milestone"
 - duration: The contract length as a string (e.g., "4 months", "1 year")
 - Do NOT confuse duration with paymentFrequency
+
+Payment-related extracted fields (include in extractedFields when relevant):
+- paymentRequired: boolean — set to true if ANY payment amount, fee, rate, cost, or price is mentioned
+- paymentCurrency: "usd" | "eur" | "gbp" — infer from currency symbols ($ = usd, £ = gbp, € = eur) or country context; default to "usd" if amount mentioned without currency
+- paymentStructure: "full" | "deposit_balance" | "bnpl" — infer from context: "deposit"/"upfront + balance"/"partial payment" → "deposit_balance"; "installments"/"pay later"/"split payments" → "bnpl"; default to "full" if payment mentioned without structure details
+- depositPercentage: number (10-90) — extract if deposit percentage mentioned (e.g. "50% upfront" → 50); only include when paymentStructure is "deposit_balance"
 
 Respond with a JSON object matching this structure:
 {
@@ -115,7 +122,9 @@ Guidelines:
 - For ongoing advisory work, suggest consulting_agreement
 - For specific project work, suggest freelance_service
 - For hiring someone for work, suggest independent_contractor
-- For protecting confidential info, suggest nda_mutual or nda_one_way`;
+- For protecting confidential info, suggest nda_mutual or nda_one_way
+- If the user mentions any monetary amount (fee, rate, cost, price, payment), always set paymentRequired to true in extractedFields
+- Infer paymentCurrency from currency symbols or country context (UK → gbp, EU → eur, default → usd)`;
 
 /**
  * Normalize the raw AI response into a consistent shape for the frontend.
