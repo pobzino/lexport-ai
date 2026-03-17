@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   CreditCard,
@@ -101,6 +101,8 @@ export default function BillingPage() {
   const [verifying, setVerifying] = useState(false);
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
 
+  const plansSectionRef = useRef<HTMLDivElement>(null);
+
   // Get promo code from URL (e.g., /settings/billing?promo=FIRST50)
   const promoCode = searchParams.get("promo");
   const isSuccess = searchParams.get("success") === "true";
@@ -144,6 +146,13 @@ export default function BillingPage() {
 
     verifySession();
   }, [isSuccess, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-scroll to plans section when promo code is present
+  useEffect(() => {
+    if (promoCode && plansSectionRef.current) {
+      plansSectionRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [promoCode]);
 
   const handleUpgrade = async (planId: string) => {
     if (planId === subscription.tier) return;
@@ -419,7 +428,7 @@ export default function BillingPage() {
       </div>
 
       {/* Plans */}
-      <div className="mb-8">
+      <div className="mb-8" ref={plansSectionRef}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-slate-900">Choose Your Plan</h2>
           <div className="flex items-center bg-slate-100 rounded-lg p-1">
@@ -499,6 +508,14 @@ export default function BillingPage() {
                           ${plan.monthlyPrice}
                         </span>
                       </>
+                    ) : promoCode === "FIRST50" && plan.id === "pro" && !subscription.hasSubscribedBefore ? (
+                      <>
+                        <span className="text-4xl font-bold text-slate-900">${(plan.monthlyPrice / 2).toFixed(2)}</span>
+                        <span className="text-slate-600">/mo</span>
+                        <span className="ml-2 text-sm text-slate-400 line-through">
+                          ${plan.monthlyPrice}
+                        </span>
+                      </>
                     ) : (
                       <>
                         <span className="text-4xl font-bold text-slate-900">${plan.monthlyPrice}</span>
@@ -509,6 +526,11 @@ export default function BillingPage() {
                   {plan.id !== "free" && billingCycle === "annual" && (
                     <p className="text-xs text-emerald-600 font-medium mt-1">
                       ${plan.annualPrice}/year — save ${((plan.monthlyPrice * 12) - plan.annualPrice).toFixed(0)}/year
+                    </p>
+                  )}
+                  {promoCode === "FIRST50" && plan.id === "pro" && billingCycle === "monthly" && !subscription.hasSubscribedBefore && (
+                    <p className="text-xs text-emerald-600 font-medium mt-1">
+                      50% off your first month
                     </p>
                   )}
 
