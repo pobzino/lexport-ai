@@ -610,33 +610,23 @@ export default function BillingPage() {
       {/* FAQ */}
       <div className="bg-slate-50 rounded-2xl p-6">
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Frequently Asked Questions</h2>
-        <div className="space-y-4">
-          <div>
-            <h3 className="font-medium text-slate-900">Can I cancel anytime?</h3>
-            <p className="text-sm text-slate-600 mt-1">
-              Yes, you can cancel your subscription at any time. You'll continue to have access until the end of your billing period.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-medium text-slate-900">When do my free tier limits reset?</h3>
-            <p className="text-sm text-slate-600 mt-1">
-              Free tier usage limits reset on the 1st of each month. You'll see the countdown to your next reset in the usage section above.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-medium text-slate-900">What happens to my contracts if I downgrade?</h3>
-            <p className="text-sm text-slate-600 mt-1">
-              All your existing contracts remain accessible. You'll just be limited on creating new AI contracts and signatures on the free tier.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-medium text-slate-900">Do you offer any discounts?</h3>
-            <p className="text-sm text-slate-600 mt-1">
-              {subscription.hasSubscribedBefore
-                ? "Save up to 37% with annual billing. We also have a generous free tier so you can try Lexport before upgrading."
-                : "New subscribers get 50% off their first month. You can also save up to 37% with annual billing."}
-            </p>
-          </div>
+        <div className="divide-y divide-slate-200">
+          {[
+            { q: "Can I cancel anytime?", a: "Yes, you can cancel your subscription at any time. You\u2019ll continue to have access until the end of your billing period." },
+            { q: "When do my free tier limits reset?", a: "Free tier usage limits reset on the 1st of each month. You\u2019ll see the countdown to your next reset in the usage section above." },
+            { q: "What happens to my contracts if I downgrade?", a: "All your existing contracts remain accessible. You\u2019ll just be limited on creating new AI contracts and signatures on the free tier." },
+            { q: "Do you offer any discounts?", a: subscription.hasSubscribedBefore
+              ? "Save up to 37% with annual billing. We also have a generous free tier so you can try Lexport before upgrading."
+              : "New subscribers get 50% off their first month. You can also save up to 37% with annual billing." },
+          ].map((item) => (
+            <details key={item.q} className="group py-3 cursor-pointer">
+              <summary className="flex justify-between items-center text-sm font-medium text-slate-900 list-none">
+                {item.q}
+                <span className="ml-4 text-slate-400 group-open:rotate-45 transition-transform text-lg">+</span>
+              </summary>
+              <p className="text-sm text-slate-600 mt-2">{item.a}</p>
+            </details>
+          ))}
         </div>
       </div>
     </div>
