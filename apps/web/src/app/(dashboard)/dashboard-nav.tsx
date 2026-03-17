@@ -17,6 +17,7 @@ import {
   Activity,
   Receipt,
   Mail,
+  TrendingUp,
   Upload,
   Menu,
   X,
@@ -33,6 +34,7 @@ interface DashboardNavProps {
     image?: string | null;
   };
   isInboxOwner?: boolean;
+  isAdmin?: boolean;
 }
 
 const baseNavItems = [
@@ -45,13 +47,15 @@ const baseNavItems = [
   { href: "/activity", label: "Activity", icon: Activity },
 ];
 
+const growthNavItem = { href: "/growth", label: "Growth", icon: TrendingUp };
+
 const inboxNavItem = { href: "/inbox", label: "Inbox", icon: Mail };
 
 const bottomNavItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function DashboardNav({ user, isInboxOwner }: DashboardNavProps) {
+export function DashboardNav({ user, isInboxOwner, isAdmin }: DashboardNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -73,9 +77,12 @@ export function DashboardNav({ user, isInboxOwner }: DashboardNavProps) {
     };
   }, [mobileMenuOpen]);
 
-  const navItems = isInboxOwner
+  let navItems = isInboxOwner
     ? [...baseNavItems.slice(0, 6), inboxNavItem, ...baseNavItems.slice(6)]
     : baseNavItems;
+  if (isAdmin) {
+    navItems = [...navItems, growthNavItem];
+  }
 
   const handleSignOut = async () => {
     const supabase = createClient();
