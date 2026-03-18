@@ -197,7 +197,11 @@ export default function ContractEditorPage() {
   const [editingClause, setEditingClause] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState<string>("");
   const [editedTitle, setEditedTitle] = useState<string>("");
-  const [showChat, setShowChat] = useState(false);
+  const [showChat, setShowChat] = useState(() => {
+    // Auto-open chat on desktop/tablet (>= 768px)
+    if (typeof window !== "undefined") return window.innerWidth >= 768;
+    return false;
+  });
   const [expandedClauses, setExpandedClauses] = useState<Set<string>>(new Set());
 
   // Signature field state

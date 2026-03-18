@@ -4434,7 +4434,12 @@ function formatFieldValue(value: unknown): string {
   }
   if (typeof value === "boolean") return value ? "Yes" : "No";
   const str = String(value);
-  return str === "null" || str === "undefined" ? "Not specified" : str;
+  if (str === "null" || str === "undefined") return "Not specified";
+  // Format snake_case and camelCase enum values as natural language
+  return str
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 type SignerSyncMapping = {

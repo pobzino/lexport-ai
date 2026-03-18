@@ -37,7 +37,7 @@ function getOpenAIProgress(job: ContractGenerationJobRecord, remoteStatus: strin
   const estimatedPercent = Math.min(85, 35 + Math.floor(elapsedMs / 4000) * 4);
   return {
     percent: Math.max(job.progress_percent, estimatedPercent),
-    status: "AI is drafting your contract...",
+    status: "Lexport is generating your contract...",
   };
 }
 

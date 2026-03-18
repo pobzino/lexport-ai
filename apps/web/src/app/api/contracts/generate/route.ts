@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
             progress_status:
               backgroundResponse.status === "queued"
                 ? "Queued with OpenAI"
-                : "AI is drafting your contract...",
+                : "Lexport is generating your contract...",
             openai_response_id: backgroundResponse.responseId,
             started_at: new Date().toISOString(),
             error_message: null,

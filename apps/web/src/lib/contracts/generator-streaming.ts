@@ -629,7 +629,7 @@ export async function generateContractStreaming(
   onProgress({ status: "Preparing legal requirements...", percent: 30 });
 
   onProgress({
-    status: "AI is drafting your contract...",
+    status: "Lexport is generating your contract...",
     percent: 40,
   });
 
