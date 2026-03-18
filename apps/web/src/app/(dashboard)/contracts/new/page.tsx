@@ -1572,11 +1572,13 @@ export default function NewContractPage() {
                   )}
 
                   {/* Extracted Details */}
-                  {Object.keys(intakeAnalysis.extractedFields).length > 0 && (
+                  {Object.keys(intakeAnalysis.extractedFields).filter(k => !["paymentRequired", "paymentCurrency", "paymentStructure", "depositPercentage"].includes(k)).length > 0 && (
                     <div className="bg-slate-50 rounded-lg p-4 mb-4">
                       <p className="text-sm font-medium text-slate-700 mb-2">Details I found:</p>
                       <div className="grid grid-cols-2 gap-2 text-sm">
-                        {Object.entries(intakeAnalysis.extractedFields).map(([key, value]) => (
+                        {Object.entries(intakeAnalysis.extractedFields)
+                          .filter(([key]) => !["paymentRequired", "paymentCurrency", "paymentStructure", "depositPercentage"].includes(key))
+                          .map(([key, value]) => (
                           <div key={key} className="flex gap-2">
                             <span className="text-slate-500">{formatFieldLabel(key)}:</span>
                             <span className="text-slate-900 font-medium">{
