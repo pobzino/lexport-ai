@@ -76,11 +76,15 @@ Payment-related extracted fields (include in extractedFields when relevant):
 Respond with a JSON object matching this structure:
 {
   "suggestedType": "contract_type_id",
-  "inferredTypeName": "Human-readable contract type name (e.g. 'Residential Lease Agreement', 'Employment Contract')",
+  "inferredTypeName": "Human-readable contract type name",
   "confidence": 85,
   "jurisdiction": "jurisdiction_id or null",
   "extractedFields": {
-    "fieldName": "extracted value"
+    "fieldName": "extracted value",
+    "paymentRequired": true,
+    "paymentCurrency": "usd",
+    "paymentStructure": "full",
+    "depositPercentage": 50
   },
   "followUpQuestions": [
     {
@@ -98,6 +102,39 @@ Respond with a JSON object matching this structure:
     "recitals": "WHEREAS, [Party A] possesses certain... and WHEREAS, [Party B] desires to..."
   }
 }
+
+CRITICAL — extractedFields must capture EVERYTHING the user mentions:
+- ALL names, companies, roles, parties mentioned
+- ALL amounts, rates, fees (as numbers)
+- ALL dates, durations, deadlines
+- ALL project/scope/service descriptions
+- ALL payment terms: deposit, milestones, installments, upfront percentages
+- Payment fields: paymentRequired, paymentCurrency, paymentStructure, depositPercentage
+
+Example: User says "I need a freelance contract for a web redesign, £10000, 40% deposit upfront"
+extractedFields should include:
+{
+  "projectDescription": "web redesign",
+  "totalAmount": 10000,
+  "paymentRequired": true,
+  "paymentCurrency": "gbp",
+  "paymentStructure": "deposit_balance",
+  "depositPercentage": 40
+}
+
+Example: User says "consulting agreement with John Smith at Acme Corp, $150/hour for 6 months"
+extractedFields should include:
+{
+  "consultantName": "John Smith",
+  "clientCompany": "Acme Corp",
+  "hourlyRate": 150,
+  "duration": "6 months",
+  "paymentRequired": true,
+  "paymentCurrency": "usd",
+  "paymentStructure": "full"
+}
+
+Do NOT leave extractedFields sparse — extract every detail the user provides.
 
 IMPORTANT for previewSnippet:
 - Generate a realistic preview of what the final contract would look like
