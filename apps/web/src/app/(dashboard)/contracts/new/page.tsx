@@ -837,6 +837,10 @@ export default function NewContractPage() {
       const isValid = validateFormData();
       if (!isValid) {
         setError("Please fill in all required fields");
+        // Scroll to the validation errors banner
+        requestAnimationFrame(() => {
+          document.querySelector("[data-validation-errors]")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
         return;
       }
       setError(null);
@@ -2063,7 +2067,7 @@ export default function NewContractPage() {
 
 
             {errorMessages.length > 0 && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <div data-validation-errors className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm font-semibold text-amber-900">
                   Complete the missing fields before continuing
                 </p>
