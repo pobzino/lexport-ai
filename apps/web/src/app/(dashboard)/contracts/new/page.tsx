@@ -757,7 +757,8 @@ export default function NewContractPage() {
 
       // Replace form data with freshly extracted fields (clear stale data from previous intake)
       const extractedFields = data.analysis.extractedFields ?? {};
-      setFormData(extractedFields);
+      const { paymentRequired: _pr, paymentCurrency: _pc, paymentStructure: _ps, depositPercentage: _dp, ...formFields } = extractedFields;
+      setFormData(formFields);
 
       // Apply payment preferences extracted by AI
       if (extractedFields.paymentRequired === true) {
@@ -2343,7 +2344,7 @@ export default function NewContractPage() {
                 </div>
                 {/* Show key details based on form data (exclude complex fields) */}
                 {Object.entries(formData)
-                  .filter(([key]) => !["signerGroups", "deliverables"].includes(key))
+                  .filter(([key]) => !["signerGroups", "deliverables", "paymentRequired", "paymentCurrency", "paymentStructure", "depositPercentage"].includes(key))
                   .slice(0, 4)
                   .map(([key, value]) => (
                   <div key={key}>
