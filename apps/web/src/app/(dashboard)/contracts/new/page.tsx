@@ -757,11 +757,14 @@ export default function NewContractPage() {
 
       // Replace form data with freshly extracted fields (clear stale data from previous intake)
       const extractedFields = data.analysis.extractedFields ?? {};
+      console.log("[intake] extractedFields:", JSON.stringify(extractedFields));
       const { paymentRequired: _pr, paymentCurrency: _pc, paymentStructure: _ps, depositPercentage: _dp, ...formFields } = extractedFields;
       setFormData(formFields);
 
       // Apply payment preferences extracted by AI
-      if (extractedFields.paymentRequired === true) {
+      // Also infer paymentRequired if any amount field exists
+      const hasAmount = !!(extractedFields.totalAmount || extractedFields.paymentAmount || extractedFields.hourlyRate || extractedFields.retainerAmount || extractedFields.investmentAmount);
+      if (extractedFields.paymentRequired === true || hasAmount) {
         setPaymentRequired(true);
         setShowAdvancedOptions(true);
       }

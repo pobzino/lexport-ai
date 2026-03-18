@@ -67,11 +67,11 @@ IMPORTANT field naming conventions:
 - duration: The contract length as a string (e.g., "4 months", "1 year")
 - Do NOT confuse duration with paymentFrequency
 
-Payment-related extracted fields (include in extractedFields when relevant):
-- paymentRequired: boolean — set to true if ANY payment amount, fee, rate, cost, or price is mentioned
+IMPORTANT — Payment-related fields (ALWAYS include in extractedFields when ANY money is mentioned):
+- paymentRequired: boolean — MUST be true if ANY payment amount, fee, rate, cost, price, or deposit is mentioned
 - paymentCurrency: "usd" | "eur" | "gbp" — infer from currency symbols ($ = usd, £ = gbp, € = eur) or country context; default to "usd" if amount mentioned without currency
-- paymentStructure: "full" | "deposit_balance" | "bnpl" — infer from context: "deposit"/"upfront + balance"/"partial payment" → "deposit_balance"; "installments"/"pay later"/"split payments" → "bnpl"; default to "full" if payment mentioned without structure details
-- depositPercentage: number (10-90) — extract if deposit percentage mentioned (e.g. "50% upfront" → 50); only include when paymentStructure is "deposit_balance"
+- paymentStructure: "full" | "deposit_balance" | "bnpl" — MUST be set when paymentRequired is true. If "deposit", "upfront", "partial payment", "down payment", or any percentage + "upfront"/"deposit" is mentioned → MUST be "deposit_balance". "installments"/"pay later" → "bnpl". Default to "full" only if no deposit/installment is mentioned.
+- depositPercentage: number (10-90) — MUST be included when paymentStructure is "deposit_balance". Extract the percentage (e.g. "40% deposit" → 40, "50% upfront" → 50, "30% down payment" → 30)
 
 Respond with a JSON object matching this structure:
 {
