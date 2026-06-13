@@ -1,10 +1,10 @@
 /**
  * Niche landing-page data for /for/[niche].
  *
- * Each niche is a high-intent audience we can point an ad group + SEO at, with
- * message-match copy and the specific contract templates that matter to them.
- * Keep the set small and tied to real ad groups — add a niche only when there's
- * a campaign pointing at it.
+ * Each niche is a high-intent audience we can point an ad group + SEO at. Copy
+ * is written per-persona — visceral, specific pains resolved by Lexport's real
+ * mechanism: a legally binding contract, e-signed in minutes, with payment
+ * collected at signing. Add a niche only when there's a campaign pointing at it.
  */
 
 export type NicheAudience = "freelancer" | "agency";
@@ -27,6 +27,8 @@ export interface Niche {
   subhead: string;
   metaTitle: string;
   metaDescription: string;
+  /** bespoke heading for the problem/solution section */
+  problemsHeading: string;
   problems: { problem: string; solution: string }[];
   contracts: RelevantContract[];
   useCases: { title: string; description: string }[];
@@ -51,13 +53,14 @@ export const NICHES: Niche[] = [
     icon: "Workflow",
     badge: "For AI Automation Agencies",
     accent: "violet",
-    h1a: "Lock down scope and IP",
-    h1b: "before you build the automation",
+    h1a: "Signed and paid before",
+    h1b: "you connect a single API",
     subhead:
       "Stop starting builds on a verbal yes. Generate a legally binding agreement for the automation, get it e-signed in minutes, and collect your deposit before you touch a single API — with scope, workflow ownership, and client-data terms locked in.",
-    metaTitle: "Contracts for AI Automation Agencies",
+    metaTitle: "AI Automation Agency Contracts — Signed & Paid",
     metaDescription:
       "Generate legally binding contracts for AI automation projects, get them e-signed in minutes, and collect deposits at signing — with workflow IP and client-data terms built in.",
+    problemsHeading: "Where AI automation deals go sideways",
     problems: [
       { problem: "Starting builds on a verbal yes, nothing binding signed", solution: "Legally binding contract, e-signed in minutes" },
       { problem: "Chasing deposits and invoices after the work's done", solution: "Payment collected at signing, before you start" },
@@ -71,10 +74,10 @@ export const NICHES: Niche[] = [
       { ...C.ip, why: "Make ownership of the workflows and prompts explicit." },
     ],
     useCases: [
-      { title: "Automation builds", description: "Scoped per-project SOWs with milestones and deposits" },
-      { title: "Maintenance retainers", description: "Monthly MSAs with auto-billing for upkeep" },
+      { title: "Automation builds", description: "Scoped SOWs with a deposit collected at signing" },
+      { title: "Maintenance retainers", description: "Monthly MSAs that auto-collect the fee" },
       { title: "Data & access", description: "NDA + terms covering the accounts and data you handle" },
-      { title: "Workflow ownership", description: "Clear IP transfer so there's no dispute later" },
+      { title: "Workflow ownership", description: "IP transfers cleanly when the invoice clears" },
     ],
   },
   {
@@ -83,13 +86,14 @@ export const NICHES: Niche[] = [
     icon: "Cpu",
     badge: "For AI Development Agencies",
     accent: "blue",
-    h1a: "Own the terms before",
-    h1b: "you ship the model",
+    h1a: "Scoped, signed, and",
+    h1b: "paid by milestone",
     subhead:
       "Turn a handshake into a legally binding agreement — e-signed online, with milestone payments collected automatically as you ship. Model and code ownership, training-data protection, and ML scope all locked in.",
-    metaTitle: "Contracts for AI Development Agencies",
+    metaTitle: "AI Development Agency Contracts — Signed & Paid",
     metaDescription:
       "Legally binding agreements for AI/ML development — e-signed online with milestone payments collected automatically, plus model & code ownership and training-data protection.",
+    problemsHeading: "Where AI builds get messy",
     problems: [
       { problem: "ML builds starting with nothing binding signed", solution: "Legally binding contract, e-signed online" },
       { problem: "Lumpy, late payments across long builds", solution: "Milestone payments collected at each sign-off" },
@@ -103,10 +107,10 @@ export const NICHES: Niche[] = [
       { ...C.nda, why: "Guard proprietary datasets and methods both ways." },
     ],
     useCases: [
-      { title: "Custom model builds", description: "Milestone SOWs with deposits and clear acceptance" },
+      { title: "Custom model builds", description: "Milestone SOWs that release payment at each sign-off" },
       { title: "IP & ownership", description: "Who owns the model, code, and weights — in writing" },
       { title: "Data protection", description: "NDAs covering training data and client systems" },
-      { title: "Ongoing MLOps", description: "Retainer MSAs for monitoring and upkeep" },
+      { title: "Ongoing MLOps", description: "Retainer MSAs that auto-collect for monitoring & upkeep" },
     ],
   },
   {
@@ -115,18 +119,19 @@ export const NICHES: Niche[] = [
     icon: "Megaphone",
     badge: "For Marketing Agencies",
     accent: "orange",
-    h1a: "Retainers signed and",
-    h1b: "deposits collected, fast",
+    h1a: "Lock the retainer,",
+    h1b: "collect it every month",
     subhead:
-      "Lock in monthly retainers, define exactly what's in scope, and collect before the campaign starts — instead of arguing about deliverables at invoice time.",
-    metaTitle: "Contracts for Marketing Agencies",
+      "Define exactly what's in the monthly scope, get the client to e-sign before the first deliverable, and auto-collect the retainer on schedule — so “can you also just…” becomes a paid add-on instead of free work.",
+    metaTitle: "Marketing Agency Contracts — Sign Clients & Get Paid",
     metaDescription:
-      "Retainer MSAs, SOWs and consulting agreements for marketing agencies. Define scope, e-sign, and collect deposits before the campaign starts.",
+      "Lock retainer scope in a legally binding agreement, e-sign new clients in minutes, and auto-collect monthly fees. Stop scope creep and late payments — built for marketing agencies.",
+    problemsHeading: "Where agency retainers leak money",
     problems: [
-      { problem: "Retainers with fuzzy 'whatever's needed' scope", solution: "MSA + SOW that lists deliverables" },
-      { problem: "Clients disputing what was included", solution: "Signed scope both parties agreed to" },
-      { problem: "Late monthly payments", solution: "Auto-billing and deposits at signing" },
-      { problem: "Slow contract turnaround losing deals", solution: "Generate and send in minutes" },
+      { problem: "Retainers with fuzzy “whatever's needed” scope", solution: "Deliverables locked in a signed agreement" },
+      { problem: "“Can you also just…” turning into free work", solution: "Out-of-scope asks become a paid add-on" },
+      { problem: "Chasing the monthly retainer every cycle", solution: "Retainer auto-collected on schedule" },
+      { problem: "Losing deals to agencies that onboard faster", solution: "Send, sign, and bill a new client in minutes" },
     ],
     contracts: [
       { ...C.msa, why: "The backbone for monthly retainer relationships." },
@@ -135,10 +140,10 @@ export const NICHES: Niche[] = [
       { ...C.nda, why: "Protect client strategy and data you're handed." },
     ],
     useCases: [
-      { title: "Monthly retainers", description: "Recurring MSAs with auto-billing" },
-      { title: "Campaign SOWs", description: "Per-campaign scope and deliverables" },
-      { title: "Strategy engagements", description: "Consulting agreements for advisory work" },
-      { title: "Client onboarding", description: "Send, sign, and collect in one link" },
+      { title: "Retainer onboarding", description: "Send a binding agreement, collect month one at signing" },
+      { title: "Campaign SOWs", description: "Per-campaign scope, deliverables, and sign-off" },
+      { title: "Scope changes", description: "Signed change orders for anything extra" },
+      { title: "Client confidentiality", description: "Mutual NDA for strategy and account access" },
     ],
   },
   {
@@ -147,18 +152,19 @@ export const NICHES: Niche[] = [
     icon: "LayoutTemplate",
     badge: "For Web & Design Agencies",
     accent: "blue",
-    h1a: "Scope the build and",
-    h1b: "get the deposit upfront",
+    h1a: "Scope locked, deposit in,",
+    h1b: "before the first mockup",
     subhead:
-      "Stop eating revision rounds and hosting questions. Fix the scope, set milestone payments, transfer IP on final payment, and start with money in the bank.",
-    metaTitle: "Contracts for Web & Design Agencies",
+      "Fix the scope and revision rounds in a legally binding agreement, transfer the site and source files only on final payment, and collect your deposit at signing — so launch day never turns into a payment standoff.",
+    metaTitle: "Web Design Agency Contracts — Deposits & Sign-Off",
     metaDescription:
-      "MSAs, SOWs and IP assignment for web design and development agencies. Fix scope, milestone billing, e-sign and collect a deposit before you start.",
+      "Lock scope and revision limits in a binding agreement, transfer the site only on final payment, and collect a deposit at signing. E-sign in minutes — built for web & design agencies.",
+    problemsHeading: "Where web projects bleed margin",
     problems: [
-      { problem: "Endless 'just one more revision'", solution: "Revision limits written into the SOW" },
-      { problem: "Who owns the site, code & assets?", solution: "IP transfer on final payment" },
-      { problem: "Starting work before any deposit", solution: "Collect deposit at signing" },
-      { problem: "Maintenance billed inconsistently", solution: "Retainer MSA for ongoing care" },
+      { problem: "“Just one more revision” eating your margin", solution: "Revision rounds capped in the signed scope" },
+      { problem: "Clients demanding source files before paying", solution: "Site & files transfer only on final payment" },
+      { problem: "Designing for weeks before any deposit lands", solution: "Deposit collected the moment they sign" },
+      { problem: "Maintenance billed differently every time", solution: "Recurring care plan on an auto-collected retainer" },
     ],
     contracts: [
       { ...C.msa, why: "Cover the relationship plus ongoing maintenance." },
@@ -167,10 +173,10 @@ export const NICHES: Niche[] = [
       { ...C.nda, why: "Protect client brand and pre-launch material." },
     ],
     useCases: [
-      { title: "Website builds", description: "Milestone SOWs with deposits" },
-      { title: "Revision control", description: "Defined rounds, extras billed" },
-      { title: "Care plans", description: "Monthly maintenance retainers" },
-      { title: "Asset ownership", description: "Clean IP transfer on payment" },
+      { title: "Website builds", description: "Milestone scope with a deposit up front" },
+      { title: "Revision control", description: "Defined rounds; extras are billed and signed" },
+      { title: "Launch & handoff", description: "IP transfers the moment final payment clears" },
+      { title: "Care plans", description: "Monthly maintenance on auto-collect" },
     ],
   },
 
@@ -181,18 +187,19 @@ export const NICHES: Niche[] = [
     icon: "Palette",
     badge: "For Graphic Designers",
     accent: "orange",
-    h1a: "Get paid before",
-    h1b: "you open the canvas",
+    h1a: "Get paid before you",
+    h1b: "hand over the files",
     subhead:
-      "Stop handing over finals to clients who ghost. Set scope and revision limits, transfer rights only on payment, and collect a deposit at signing.",
-    metaTitle: "Contracts for Graphic Designers",
+      "Send a legally binding agreement, collect a deposit at signing, and release the final files and usage rights only when you're paid in full — so a “quick logo” never turns into free work and a ghosted invoice.",
+    metaTitle: "Graphic Design Contracts — Get a Deposit & Get Paid",
     metaDescription:
-      "Freelance service agreements, IP assignment and NDAs for graphic designers. Set scope, transfer rights on payment, e-sign and collect a deposit.",
+      "Send a legally binding design agreement, collect a deposit at signing, and release files & rights only on final payment. Cap revisions and stop ghosted invoices.",
+    problemsHeading: "How designers get burned",
     problems: [
-      { problem: "Clients ghosting after you deliver finals", solution: "Deposit collected at signing" },
-      { problem: "Endless 'small tweaks'", solution: "Revision limits in the agreement" },
-      { problem: "Clients using work before paying", solution: "Rights transfer on final payment" },
-      { problem: "No paper trail when it goes wrong", solution: "Signed agreement both parties hold" },
+      { problem: "Handing over finals to a client who then ghosts", solution: "Files & rights release only on final payment" },
+      { problem: "“Just a few small tweaks” — forever", solution: "Revision rounds capped in the signed agreement" },
+      { problem: "Clients using your work before paying", solution: "Usage rights transfer on payment, in writing" },
+      { problem: "No deposit, all of the risk on you", solution: "Deposit collected the moment they sign" },
     ],
     contracts: [
       { ...C.freelance, why: "Scope, deliverables, revisions, and payment in one." },
@@ -200,9 +207,9 @@ export const NICHES: Niche[] = [
       { ...C.nda, why: "Protect concepts before you share them." },
     ],
     useCases: [
-      { title: "Project work", description: "Logos, brand, and one-off design jobs" },
-      { title: "Retainers", description: "Ongoing design with monthly billing" },
-      { title: "Usage rights", description: "Define exactly what the client can use" },
+      { title: "Logo & brand projects", description: "Deposit up front, files on final payment" },
+      { title: "Design retainers", description: "Ongoing work on auto-collected monthly fees" },
+      { title: "Usage rights", description: "Exactly where and how the client can use the work" },
       { title: "Concept NDAs", description: "Protect ideas before the pitch" },
     ],
   },
@@ -212,18 +219,19 @@ export const NICHES: Niche[] = [
     icon: "Code2",
     badge: "For Web Developers",
     accent: "blue",
-    h1a: "Lock scope and code",
-    h1b: "ownership upfront",
+    h1a: "Own the code until",
+    h1b: "the invoice is paid",
     subhead:
-      "Fix the spec, settle who owns the code, and bill by milestone. Collect a deposit before the first commit and transfer IP only when you're paid.",
-    metaTitle: "Contracts for Web Developers",
+      "Lock the spec in a legally binding agreement, bill by milestone with payment collected at each sign-off, and transfer the code only when you're paid in full — so “can you just add one more thing” becomes a paid change request.",
+    metaTitle: "Web Developer Contracts — Milestone Pay & Code Ownership",
     metaDescription:
-      "Independent contractor agreements, IP assignment and MSAs for freelance web developers. Lock scope, own the terms, e-sign and collect milestone payments.",
+      "Lock scope in a binding agreement, collect milestone payments at each sign-off, and transfer code only on final payment. Stop scope creep — built for freelance web developers.",
+    problemsHeading: "Where dev projects go unpaid",
     problems: [
-      { problem: "Scope creep on every build", solution: "Defined spec + paid change requests" },
-      { problem: "Who owns the code?", solution: "IP transfer on final payment" },
-      { problem: "Working for free until 'it's done'", solution: "Milestone billing + deposit" },
-      { problem: "Clients vanishing mid-project", solution: "Signed agreement + upfront payment" },
+      { problem: "“Can you also just add…” with no extra pay", solution: "Out-of-scope work becomes a paid change request" },
+      { problem: "Handing over the repo before getting paid", solution: "Code transfers only on final payment" },
+      { problem: "Coding for weeks before any money lands", solution: "Milestone payments collected at each sign-off" },
+      { problem: "Clients vanishing mid-build", solution: "Binding agreement + deposit before the first commit" },
     ],
     contracts: [
       { ...C.contractor, why: "Standard agreement for freelance dev work." },
@@ -231,10 +239,10 @@ export const NICHES: Niche[] = [
       { ...C.msa, why: "For longer or recurring engagements." },
     ],
     useCases: [
-      { title: "Project builds", description: "Milestone-billed development work" },
-      { title: "Code ownership", description: "Who owns what, settled in writing" },
-      { title: "Retainers", description: "Ongoing dev and maintenance" },
-      { title: "Subcontracting", description: "Clean terms when you bring in help" },
+      { title: "Project builds", description: "Milestone scope, deposit, and sign-offs" },
+      { title: "Code ownership", description: "Repo transfers when payment clears" },
+      { title: "Retainers", description: "Ongoing dev on auto-collected fees" },
+      { title: "Subcontracting", description: "Clean, signed terms when you bring in help" },
     ],
   },
   {
@@ -243,18 +251,19 @@ export const NICHES: Niche[] = [
     icon: "PenLine",
     badge: "For Freelance Writers",
     accent: "emerald",
-    h1a: "Define usage rights",
-    h1b: "and get paid on time",
+    h1a: "Get paid for your words,",
+    h1b: "control where they run",
     subhead:
-      "Set exactly how your words can be used, cap revisions, and collect a deposit before the first draft — so a 'quick edit' never turns into free work.",
-    metaTitle: "Contracts for Freelance Writers",
+      "Set exactly how your work can be used, cap the revisions, and collect a deposit at signing — all in a legally binding, e-signed agreement — so a “quick edit” never becomes free work and your words don't run everywhere for a one-time fee.",
+    metaTitle: "Freelance Writer Contracts — Usage Rights & Fast Pay",
     metaDescription:
-      "Freelance service agreements, usage rights and NDAs for writers and copywriters. Define rights, cap revisions, e-sign and collect a deposit.",
+      "Define usage rights, cap revisions, and collect a deposit at signing in a legally binding, e-signed agreement. Stop scope creep and late pay — built for writers & copywriters.",
+    problemsHeading: "How writers lose out",
     problems: [
-      { problem: "Work used beyond what was agreed", solution: "Clear usage-rights terms" },
-      { problem: "'One more revision' forever", solution: "Revision caps in the agreement" },
+      { problem: "Your work running everywhere for a one-time fee", solution: "Usage rights defined and signed" },
+      { problem: "“One more revision” with no end in sight", solution: "Revision rounds capped in the agreement" },
       { problem: "Net-60 invoices, or worse", solution: "Deposit collected at signing" },
-      { problem: "No proof of what was agreed", solution: "Signed agreement on file" },
+      { problem: "Drafting the piece, then the client cancels", solution: "Kill fee written into a binding contract" },
     ],
     contracts: [
       { ...C.freelance, why: "Scope, deadlines, revisions, and payment terms." },
@@ -262,10 +271,10 @@ export const NICHES: Niche[] = [
       { ...C.nda, why: "For ghostwriting and confidential briefs." },
     ],
     useCases: [
-      { title: "Content projects", description: "Articles, copy, and one-off pieces" },
-      { title: "Ghostwriting", description: "NDAs + clear authorship terms" },
-      { title: "Retainers", description: "Ongoing content with monthly billing" },
-      { title: "Usage & rights", description: "Define exactly how words are used" },
+      { title: "Content & copy projects", description: "Scope, deadlines, and a deposit up front" },
+      { title: "Ghostwriting", description: "NDA + clear authorship and rights" },
+      { title: "Retainers", description: "Ongoing content on auto-collected fees" },
+      { title: "Licensing", description: "Define exactly where the words can be used" },
     ],
   },
   {
@@ -274,18 +283,19 @@ export const NICHES: Niche[] = [
     icon: "Lightbulb",
     badge: "For Consultants",
     accent: "violet",
-    h1a: "Engagements scoped",
-    h1b: "and retainers signed",
+    h1a: "Get paid before you",
+    h1b: "share your expertise",
     subhead:
-      "Set deliverables and boundaries, protect confidential information both ways, and collect before the first call — no more advisory work on a handshake.",
-    metaTitle: "Contracts for Consultants",
+      "Set deliverables and boundaries, sign a mutual NDA before the deep dive, and collect your fee before the first call — in one legally binding, e-signed agreement — so your advice is never given on a handshake again.",
+    metaTitle: "Consulting Contracts — Get Paid Before You Advise",
     metaDescription:
-      "Consulting agreements, NDAs and SOWs for independent consultants. Scope engagements, protect confidentiality, e-sign and collect a deposit.",
+      "Scope engagements, sign a mutual NDA, and collect a deposit before the first call in a legally binding, e-signed agreement. Built for independent consultants.",
+    problemsHeading: "Why consultants don't get paid",
     problems: [
-      { problem: "Advice given, invoice ignored", solution: "Deposit + signed engagement terms" },
-      { problem: "Scope drifting into free work", solution: "Defined deliverables and boundaries" },
-      { problem: "Sensitive info shared loosely", solution: "Mutual NDA up front" },
-      { problem: "Slow, manual contracting", solution: "Generate and send in minutes" },
+      { problem: "Advice given, then the invoice is ignored", solution: "Deposit collected before the first session" },
+      { problem: "Engagements drifting into unpaid “quick calls”", solution: "Deliverables and boundaries signed up front" },
+      { problem: "Sensitive information shared on trust alone", solution: "Mutual NDA signed before the deep dive" },
+      { problem: "Retainer clients paying late", solution: "Recurring fees auto-collected on schedule" },
     ],
     contracts: [
       { ...C.consulting, why: "Core agreement for advisory engagements." },
@@ -293,10 +303,10 @@ export const NICHES: Niche[] = [
       { ...C.sow, why: "Pin deliverables for fixed-scope projects." },
     ],
     useCases: [
-      { title: "Advisory retainers", description: "Recurring engagements with auto-billing" },
-      { title: "Fixed projects", description: "Scoped deliverables and milestones" },
-      { title: "Confidentiality", description: "Mutual NDAs before deep dives" },
-      { title: "Fast onboarding", description: "Send, sign, collect in one link" },
+      { title: "Advisory retainers", description: "Recurring engagements that auto-collect" },
+      { title: "Fixed-scope projects", description: "Deliverables, milestones, and sign-off" },
+      { title: "Confidentiality", description: "Mutual NDA before sharing anything sensitive" },
+      { title: "Fast onboarding", description: "Send, sign, and collect in one link" },
     ],
   },
   {
@@ -305,18 +315,19 @@ export const NICHES: Niche[] = [
     icon: "Camera",
     badge: "For Photographers",
     accent: "orange",
-    h1a: "Shoots booked with",
+    h1a: "Lock the date with",
     h1b: "a deposit in the bank",
     subhead:
-      "Lock the date with a deposit, define how images can be used, and set delivery and licensing terms — so no-shows and rights disputes stop costing you.",
-    metaTitle: "Contracts for Photographers",
+      "Hold the booking with a non-refundable deposit collected at signing, define exactly how the images can be used, and set delivery terms — all in a legally binding, e-signed agreement — so no-shows and rights disputes stop costing you.",
+    metaTitle: "Photography Contracts — Lock Bookings With a Deposit",
     metaDescription:
-      "Service agreements, licensing and IP terms for freelance photographers. Lock shoots with a deposit, define usage rights, e-sign and get paid.",
+      "Hold the date with a non-refundable deposit at signing, define image licensing, and set delivery terms in a legally binding, e-signed agreement. Built for photographers.",
+    problemsHeading: "What costs photographers money",
     problems: [
-      { problem: "No-shows costing you the date", solution: "Non-refundable booking deposit" },
-      { problem: "Images used beyond the license", solution: "Clear usage & licensing terms" },
-      { problem: "Disputes over delivery & edits", solution: "Defined deliverables and timeline" },
-      { problem: "Verbal bookings falling through", solution: "Signed agreement to hold the date" },
+      { problem: "No-shows costing you the date and other bookings", solution: "Non-refundable deposit collected at signing" },
+      { problem: "Images used far beyond the agreed license", solution: "Usage and licensing terms signed up front" },
+      { problem: "Disputes over delivery, edits, and turnaround", solution: "Deliverables and timeline in the contract" },
+      { problem: "Verbal bookings that quietly fall through", solution: "A binding, e-signed agreement holds the date" },
     ],
     contracts: [
       { ...C.freelance, why: "Shoot scope, delivery, and payment terms." },
@@ -324,10 +335,10 @@ export const NICHES: Niche[] = [
       { ...C.sales, why: "For print sales and product deliverables." },
     ],
     useCases: [
-      { title: "Bookings", description: "Lock the date with a deposit" },
-      { title: "Licensing", description: "Define exactly how images are used" },
-      { title: "Events & sessions", description: "Scope, delivery, and timelines" },
-      { title: "Print sales", description: "Terms for physical deliverables" },
+      { title: "Bookings", description: "Lock the date with a deposit at signing" },
+      { title: "Licensing", description: "Define exactly how images can be used" },
+      { title: "Events & sessions", description: "Scope, delivery, and timeline" },
+      { title: "Cancellations", description: "Deposit terms that protect your time" },
     ],
   },
 ];
