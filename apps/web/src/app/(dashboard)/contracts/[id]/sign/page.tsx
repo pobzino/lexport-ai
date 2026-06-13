@@ -55,6 +55,10 @@ export default function SendForSignaturePage() {
     url: string;
   }>>([]);
   const [showPreview, setShowPreview] = useState(false);
+  // Distinct roles the document's signature fields are assigned to. When this
+  // is non-empty, each signer MUST be mapped to one of these roles — otherwise
+  // the signer can't be matched to their fields and the contract is unsignable.
+  const [availableRoles, setAvailableRoles] = useState<string[]>([]);
 
   // Fetch contract
   useEffect(() => {
@@ -64,6 +68,16 @@ export default function SendForSignaturePage() {
         if (!response.ok) throw new Error("Contract not found");
         const data = await response.json();
         setContract(data.contract);
+
+        // Distinct, non-empty roles the document's fields are assigned to.
+        const roles = Array.from(
+          new Set(
+            ((data.signatureFields || []) as Array<{ signer_role?: string }>)
+              .map((f) => f.signer_role)
+              .filter((r): r is string => !!r && r.trim().length > 0)
+          )
+        );
+        setAvailableRoles(roles);
 
         // Pre-fill signers from contract metadata if available
         const metadata = data.contract.metadata as Record<string, unknown>;
@@ -176,6 +190,18 @@ export default function SendForSignaturePage() {
     if (validSigners.length === 0) {
       setError("Please add at least one signer with name and email");
       return;
+    }
+    // When the document has role-scoped fields, every signer must be mapped to a
+    // role — otherwise they can't be matched to their fields and the contract
+    // becomes unsignable. (This is the bug that left signers stuck at "x/6".)
+    if (availableRoles.length > 0) {
+      const unroled = validSigners.find((s) => !s.role || !s.role.trim());
+      if (unroled) {
+        setError(
+          "Please choose a role for each signer — it's how they're matched to the right signature fields. Without it the contract can't be signed."
+        );
+        return;
+      }
     }
 
     setSending(true);
@@ -381,15 +407,34 @@ export default function SendForSignaturePage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Role (optional)
+                      Role {availableRoles.length > 0 ? (
+                        <span className="text-red-500">*</span>
+                      ) : (
+                        "(optional)"
+                      )}
                     </label>
-                    <input
-                      type="text"
-                      value={signer.role || ""}
-                      onChange={(e) => updateSigner(index, "role", e.target.value)}
-                      placeholder="Contractor"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent"
-                    />
+                    {availableRoles.length > 0 ? (
+                      <select
+                        value={signer.role || ""}
+                        onChange={(e) => updateSigner(index, "role", e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent bg-white"
+                      >
+                        <option value="">Select role…</option>
+                        {availableRoles.map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={signer.role || ""}
+                        onChange={(e) => updateSigner(index, "role", e.target.value)}
+                        placeholder="Contractor"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#529ec6] focus:border-transparent"
+                      />
+                    )}
                   </div>
                 </div>
                 {signers.length > 1 && (

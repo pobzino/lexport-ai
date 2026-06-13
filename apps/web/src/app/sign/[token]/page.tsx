@@ -296,8 +296,12 @@ export default function SignContractPage() {
         if (data.signatureFields) {
           setSignatureFields(data.signatureFields);
           const signerRole = data.signatureRequest?.signerRole;
+          // A signer is only ever responsible for fields matching their role.
+          // If they have no role (legacy/edge), scope them to UNASSIGNED fields
+          // only — never the whole document, which on a multi-party contract
+          // would include the counterparty's fields and make it unsignable.
           const fieldsForMe = (data.signatureFields as SignatureField[])
-            .filter((f) => !signerRole || f.signer_role === signerRole)
+            .filter((f) => (signerRole ? f.signer_role === signerRole : !f.signer_role))
             .sort((a, b) => a.order - b.order);
           setMyFields(fieldsForMe);
         }
