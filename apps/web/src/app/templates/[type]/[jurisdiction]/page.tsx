@@ -31,6 +31,10 @@ import { TemplateUseCTA } from "@/components/templates/TemplateUseCTA";
 import { TemplatePageTracker } from "@/components/templates/TemplatePageTracker";
 
 export const revalidate = 3600;
+// Only pre-generated (valid type + jurisdiction) routes are served; any other
+// slug returns a hard 404 instead of rendering a soft-200 page. Fixes invalid
+// jurisdictions like /templates/nda-mutual/nonexistent-state returning 200.
+export const dynamicParams = false;
 
 interface Props {
   params: Promise<{ type: string; jurisdiction: string }>;
