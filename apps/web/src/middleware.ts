@@ -6,14 +6,23 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Only run middleware on routes that actually need auth gating (the protected
+  // app + the login/register pages). Public/marketing routes (/, /for/*,
+  // /templates/*, /pricing, /solutions/*, /sign/*, etc.) are intentionally NOT
+  // matched: any route matched by middleware must invoke the edge function on
+  // every request and can't be served as a pure static CDN hit, which made
+  // navigation to those pages slow. Security headers are applied globally via
+  // next.config.ts headers(), so they're unaffected by this narrowing.
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/dashboard/:path*",
+    "/contracts/:path*",
+    "/signatures/:path*",
+    "/settings/:path*",
+    "/my-templates/:path*",
+    "/invoices/:path*",
+    "/activity/:path*",
+    "/payments/:path*",
+    "/login",
+    "/register",
   ],
 };
