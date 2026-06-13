@@ -55,7 +55,7 @@ export const NICHES: Niche[] = [
     h1b: "before you build the automation",
     subhead:
       "Automations always grow mid-project. Define the workflow, who owns it, and who handles the client's data — then collect a deposit before you connect a single API.",
-    metaTitle: "Contracts for AI Automation Agencies | Lexport",
+    metaTitle: "Contracts for AI Automation Agencies",
     metaDescription:
       "MSAs, SOWs, NDAs and IP assignment built for AI automation agencies. Pin down scope, ownership and data handling, e-sign, and collect a deposit in one flow.",
     problems: [
@@ -87,7 +87,7 @@ export const NICHES: Niche[] = [
     h1b: "you ship the model",
     subhead:
       "ML projects are scope-creep magnets and ownership minefields. Spell out who owns the model, code, and weights, protect your training data, and bill milestones cleanly.",
-    metaTitle: "Contracts for AI Development Agencies | Lexport",
+    metaTitle: "Contracts for AI Development Agencies",
     metaDescription:
       "MSAs, SOWs, IP assignment and NDAs for AI/ML development agencies. Define model & code ownership, protect training data, e-sign and bill milestones in one flow.",
     problems: [
@@ -119,7 +119,7 @@ export const NICHES: Niche[] = [
     h1b: "deposits collected, fast",
     subhead:
       "Lock in monthly retainers, define exactly what's in scope, and collect before the campaign starts — instead of arguing about deliverables at invoice time.",
-    metaTitle: "Contracts for Marketing Agencies | Lexport",
+    metaTitle: "Contracts for Marketing Agencies",
     metaDescription:
       "Retainer MSAs, SOWs and consulting agreements for marketing agencies. Define scope, e-sign, and collect deposits before the campaign starts.",
     problems: [
@@ -151,7 +151,7 @@ export const NICHES: Niche[] = [
     h1b: "get the deposit upfront",
     subhead:
       "Stop eating revision rounds and hosting questions. Fix the scope, set milestone payments, transfer IP on final payment, and start with money in the bank.",
-    metaTitle: "Contracts for Web & Design Agencies | Lexport",
+    metaTitle: "Contracts for Web & Design Agencies",
     metaDescription:
       "MSAs, SOWs and IP assignment for web design and development agencies. Fix scope, milestone billing, e-sign and collect a deposit before you start.",
     problems: [
@@ -185,7 +185,7 @@ export const NICHES: Niche[] = [
     h1b: "you open the canvas",
     subhead:
       "Stop handing over finals to clients who ghost. Set scope and revision limits, transfer rights only on payment, and collect a deposit at signing.",
-    metaTitle: "Contracts for Graphic Designers | Lexport",
+    metaTitle: "Contracts for Graphic Designers",
     metaDescription:
       "Freelance service agreements, IP assignment and NDAs for graphic designers. Set scope, transfer rights on payment, e-sign and collect a deposit.",
     problems: [
@@ -216,7 +216,7 @@ export const NICHES: Niche[] = [
     h1b: "ownership upfront",
     subhead:
       "Fix the spec, settle who owns the code, and bill by milestone. Collect a deposit before the first commit and transfer IP only when you're paid.",
-    metaTitle: "Contracts for Web Developers | Lexport",
+    metaTitle: "Contracts for Web Developers",
     metaDescription:
       "Independent contractor agreements, IP assignment and MSAs for freelance web developers. Lock scope, own the terms, e-sign and collect milestone payments.",
     problems: [
@@ -247,7 +247,7 @@ export const NICHES: Niche[] = [
     h1b: "and get paid on time",
     subhead:
       "Set exactly how your words can be used, cap revisions, and collect a deposit before the first draft — so a 'quick edit' never turns into free work.",
-    metaTitle: "Contracts for Freelance Writers | Lexport",
+    metaTitle: "Contracts for Freelance Writers",
     metaDescription:
       "Freelance service agreements, usage rights and NDAs for writers and copywriters. Define rights, cap revisions, e-sign and collect a deposit.",
     problems: [
@@ -278,7 +278,7 @@ export const NICHES: Niche[] = [
     h1b: "and retainers signed",
     subhead:
       "Set deliverables and boundaries, protect confidential information both ways, and collect before the first call — no more advisory work on a handshake.",
-    metaTitle: "Contracts for Consultants | Lexport",
+    metaTitle: "Contracts for Consultants",
     metaDescription:
       "Consulting agreements, NDAs and SOWs for independent consultants. Scope engagements, protect confidentiality, e-sign and collect a deposit.",
     problems: [
@@ -309,7 +309,7 @@ export const NICHES: Niche[] = [
     h1b: "a deposit in the bank",
     subhead:
       "Lock the date with a deposit, define how images can be used, and set delivery and licensing terms — so no-shows and rights disputes stop costing you.",
-    metaTitle: "Contracts for Photographers | Lexport",
+    metaTitle: "Contracts for Photographers",
     metaDescription:
       "Service agreements, licensing and IP terms for freelance photographers. Lock shoots with a deposit, define usage rights, e-sign and get paid.",
     problems: [
