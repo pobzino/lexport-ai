@@ -20,6 +20,7 @@ import {
 import { Breadcrumbs, FaqJsonLd } from "@/components/templates/Breadcrumbs";
 
 export const revalidate = 3600;
+export const dynamicParams = false;
 
 interface Props {
   params: Promise<{ type: string }>;
@@ -40,6 +41,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: content.metaTitle,
     description: content.metaDescription,
+    alternates: {
+      canonical: `/templates/${typeEnumToSlug(contractType)}`,
+    },
     openGraph: {
       title: content.metaTitle,
       description: content.metaDescription,
