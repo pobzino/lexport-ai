@@ -54,15 +54,15 @@ export const NICHES: Niche[] = [
     h1a: "Lock down scope and IP",
     h1b: "before you build the automation",
     subhead:
-      "Automations always grow mid-project. Define the workflow, who owns it, and who handles the client's data — then collect a deposit before you connect a single API.",
+      "Stop starting builds on a verbal yes. Generate a legally binding agreement for the automation, get it e-signed in minutes, and collect your deposit before you touch a single API — with scope, workflow ownership, and client-data terms locked in.",
     metaTitle: "Contracts for AI Automation Agencies",
     metaDescription:
-      "MSAs, SOWs, NDAs and IP assignment built for AI automation agencies. Pin down scope, ownership and data handling, e-sign, and collect a deposit in one flow.",
+      "Generate legally binding contracts for AI automation projects, get them e-signed in minutes, and collect deposits at signing — with workflow IP and client-data terms built in.",
     problems: [
-      { problem: "Automations that balloon past the original ask", solution: "Fixed SOW scope + paid change orders" },
-      { problem: "Unclear who owns the workflows & prompts you build", solution: "IP assignment on final payment" },
-      { problem: "Handling client API keys, data & accounts", solution: "Mutual NDA + data-handling terms" },
-      { problem: "Chasing retainer & maintenance invoices", solution: "MSA with deposit and recurring terms" },
+      { problem: "Starting builds on a verbal yes, nothing binding signed", solution: "Legally binding contract, e-signed in minutes" },
+      { problem: "Chasing deposits and invoices after the work's done", solution: "Payment collected at signing, before you start" },
+      { problem: "Unclear who owns the workflows, prompts & automations", solution: "IP ownership built in, transfers on final payment" },
+      { problem: "Handling client API keys, data & accounts on a handshake", solution: "Mutual NDA + data terms, signed by both sides" },
     ],
     contracts: [
       { ...C.msa, why: "The umbrella agreement for ongoing automation + maintenance retainers." },
@@ -86,15 +86,15 @@ export const NICHES: Niche[] = [
     h1a: "Own the terms before",
     h1b: "you ship the model",
     subhead:
-      "ML projects are scope-creep magnets and ownership minefields. Spell out who owns the model, code, and weights, protect your training data, and bill milestones cleanly.",
+      "Turn a handshake into a legally binding agreement — e-signed online, with milestone payments collected automatically as you ship. Model and code ownership, training-data protection, and ML scope all locked in.",
     metaTitle: "Contracts for AI Development Agencies",
     metaDescription:
-      "MSAs, SOWs, IP assignment and NDAs for AI/ML development agencies. Define model & code ownership, protect training data, e-sign and bill milestones in one flow.",
+      "Legally binding agreements for AI/ML development — e-signed online with milestone payments collected automatically, plus model & code ownership and training-data protection.",
     problems: [
-      { problem: "Disputes over who owns the model, code & weights", solution: "Explicit IP assignment terms" },
-      { problem: "ML scope that never stops expanding", solution: "Milestone-based SOWs with change orders" },
-      { problem: "Proprietary training data leaking out", solution: "Mutual NDA with data clauses" },
-      { problem: "Slow, lumpy payments on long builds", solution: "Milestone billing + upfront deposit" },
+      { problem: "ML builds starting with nothing binding signed", solution: "Legally binding contract, e-signed online" },
+      { problem: "Lumpy, late payments across long builds", solution: "Milestone payments collected at each sign-off" },
+      { problem: "Disputes over who owns the model, code & weights", solution: "IP ownership written in, transfers on payment" },
+      { problem: "Proprietary training data shared with no protection", solution: "Mutual NDA signed before data changes hands" },
     ],
     contracts: [
       { ...C.ip, why: "Settle ownership of the model, code, and weights up front." },

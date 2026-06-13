@@ -193,7 +193,8 @@ export default async function NichePage({ params }: Props) {
                 The contracts {niche.badge.replace(/^For /, "").toLowerCase()} actually need
               </h2>
               <p className="text-slate-500 max-w-2xl mx-auto">
-                Generate, customize, e-sign, and collect payment — in one flow.
+                Generate a legally binding contract, get it e-signed, and collect
+                payment — in one flow.
               </p>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
