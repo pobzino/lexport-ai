@@ -5,6 +5,7 @@ import {
   typeEnumToSlug,
   jurisdictionEnumToSlug,
 } from "@/lib/templates/slugs";
+import { getAllNicheSlugs } from "@/lib/personas/niches";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
@@ -60,5 +61,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
     }))
   );
 
-  return [...staticRoutes, templateHub, ...typePages, ...jurisdictionPages];
+  // Niche landing pages (/for/{niche}) — high-intent audience pages
+  const nichePages = getAllNicheSlugs().map(({ niche }) => ({
+    url: `${baseUrl}/for/${niche}`,
+    lastModified: new Date(),
+    changeFrequency: "weekly" as const,
+    priority: 0.8,
+  }));
+
+  return [
+    ...staticRoutes,
+    templateHub,
+    ...typePages,
+    ...jurisdictionPages,
+    ...nichePages,
+  ];
 }
