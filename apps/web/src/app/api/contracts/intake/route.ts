@@ -77,16 +77,26 @@ export async function POST(request: NextRequest) {
       const autoFilledValues: Record<string, string> = {};
       const extractedFields = (analysis.extractedFields || {}) as Record<string, string | number | boolean>;
 
+      // Keys MUST match real placeholder tokens defined in placeholders.ts.
+      // (Previously included "scope_of_work", which isn't a real token, so
+      //  service descriptions never auto-filled; and project_name / addresses /
+      //  dates / deposit & investment amounts were missing entirely.)
       const fieldMappings: Record<string, string[]> = {
-        "party_a_name": ["clientName", "companyName", "disclosingPartyName"],
-        "party_b_name": ["contractorName", "consultantName", "investorName", "freelancerName", "receivingPartyName"],
+        "party_a_name": ["clientName", "companyName", "disclosingPartyName", "sellerName", "proposingPartyName"],
+        "party_b_name": ["contractorName", "consultantName", "investorName", "freelancerName", "receivingPartyName", "buyerName"],
         "party_a_company": ["clientCompany", "companyName"],
-        "party_b_company": ["contractorCompany", "consultantCompany", "investorCompany"],
+        "party_b_company": ["contractorCompany", "consultantCompany", "investorCompany", "freelancerCompany"],
+        "party_a_address": ["clientAddress", "companyAddress"],
+        "party_b_address": ["contractorAddress", "consultantAddress", "freelancerAddress"],
         "effective_date": ["effectiveDate", "startDate"],
-        "purpose": ["purpose", "projectDescription", "consultingScope"],
-        "payment_amount": ["paymentAmount", "totalAmount", "investmentAmount"],
+        "expiration_date": ["endDate", "expirationDate", "deadline"],
+        "purpose": ["purpose"],
+        "project_name": ["projectName"],
+        "payment_amount": ["paymentAmount", "totalAmount"],
+        "investment_amount": ["investmentAmount"],
+        "deposit_amount": ["depositAmount"],
         "hourly_rate": ["hourlyRate"],
-        "scope_of_work": ["servicesDescription", "projectDescription", "consultingScope"],
+        "services_description": ["servicesDescription", "projectDescription", "consultingScope", "scopeOfWork"],
       };
 
       for (const [placeholder, fieldNames] of Object.entries(fieldMappings)) {
