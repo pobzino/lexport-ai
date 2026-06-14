@@ -718,7 +718,7 @@ ${m.geographicScope ? `- Geographic Scope: ${m.geographicScope}` : ""}`;
 - Effective Date: ${m.effectiveDate}
 ${m.endDate ? `- End Date: ${m.endDate}` : "- Ongoing engagement"}
 - Services: ${m.servicesDescription}
-- Payment: $${m.paymentAmount} (${m.paymentFrequency})
+- Payment: ${m.paymentAmount ? `$${m.paymentAmount}` : "_____[Payment Amount]_____"} (${m.paymentFrequency})
 - Payment Terms: Net ${m.paymentTerms} days
 - Termination Notice: ${m.terminationNoticeDays} days
 ${m.includeIPAssignment ? "- Include IP Assignment clause" : ""}
@@ -748,7 +748,7 @@ ${m.includeNonCompete ? `- Include Non-Compete (${m.nonCompetePeriod} months)` :
 - Company: ${m.company.name}${m.company.title ? ` (signer: ${m.company.title})` : ""}
 - Investor: ${m.investor.name}${m.investor.title ? `, ${m.investor.title}` : ""}${m.investor.company ? ` of ${m.investor.company}` : ""}`;
       return `${partiesSection}
-- Investment Amount: $${m.investmentAmount.toLocaleString()}
+- Investment Amount: ${m.investmentAmount ? `$${m.investmentAmount.toLocaleString()}` : "_____[Investment Amount]_____"}
 - SAFE Type: ${m.safeType.replace(/_/g, " ")}
 ${m.valuationCap ? `- Valuation Cap: $${m.valuationCap.toLocaleString()}` : ""}
 ${m.discountRate ? `- Discount Rate: ${m.discountRate}%` : ""}
@@ -767,7 +767,7 @@ ${m.discountRate ? `- Discount Rate: ${m.discountRate}%` : ""}
       return `${partiesSection}
 - Project: ${m.projectName}
 - Description: ${m.projectDescription}
-- Total Amount: $${m.totalAmount}
+- Total Amount: ${m.totalAmount ? `$${m.totalAmount}` : "_____[Total Amount]_____"}
 ${m.depositAmount ? `- Deposit: $${m.depositAmount}` : ""}
 - Payment Schedule: ${m.paymentSchedule}
 - Revision Rounds: ${m.revisionRounds === -1 ? "Unlimited" : m.revisionRounds}

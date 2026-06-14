@@ -234,18 +234,18 @@ export function validateContractFormData({
 const buildNdaMetadata: MetadataBuilder = (base, formData) => ({
   ...base,
   disclosingParty: {
-    name: (formData.disclosingParty as Record<string, string>)?.name || "Party A",
-    email: (formData.disclosingParty as Record<string, string>)?.email || "party.a@example.com",
+    name: (formData.disclosingParty as Record<string, string>)?.name || "_____[Disclosing Party Name]_____",
+    email: (formData.disclosingParty as Record<string, string>)?.email || "",
     company: (formData.disclosingParty as Record<string, string>)?.company || "",
     role: "discloser",
   },
   receivingParty: {
-    name: (formData.receivingParty as Record<string, string>)?.name || "Party B",
-    email: (formData.receivingParty as Record<string, string>)?.email || "party.b@example.com",
+    name: (formData.receivingParty as Record<string, string>)?.name || "_____[Receiving Party Name]_____",
+    email: (formData.receivingParty as Record<string, string>)?.email || "",
     company: (formData.receivingParty as Record<string, string>)?.company || "",
     role: "recipient",
   },
-  purpose: (formData.purpose as string) || "To discuss potential business collaboration",
+  purpose: (formData.purpose as string) || "_____[Purpose of Agreement]_____",
   confidentialityPeriod: (formData.confidentialityPeriod as number) || 2,
   includeNonSolicit: (formData.includeNonSolicit as boolean) || false,
   includeNonCompete: (formData.includeNonCompete as boolean) || false,
@@ -258,17 +258,17 @@ const metadataBuilders: Partial<Record<ContractType, MetadataBuilder>> = {
   independent_contractor: (base, formData) => ({
     ...base,
     client: {
-      name: (formData.client as Record<string, string>)?.name || "Client Co",
-      email: (formData.client as Record<string, string>)?.email || "client@example.com",
+      name: (formData.client as Record<string, string>)?.name || "_____[Client Name]_____",
+      email: (formData.client as Record<string, string>)?.email || "",
       role: "client",
     },
     contractor: {
-      name: (formData.contractor as Record<string, string>)?.name || "Contractor",
-      email: (formData.contractor as Record<string, string>)?.email || "contractor@example.com",
+      name: (formData.contractor as Record<string, string>)?.name || "_____[Contractor Name]_____",
+      email: (formData.contractor as Record<string, string>)?.email || "",
       role: "contractor",
     },
-    servicesDescription: (formData.servicesDescription as string) || "Professional services as agreed",
-    paymentAmount: (formData.paymentAmount as number) || 5000,
+    servicesDescription: (formData.servicesDescription as string) || "_____[Services Description]_____",
+    paymentAmount: (formData.paymentAmount as number) || 0,
     paymentFrequency: (formData.paymentFrequency as string) || "monthly",
     paymentTerms: (formData.paymentTerms as number) || 30,
     terminationNoticeDays: 14,
@@ -278,16 +278,16 @@ const metadataBuilders: Partial<Record<ContractType, MetadataBuilder>> = {
   consulting_agreement: (base, formData) => ({
     ...base,
     client: {
-      name: (formData.client as Record<string, string>)?.name || "Client Co",
-      email: (formData.client as Record<string, string>)?.email || "client@example.com",
+      name: (formData.client as Record<string, string>)?.name || "_____[Client Name]_____",
+      email: (formData.client as Record<string, string>)?.email || "",
       role: "client",
     },
     consultant: {
-      name: (formData.consultant as Record<string, string>)?.name || "Consultant",
-      email: (formData.consultant as Record<string, string>)?.email || "consultant@example.com",
+      name: (formData.consultant as Record<string, string>)?.name || "_____[Consultant Name]_____",
+      email: (formData.consultant as Record<string, string>)?.email || "",
       role: "consultant",
     },
-    consultingScope: (formData.consultingScope as string) || "Strategic consulting services",
+    consultingScope: (formData.consultingScope as string) || "_____[Consulting Scope]_____",
     hourlyRate: (formData.hourlyRate as number) || undefined,
     retainerAmount: (formData.retainerAmount as number) || undefined,
     paymentTerms: 30,
@@ -298,16 +298,16 @@ const metadataBuilders: Partial<Record<ContractType, MetadataBuilder>> = {
   safe_note: (base, formData) => ({
     ...base,
     company: {
-      name: (formData.company as Record<string, string>)?.name || "Startup Inc",
-      email: (formData.company as Record<string, string>)?.email || "founders@startup.com",
+      name: (formData.company as Record<string, string>)?.name || "_____[Company Name]_____",
+      email: (formData.company as Record<string, string>)?.email || "",
       role: "company",
     },
     investor: {
-      name: (formData.investor as Record<string, string>)?.name || "Angel Investor",
-      email: (formData.investor as Record<string, string>)?.email || "investor@example.com",
+      name: (formData.investor as Record<string, string>)?.name || "_____[Investor Name]_____",
+      email: (formData.investor as Record<string, string>)?.email || "",
       role: "investor",
     },
-    investmentAmount: (formData.investmentAmount as number) || 50000,
+    investmentAmount: (formData.investmentAmount as number) || 0,
     safeType: (formData.safeType as string) || "valuation_cap",
     valuationCap: (formData.valuationCap as number) || undefined,
     discountRate: (formData.discountRate as number) || undefined,
@@ -316,18 +316,18 @@ const metadataBuilders: Partial<Record<ContractType, MetadataBuilder>> = {
   freelance_service: (base, formData) => ({
     ...base,
     client: {
-      name: (formData.client as Record<string, string>)?.name || "Client",
-      email: (formData.client as Record<string, string>)?.email || "client@example.com",
+      name: (formData.client as Record<string, string>)?.name || "_____[Client Name]_____",
+      email: (formData.client as Record<string, string>)?.email || "",
       role: "client",
     },
     freelancer: {
-      name: (formData.freelancer as Record<string, string>)?.name || "Freelancer",
-      email: (formData.freelancer as Record<string, string>)?.email || "freelancer@example.com",
+      name: (formData.freelancer as Record<string, string>)?.name || "_____[Freelancer Name]_____",
+      email: (formData.freelancer as Record<string, string>)?.email || "",
       role: "contractor",
     },
-    projectName: (formData.projectName as string) || "Project",
-    projectDescription: (formData.projectDescription as string) || "Freelance project work",
-    totalAmount: (formData.totalAmount as number) || 1000,
+    projectName: (formData.projectName as string) || "_____[Project Name]_____",
+    projectDescription: (formData.projectDescription as string) || "_____[Project Description]_____",
+    totalAmount: (formData.totalAmount as number) || 0,
     depositAmount: (formData.depositAmount as number) || undefined,
     paymentSchedule: "milestone",
     revisionRounds:
@@ -336,7 +336,7 @@ const metadataBuilders: Partial<Record<ContractType, MetadataBuilder>> = {
         : ((formData.revisionRounds as number) || 2),
     deliverables: [
       {
-        description: (formData.projectDescription as string) || "Project deliverable",
+        description: (formData.projectDescription as string) || "_____[Deliverable Description]_____",
       },
     ],
     includeIPAssignment: true,
@@ -344,22 +344,22 @@ const metadataBuilders: Partial<Record<ContractType, MetadataBuilder>> = {
   letter_of_intent: (base, formData) => ({
     ...base,
     proposingParty: {
-      name: (formData.proposingParty as Record<string, string>)?.name || "Proposing Party",
-      email: (formData.proposingParty as Record<string, string>)?.email || "proposer@example.com",
+      name: (formData.proposingParty as Record<string, string>)?.name || "_____[Proposing Party Name]_____",
+      email: (formData.proposingParty as Record<string, string>)?.email || "",
       company: (formData.proposingParty as Record<string, string>)?.company || "",
       title: (formData.proposingParty as Record<string, string>)?.title || "",
       role: "proposing_party",
     },
     receivingParty: {
-      name: (formData.receivingParty as Record<string, string>)?.name || "Receiving Party",
-      email: (formData.receivingParty as Record<string, string>)?.email || "receiver@example.com",
+      name: (formData.receivingParty as Record<string, string>)?.name || "_____[Receiving Party Name]_____",
+      email: (formData.receivingParty as Record<string, string>)?.email || "",
       company: (formData.receivingParty as Record<string, string>)?.company || "",
       title: (formData.receivingParty as Record<string, string>)?.title || "",
       role: "receiving_party",
     },
     transactionType: (formData.transactionType as string) || "acquisition",
     transactionDescription:
-      (formData.transactionDescription as string) || "Proposed business transaction",
+      (formData.transactionDescription as string) || "_____[Transaction Description]_____",
     proposedTerms: {
       purchasePrice: (formData.proposedPrice as number) || undefined,
       keyConditions: (formData.keyConditions as string[]) || [],
@@ -384,7 +384,7 @@ const metadataBuilders: Partial<Record<ContractType, MetadataBuilder>> = {
     const cofounders = (cofoundersData || []).map((cf, index) => ({
       party: {
         name: cf.name || `Co-Founder ${index + 1}`,
-        email: cf.email || `cofounder${index + 1}@example.com`,
+        email: cf.email || "",
         role: "cofounder",
         title: cf.role || "",
       },
@@ -401,7 +401,7 @@ const metadataBuilders: Partial<Record<ContractType, MetadataBuilder>> = {
 
     return {
       ...base,
-      companyName: (formData.companyName as string) || "NewCo Inc",
+      companyName: (formData.companyName as string) || "_____[Company Name]_____",
       companyType: (formData.companyType as string) || "corporation",
       cofounders,
       decisionMaking: {
@@ -445,21 +445,21 @@ const metadataBuilders: Partial<Record<ContractType, MetadataBuilder>> = {
     return {
       ...base,
       seller: {
-        name: (formData.seller as Record<string, string>)?.name || "Seller",
-        email: (formData.seller as Record<string, string>)?.email || "seller@example.com",
+        name: (formData.seller as Record<string, string>)?.name || "_____[Seller Name]_____",
+        email: (formData.seller as Record<string, string>)?.email || "",
         company: (formData.seller as Record<string, string>)?.company || "",
         address: (formData.seller as Record<string, string>)?.address || "",
         role: "seller",
       },
       buyer: {
-        name: (formData.buyer as Record<string, string>)?.name || "Buyer",
-        email: (formData.buyer as Record<string, string>)?.email || "buyer@example.com",
+        name: (formData.buyer as Record<string, string>)?.name || "_____[Buyer Name]_____",
+        email: (formData.buyer as Record<string, string>)?.email || "",
         company: (formData.buyer as Record<string, string>)?.company || "",
         address: (formData.buyer as Record<string, string>)?.address || "",
         role: "buyer",
       },
       productDescription:
-        (formData.productDescription as string) || "Goods and services as described",
+        (formData.productDescription as string) || "_____[Product Description]_____",
       products,
       totalAmount,
       currency: "usd",
