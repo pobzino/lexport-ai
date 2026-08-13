@@ -23,6 +23,10 @@ import {
   Clock,
 } from "lucide-react";
 import Image from "next/image";
+import {
+  getBankDetailRows,
+  type InvoiceBankDetails,
+} from "@/lib/invoices/bank-details";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ""
@@ -45,6 +49,7 @@ interface PaymentInfo {
   recipientEmail: string;
   recipientAddress: string | null;
   senderName: string | null;
+  senderCompany: string | null;
   senderEmail: string | null;
   senderAddress: { address: string } | null;
   lineItems: LineItem[] | null;
@@ -54,6 +59,7 @@ interface PaymentInfo {
   dueDate: string | null;
   notes: string | null;
   createdAt: string;
+  bankDetails: InvoiceBankDetails | null;
 }
 
 function formatCurrency(amount: number, currency: string): string {
@@ -291,6 +297,10 @@ export default function InvoicePaymentPage() {
   }
 
   const lineItems = paymentInfo.lineItems || [];
+  const bankDetailRows = getBankDetailRows(
+    paymentInfo.bankDetails,
+    paymentInfo.invoiceNumber
+  );
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -345,7 +355,12 @@ export default function InvoicePaymentPage() {
                     <Building2 className="w-4 h-4 text-slate-400" />
                     <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">From</span>
                   </div>
-                  <p className="font-semibold text-slate-900">{paymentInfo.senderName || "—"}</p>
+                  <p className="font-semibold text-slate-900">
+                    {paymentInfo.senderCompany || paymentInfo.senderName || "—"}
+                  </p>
+                  {paymentInfo.senderCompany && paymentInfo.senderName && (
+                    <p className="text-sm text-slate-600 mt-1">{paymentInfo.senderName}</p>
+                  )}
                   {paymentInfo.senderEmail && (
                     <p className="text-sm text-slate-600 mt-1">{paymentInfo.senderEmail}</p>
                   )}
@@ -459,6 +474,25 @@ export default function InvoicePaymentPage() {
                   </p>
                 </div>
               )}
+
+              {bankDetailRows.length > 0 && (
+                <div className="px-8 py-5 border-t border-sky-100 bg-sky-50">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Building2 className="w-4 h-4 text-sky-700" />
+                    <p className="text-sm font-semibold text-sky-900">Pay by bank transfer</p>
+                  </div>
+                  <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                    {bankDetailRows.map((row) => (
+                      <div key={row.label} className="flex justify-between gap-3 sm:block">
+                        <dt className="text-sky-700">{row.label}</dt>
+                        <dd className="font-medium text-slate-900 break-all whitespace-pre-line sm:mt-0.5">
+                          {row.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
             </div>
           </div>
 
@@ -504,6 +538,13 @@ export default function InvoicePaymentPage() {
               </div>
 
               {/* Stripe Elements */}
+              {bankDetailRows.length > 0 && (
+                <div className="px-6 pt-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Or pay securely online
+                  </p>
+                </div>
+              )}
               <div className="px-6 py-6">
                 <Elements
                   stripe={stripePromise}

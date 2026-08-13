@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { PDFDocument, rgb, StandardFonts, degrees } from "pdf-lib";
+import {
+  getBankDetailRows,
+  readInvoiceSenderSnapshot,
+  type InvoiceBankDetails,
+} from "@/lib/invoices/bank-details";
 
 interface LineItem {
   description: string;
@@ -24,6 +29,7 @@ interface Invoice {
   recipient_email: string;
   recipient_address?: string | null;
   sender_name: string | null;
+  sender_company: string | null;
   sender_email: string | null;
   sender_address?: SenderAddress | null;
   amount: number;
@@ -40,6 +46,7 @@ interface Invoice {
   line_items: LineItem[];
   payment_method?: string | null;
   payment_reference?: string | null;
+  bank_details?: InvoiceBankDetails | null;
 }
 
 function formatCurrency(amount: number, currency: string): string {
@@ -60,7 +67,7 @@ function formatDate(dateString: string | null): string {
 
 async function generateInvoicePDF(invoice: Invoice): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([612, 792]); // Letter size
+  let page = pdfDoc.addPage([612, 792]); // Letter size
 
   const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -137,80 +144,47 @@ async function generateInvoicePDF(invoice: Invoice): Promise<Uint8Array> {
 
   yPosition -= 16;
 
-  // Sender name
-  if (invoice.sender_name) {
-    page.drawText(invoice.sender_name, {
-      x: margin,
-      y: yPosition,
-      size: 11,
-      font: helveticaBoldFont,
-      color: primaryColor,
-    });
-  }
+  const senderSnapshot = readInvoiceSenderSnapshot(invoice);
+  const senderAddress = senderSnapshot.address || "";
+  const senderLines = [
+    senderSnapshot.company || invoice.sender_name || "Sender",
+    senderSnapshot.company ? invoice.sender_name : null,
+    invoice.sender_email,
+    senderAddress,
+  ].filter((value): value is string => Boolean(value));
+  const recipientLines = [
+    invoice.recipient_name || "Recipient",
+    invoice.recipient_email,
+    typeof invoice.recipient_address === "string"
+      ? invoice.recipient_address
+      : null,
+  ].filter((value): value is string => Boolean(value));
+  const identityLineCount = Math.max(senderLines.length, recipientLines.length);
 
-  // Recipient name
-  page.drawText(invoice.recipient_name || "Recipient", {
-    x: margin + colWidth + margin,
-    y: yPosition,
-    size: 11,
-    font: helveticaBoldFont,
-    color: primaryColor,
-  });
-
-  yPosition -= 14;
-
-  // Sender email
-  if (invoice.sender_email) {
-    page.drawText(invoice.sender_email, {
-      x: margin,
-      y: yPosition,
-      size: 9,
-      font: helveticaFont,
-      color: grayColor,
-    });
-  }
-
-  // Recipient email
-  if (invoice.recipient_email) {
-    page.drawText(invoice.recipient_email, {
-      x: margin + colWidth + margin,
-      y: yPosition,
-      size: 9,
-      font: helveticaFont,
-      color: grayColor,
-    });
-  }
-
-  yPosition -= 14;
-
-  // Sender address
-  if (invoice.sender_address) {
-    const senderAddr = typeof invoice.sender_address === "string"
-      ? invoice.sender_address
-      : invoice.sender_address.address || "";
-    if (senderAddr) {
-      page.drawText(senderAddr, {
+  for (let index = 0; index < identityLineCount; index += 1) {
+    const senderLine = senderLines[index];
+    const recipientLine = recipientLines[index];
+    if (senderLine) {
+      page.drawText(senderLine.replace(/\s+/g, " ").slice(0, 64), {
         x: margin,
-        y: yPosition,
-        size: 9,
-        font: helveticaFont,
-        color: grayColor,
+        y: yPosition - index * 14,
+        size: index === 0 ? 11 : 9,
+        font: index === 0 ? helveticaBoldFont : helveticaFont,
+        color: index === 0 ? primaryColor : grayColor,
+      });
+    }
+    if (recipientLine) {
+      page.drawText(recipientLine.replace(/\s+/g, " ").slice(0, 64), {
+        x: margin + colWidth + margin,
+        y: yPosition - index * 14,
+        size: index === 0 ? 11 : 9,
+        font: index === 0 ? helveticaBoldFont : helveticaFont,
+        color: index === 0 ? primaryColor : grayColor,
       });
     }
   }
 
-  // Recipient address
-  if (invoice.recipient_address) {
-    page.drawText(invoice.recipient_address, {
-      x: margin + colWidth + margin,
-      y: yPosition,
-      size: 9,
-      font: helveticaFont,
-      color: grayColor,
-    });
-  }
-
-  yPosition -= 40;
+  yPosition -= identityLineCount * 14 + 26;
 
   // Invoice dates section
   page.drawText("INVOICE DATE", {
@@ -423,8 +397,61 @@ async function generateInvoicePDF(invoice: Invoice): Promise<Uint8Array> {
 
   yPosition -= 50;
 
+  const bankDetailRows = getBankDetailRows(
+    senderSnapshot.bankDetails,
+    invoice.invoice_number
+  );
+  if (bankDetailRows.length > 0) {
+    const estimatedBankLines = bankDetailRows.reduce(
+      (totalLines, row) =>
+        totalLines + Math.max(1, Math.ceil(`${row.label}: ${row.value}`.length / 85)),
+      0
+    );
+    if (yPosition - estimatedBankLines * 12 < 70) {
+      page = pdfDoc.addPage([612, 792]);
+      yPosition = height - margin;
+    }
+
+    page.drawText("BANK TRANSFER DETAILS", {
+      x: margin,
+      y: yPosition,
+      size: 9,
+      font: helveticaBoldFont,
+      color: grayColor,
+    });
+    yPosition -= 15;
+
+    for (const row of bankDetailRows) {
+      const line = `${row.label}: ${row.value.replace(/\s+/g, " ")}`;
+      let remaining = line;
+      while (remaining) {
+        let part = remaining;
+        while (
+          helveticaFont.widthOfTextAtSize(part, 9) > width - margin * 2 &&
+          part.length > 1
+        ) {
+          part = part.slice(0, -1);
+        }
+        page.drawText(part, {
+          x: margin,
+          y: yPosition,
+          size: 9,
+          font: helveticaFont,
+          color: primaryColor,
+        });
+        remaining = remaining.slice(part.length).trimStart();
+        yPosition -= 12;
+      }
+    }
+    yPosition -= 14;
+  }
+
   // Notes section
   if (invoice.notes) {
+    if (yPosition < 100) {
+      page = pdfDoc.addPage([612, 792]);
+      yPosition = height - margin;
+    }
     page.drawText("NOTES", {
       x: margin,
       y: yPosition,

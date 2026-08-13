@@ -27,6 +27,11 @@ import {
   X,
 } from "lucide-react";
 import type { InvoiceStatus } from "@/db/types";
+import {
+  getBankDetailRows,
+  readInvoiceSenderSnapshot,
+  type InvoiceBankDetails,
+} from "@/lib/invoices/bank-details";
 
 interface Invoice {
   id: string;
@@ -34,7 +39,9 @@ interface Invoice {
   recipient_name: string;
   recipient_email: string;
   sender_name: string | null;
+  sender_company: string | null;
   sender_email: string | null;
+  sender_address?: Record<string, unknown> | string | null;
   amount: number;
   total: number;
   currency: string;
@@ -48,6 +55,7 @@ interface Invoice {
   notes: string | null;
   payment_method?: string | null;
   payment_reference?: string | null;
+  bank_details?: InvoiceBankDetails | null;
 }
 
 const PAYMENT_METHODS = [
@@ -271,6 +279,11 @@ export default function InvoiceDetailPage() {
 
   const statusConfig = STATUS_CONFIG[invoice.status];
   const StatusIcon = statusConfig.icon;
+  const senderSnapshot = readInvoiceSenderSnapshot(invoice);
+  const bankDetailRows = getBankDetailRows(
+    senderSnapshot.bankDetails,
+    invoice.invoice_number
+  );
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -408,6 +421,22 @@ export default function InvoiceDetailPage() {
 
             {/* Client Info */}
             <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <h3 className="text-sm font-medium text-slate-500 mb-4">From</h3>
+              <div className="space-y-1">
+                <p className="font-semibold text-slate-900">
+                  {senderSnapshot.company || invoice.sender_name || "Not set"}
+                </p>
+                {senderSnapshot.company && invoice.sender_name && (
+                  <p className="text-sm text-slate-600">{invoice.sender_name}</p>
+                )}
+                {invoice.sender_email && (
+                  <p className="text-sm text-slate-600">{invoice.sender_email}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Client Info */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-sm font-medium text-slate-500 mb-4">Bill To</h3>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
@@ -462,6 +491,24 @@ export default function InvoiceDetailPage() {
                 <p className="text-slate-700 text-sm whitespace-pre-wrap">
                   {invoice.notes}
                 </p>
+              </div>
+            )}
+
+            {bankDetailRows.length > 0 && (
+              <div className="bg-white rounded-xl border border-slate-200 p-6">
+                <h3 className="text-sm font-medium text-slate-500 mb-4">
+                  Bank Transfer Details
+                </h3>
+                <dl className="space-y-3 text-sm">
+                  {bankDetailRows.map((row) => (
+                    <div key={row.label}>
+                      <dt className="text-slate-500">{row.label}</dt>
+                      <dd className="font-medium text-slate-900 break-all whitespace-pre-line">
+                        {row.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
             )}
           </div>

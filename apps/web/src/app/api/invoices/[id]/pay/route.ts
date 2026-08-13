@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import Stripe from "stripe";
 import { calculatePlatformFee, getPlatformFeePercent, type SubscriptionTier } from "@/lib/stripe";
+import { readInvoiceSenderSnapshot } from "@/lib/invoices/bank-details";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2025-12-15.clover",
@@ -161,6 +162,7 @@ export async function POST(
     }
 
     const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
+    const senderSnapshot = readInvoiceSenderSnapshot(invoice);
 
     // Store payment intent ID on invoice
     await supabase
@@ -181,8 +183,10 @@ export async function POST(
       recipientEmail: invoice.recipient_email,
       recipientAddress: invoice.recipient_address,
       senderName: invoice.sender_name,
+      senderCompany: senderSnapshot.company,
       senderEmail: invoice.sender_email,
       senderAddress: invoice.sender_address,
+      bankDetails: senderSnapshot.bankDetails,
       lineItems: invoice.line_items,
       subtotal: invoice.subtotal,
       taxAmount: invoice.tax_amount,

@@ -25,6 +25,24 @@ function isInvoiceNumberConflict(error: {
   return haystack.includes("invoice_number");
 }
 
+function isMissingInvoicePaymentColumns(error: {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+} | null) {
+  if (!error) return false;
+  const haystack = [error.message, error.details, error.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return (
+    (error.code === "PGRST204" || error.code === "42703") &&
+    (haystack.includes("sender_company") || haystack.includes("bank_details"))
+  );
+}
+
 export async function insertInvoiceWithRetry<TInvoice extends { id: string }>(
   supabase: SupabaseClient,
   invoiceData: InvoiceInsertPayload,
@@ -37,6 +55,7 @@ export async function insertInvoiceWithRetry<TInvoice extends { id: string }>(
     details?: string;
     hint?: string;
   } | null = null;
+  let usedLegacySchemaFallback = false;
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     if (!payload.invoice_number) {
@@ -54,6 +73,16 @@ export async function insertInvoiceWithRetry<TInvoice extends { id: string }>(
     }
 
     lastError = error;
+
+    if (!usedLegacySchemaFallback && isMissingInvoicePaymentColumns(error)) {
+      // The sender_address JSON snapshot carries the same values until the
+      // dedicated invoice columns are migrated in every environment.
+      delete payload.sender_company;
+      delete payload.bank_details;
+      usedLegacySchemaFallback = true;
+      attempt -= 1;
+      continue;
+    }
 
     if (!isInvoiceNumberConflict(error)) {
       return { data: null, error };

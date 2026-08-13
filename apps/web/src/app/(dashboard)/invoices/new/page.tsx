@@ -24,6 +24,7 @@ import {
   useLineItems,
 } from "@/components/invoice-line-items-editor";
 import type { InvoiceTemplate, InvoiceLineItem } from "@/db/types";
+import type { InvoiceBankDetails } from "@/lib/invoices/bank-details";
 
 interface InvoiceSettings {
   company_name: string | null;
@@ -32,6 +33,18 @@ interface InvoiceSettings {
   default_due_days: number;
   default_notes: string | null;
 }
+
+const EMPTY_BANK_DETAILS: InvoiceBankDetails = {
+  account_name: "",
+  bank_name: "",
+  account_number: "",
+  sort_code: "",
+  routing_number: "",
+  iban: "",
+  swift_bic: "",
+  reference: "",
+  instructions: "",
+};
 
 // Step configuration
 const STEPS = [
@@ -53,6 +66,37 @@ function formatCurrency(amount: number, currency: string): string {
   return `${symbol}${(amount / 100).toFixed(2)}`;
 }
 
+type BankFieldName = Exclude<keyof InvoiceBankDetails, "instructions">;
+
+function BankField({
+  label,
+  field,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  field: BankFieldName;
+  value: InvoiceBankDetails;
+  onChange: (value: InvoiceBankDetails) => void;
+  placeholder: string;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-700 mb-1">
+        {label}
+      </label>
+      <input
+        type="text"
+        value={value[field] || ""}
+        onChange={(event) => onChange({ ...value, [field]: event.target.value })}
+        placeholder={placeholder}
+        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6] focus:border-transparent"
+      />
+    </div>
+  );
+}
+
 export default function NewInvoicePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -65,6 +109,7 @@ export default function NewInvoicePage() {
 
   // Sender details (from settings, can be overridden)
   const [senderName, setSenderName] = useState("");
+  const [senderCompany, setSenderCompany] = useState("");
   const [senderEmail, setSenderEmail] = useState("");
   const [senderAddress, setSenderAddress] = useState("");
   const [senderLogoUrl, setSenderLogoUrl] = useState("");
@@ -125,6 +170,10 @@ export default function NewInvoicePage() {
     return date.toISOString().split("T")[0];
   });
   const [notes, setNotes] = useState("");
+  const [includeBankDetails, setIncludeBankDetails] = useState(false);
+  const [bankDetails, setBankDetails] = useState<InvoiceBankDetails>(
+    EMPTY_BANK_DETAILS
+  );
 
   // Line items using custom hook
   const { lineItems, setLineItems, subtotal, addPreset, reset } = useLineItems();
@@ -148,7 +197,7 @@ export default function NewInvoicePage() {
         if (settingsRes.ok) {
           const data = await settingsRes.json();
           const settings = data.settings as InvoiceSettings;
-          if (settings.company_name) setSenderName(settings.company_name);
+          if (settings.company_name) setSenderCompany(settings.company_name);
           if (settings.company_address) setSenderAddress(settings.company_address);
           if (settings.company_logo_url) setSenderLogoUrl(settings.company_logo_url);
           if (settings.default_notes) setNotes(settings.default_notes);
@@ -163,6 +212,10 @@ export default function NewInvoicePage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (user?.email && !senderEmail) {
           setSenderEmail(user.email);
+        }
+        if (!senderName) {
+          const profileName = user?.user_metadata?.name || user?.user_metadata?.full_name;
+          if (profileName) setSenderName(profileName);
         }
       } catch (err) {
         console.error("Failed to fetch invoice settings:", err);
@@ -214,7 +267,7 @@ export default function NewInvoicePage() {
         return true; // Template is optional
       case 2:
         return (
-          senderName.trim().length > 0 &&
+          (senderName.trim().length > 0 || senderCompany.trim().length > 0) &&
           recipientName.trim().length > 0 &&
           recipientEmail.trim().length > 0
         );
@@ -243,8 +296,10 @@ export default function NewInvoicePage() {
           template_id: selectedTemplate?.id || null,
           contract_id: contractId || null,
           sender_name: senderName.trim(),
+          sender_company: senderCompany.trim() || null,
           sender_email: senderEmail.trim() || null,
           sender_address: senderAddress.trim() || null,
+          bank_details: includeBankDetails ? bankDetails : null,
           recipient_name: recipientName.trim(),
           recipient_email: recipientEmail.trim(),
           recipient_address: recipientAddress.trim() || null,
@@ -393,7 +448,7 @@ export default function NewInvoicePage() {
                 Invoice Details
               </h2>
               <p className="text-slate-600 mt-2">
-                Enter your company and client information.
+                Enter your sender and client information.
               </p>
             </div>
 
@@ -418,16 +473,30 @@ export default function NewInvoicePage() {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Your Name / Company <span className="text-red-500">*</span>
+                      Contact Name
                     </label>
                     <input
                       type="text"
                       value={senderName}
                       onChange={(e) => setSenderName(e.target.value)}
-                      placeholder="Your Company Name"
+                      placeholder="Your full name"
                       className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6] focus:border-transparent"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Company / Trading Name
+                    </label>
+                    <input
+                      type="text"
+                      value={senderCompany}
+                      onChange={(e) => setSenderCompany(e.target.value)}
+                      placeholder="Your company name"
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6] focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                       Your Email <span className="text-slate-400">(optional)</span>
@@ -441,6 +510,11 @@ export default function NewInvoicePage() {
                     />
                   </div>
                 </div>
+                {!senderName.trim() && !senderCompany.trim() && (
+                  <p className="text-xs text-amber-700">
+                    Add a contact name, company name, or both.
+                  </p>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Your Address <span className="text-slate-400">(optional)</span>
@@ -655,6 +729,62 @@ export default function NewInvoicePage() {
                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6] focus:border-transparent resize-none"
               />
             </div>
+
+            {/* Optional bank transfer instructions */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="font-semibold text-slate-900">Bank Transfer Details</h3>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Include payment instructions in the email, PDF, and payment page.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIncludeBankDetails((value) => !value)}
+                  className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors ${
+                    includeBankDetails ? "bg-[#202e46]" : "bg-slate-300"
+                  }`}
+                  aria-pressed={includeBankDetails}
+                >
+                  <span
+                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                      includeBankDetails ? "translate-x-5" : "translate-x-0.5"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {includeBankDetails && (
+                <div className="mt-5 space-y-4 border-t border-slate-100 pt-5">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <BankField label="Account Holder" field="account_name" value={bankDetails} onChange={setBankDetails} placeholder="Name on the account" />
+                    <BankField label="Bank Name" field="bank_name" value={bankDetails} onChange={setBankDetails} placeholder="Bank name" />
+                    <BankField label="Account Number" field="account_number" value={bankDetails} onChange={setBankDetails} placeholder="Account number" />
+                    {currency === "usd" ? (
+                      <BankField label="Routing Number" field="routing_number" value={bankDetails} onChange={setBankDetails} placeholder="Routing number" />
+                    ) : (
+                      <BankField label="Sort Code" field="sort_code" value={bankDetails} onChange={setBankDetails} placeholder="00-00-00" />
+                    )}
+                    <BankField label="IBAN" field="iban" value={bankDetails} onChange={setBankDetails} placeholder="International account number" />
+                    <BankField label="SWIFT / BIC" field="swift_bic" value={bankDetails} onChange={setBankDetails} placeholder="SWIFT or BIC" />
+                    <BankField label="Payment Reference" field="reference" value={bankDetails} onChange={setBankDetails} placeholder="Invoice number used if blank" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Additional Instructions <span className="text-slate-400">(optional)</span>
+                    </label>
+                    <textarea
+                      value={bankDetails.instructions || ""}
+                      onChange={(event) => setBankDetails((current) => ({ ...current, instructions: event.target.value }))}
+                      rows={2}
+                      placeholder="Any extra instructions for the payer"
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6] focus:border-transparent resize-none"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -692,7 +822,12 @@ export default function NewInvoicePage() {
                       </div>
                     )}
                     <p className="text-xs text-slate-400 uppercase tracking-wider">From</p>
-                    <p className="font-semibold text-slate-900 mt-1">{senderName}</p>
+                    <p className="font-semibold text-slate-900 mt-1">
+                      {senderCompany || senderName}
+                    </p>
+                    {senderCompany && senderName && (
+                      <p className="text-sm text-slate-600">{senderName}</p>
+                    )}
                     {senderEmail && (
                       <p className="text-sm text-slate-600">{senderEmail}</p>
                     )}
@@ -815,6 +950,32 @@ export default function NewInvoicePage() {
                   <div className="border-t border-slate-200 pt-6">
                     <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">Notes / Terms</p>
                     <p className="text-sm text-slate-600 whitespace-pre-line">{notes}</p>
+                  </div>
+                )}
+
+                {includeBankDetails && Object.values(bankDetails).some(Boolean) && (
+                  <div className="border-t border-slate-200 pt-6 mt-6">
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-3">Bank Transfer Details</p>
+                    <div className="grid sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                      {[
+                        ["Account holder", bankDetails.account_name],
+                        ["Bank", bankDetails.bank_name],
+                        ["Account number", bankDetails.account_number],
+                        ["Sort code", bankDetails.sort_code],
+                        ["Routing number", bankDetails.routing_number],
+                        ["IBAN", bankDetails.iban],
+                        ["SWIFT / BIC", bankDetails.swift_bic],
+                        ["Reference", bankDetails.reference || "Invoice number"],
+                      ].filter((entry) => entry[1]).map(([label, value]) => (
+                        <div key={label} className="flex justify-between gap-4">
+                          <span className="text-slate-500">{label}</span>
+                          <span className="text-slate-900 font-medium text-right break-all">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {bankDetails.instructions && (
+                      <p className="text-sm text-slate-600 whitespace-pre-line mt-3">{bankDetails.instructions}</p>
+                    )}
                   </div>
                 )}
 

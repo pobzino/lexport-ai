@@ -521,8 +521,10 @@ export interface Invoice {
   recipient_email: string | null;
   recipient_address: Record<string, unknown> | null;
   sender_name: string | null;
+  sender_company?: string | null;
   sender_email: string | null;
   sender_address: Record<string, unknown> | null;
+  bank_details?: InvoiceBankDetails | null;
   notes: string | null;
   // External payment tracking
   payment_method: string | null; // bank_transfer, cash, check, other
@@ -536,6 +538,18 @@ export interface Invoice {
   last_reminder_sent_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface InvoiceBankDetails {
+  account_name?: string;
+  bank_name?: string;
+  account_number?: string;
+  sort_code?: string;
+  routing_number?: string;
+  iban?: string;
+  swift_bic?: string;
+  reference?: string;
+  instructions?: string;
 }
 
 export interface InvoiceLineItem {

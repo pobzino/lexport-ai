@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { InvoiceLineItem, InvoiceStatus } from "@/db/types";
 import { getInvoiceSettings } from "@/lib/invoices/generate-number";
 import { insertInvoiceWithRetry } from "@/lib/invoices/create-invoice";
+import { normalizeInvoiceBankDetails } from "@/lib/invoices/bank-details";
 
 function formatInvoiceInsertError(error: {
   code?: string;
@@ -146,8 +147,10 @@ export async function POST(request: NextRequest) {
       template_id,
       contract_id, // Optional - for contract-linked invoices
       sender_name: bodySenderName,
+      sender_company: bodySenderCompany,
       sender_email: bodySenderEmail,
       sender_address: bodySenderAddress,
+      bank_details: bodyBankDetails,
       recipient_name,
       recipient_email,
       recipient_address,
@@ -166,7 +169,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Note: sender_name is validated later after settings fallback
+    // Sender identity is resolved from invoice values, defaults, then profile.
 
     if (!line_items || line_items.length === 0) {
       return NextResponse.json(
@@ -248,13 +251,23 @@ export async function POST(request: NextRequest) {
       recipient_name,
       recipient_email,
       recipient_address: recipient_address || null,
-      sender_name: bodySenderName || settings.company_name || userData?.name || null,
+      sender_name: bodySenderName || userData?.name || null,
+      sender_company: bodySenderCompany || settings.company_name || null,
       sender_email: bodySenderEmail || userData?.email || null,
-      sender_address: bodySenderAddress
-        ? { address: bodySenderAddress }
-        : settings.company_address
-          ? { address: settings.company_address }
+      sender_address: bodySenderAddress || bodySenderCompany || bodyBankDetails
+        ? {
+            address: bodySenderAddress || settings.company_address || null,
+            company: bodySenderCompany || settings.company_name || null,
+            bank_details: normalizeInvoiceBankDetails(bodyBankDetails),
+          }
+        : settings.company_address || settings.company_name
+          ? {
+              address: settings.company_address || null,
+              company: settings.company_name || null,
+              bank_details: null,
+            }
           : null,
+      bank_details: normalizeInvoiceBankDetails(bodyBankDetails),
       notes: notes || settings.default_notes || null,
     };
 

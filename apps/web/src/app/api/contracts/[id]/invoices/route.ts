@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { InvoiceLineItem, Payment } from "@/db/types";
 import { insertInvoiceWithRetry } from "@/lib/invoices/create-invoice";
+import { normalizeInvoiceBankDetails } from "@/lib/invoices/bank-details";
 
 // Format currency
 function formatCurrency(amount: number, currency: string): string {
@@ -87,7 +88,14 @@ export async function POST(
 
     // Parse request body
     const body = await request.json();
-    const { paymentId, recipientName, recipientEmail, recipientAddress, notes } = body;
+    const {
+      paymentId,
+      recipientName,
+      recipientEmail,
+      recipientAddress,
+      notes,
+      bankDetails,
+    } = body;
 
     // Verify contract ownership and get details
     const { data: contract, error: contractError } = await supabase
@@ -104,9 +112,15 @@ export async function POST(
     // Get user info for sender details
     const { data: userData } = await supabase
       .from("users")
-      .select("name, email")
+      .select("name, email, company_name")
       .eq("id", user.id)
       .single();
+
+    const { data: invoiceSettings } = await supabase
+      .from("invoice_settings")
+      .select("company_name, company_address, default_notes, default_due_days")
+      .eq("user_id", user.id)
+      .maybeSingle();
 
     // Get payment if specified
     let payment: Payment | null = null;
@@ -153,15 +167,30 @@ export async function POST(
       subtotal,
       tax_amount: taxAmount,
       total,
-      due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+      due_date: new Date(
+        Date.now() + (invoiceSettings?.default_due_days || 30) * 24 * 60 * 60 * 1000
+      ).toISOString(),
       paid_at: payment?.status === "succeeded" ? new Date().toISOString() : null,
       sent_at: new Date().toISOString(),
       recipient_name: recipientName || payment?.payer_name || null,
       recipient_email: recipientEmail || payment?.payer_email || null,
       recipient_address: recipientAddress || null,
       sender_name: userData?.name || null,
+      sender_company: invoiceSettings?.company_name || userData?.company_name || null,
       sender_email: userData?.email || null,
-      notes: notes || null,
+      sender_address:
+        invoiceSettings?.company_address ||
+        invoiceSettings?.company_name ||
+        userData?.company_name ||
+        bankDetails
+          ? {
+              address: invoiceSettings?.company_address || null,
+              company: invoiceSettings?.company_name || userData?.company_name || null,
+              bank_details: normalizeInvoiceBankDetails(bankDetails),
+            }
+          : null,
+      bank_details: normalizeInvoiceBankDetails(bankDetails),
+      notes: notes || invoiceSettings?.default_notes || null,
     };
 
     const { data: invoice, error: insertError } = await insertInvoiceWithRetry<{

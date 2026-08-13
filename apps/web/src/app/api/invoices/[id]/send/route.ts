@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isEmailTransportConfigured, sendEmail } from "@/lib/email";
+import {
+  getBankDetailRows,
+  readInvoiceSenderSnapshot,
+} from "@/lib/invoices/bank-details";
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 // Format currency
 function formatCurrency(amount: number, currency: string): string {
@@ -87,8 +100,38 @@ export async function POST(
       .eq("id", user.id)
       .single();
 
-    const senderName = profile?.name || user.email?.split("@")[0] || "Lexport User";
+    const senderSnapshot = readInvoiceSenderSnapshot(invoice);
+    const senderName = invoice.sender_name || profile?.name || user.email?.split("@")[0] || "Lexport User";
+    const senderDisplayName = senderSnapshot.company || senderName;
+    const senderContactHtml = senderSnapshot.company && senderName
+      ? `<br><span style="font-size: 13px; color: #64748b;">Contact: ${escapeHtml(senderName)}</span>`
+      : "";
+    const senderText = senderSnapshot.company && senderName
+      ? `${senderDisplayName} (contact: ${senderName})`
+      : senderDisplayName;
     const formattedAmount = formatCurrency(invoice.total || invoice.amount, invoice.currency);
+    const bankDetailRows = getBankDetailRows(
+      senderSnapshot.bankDetails,
+      invoice.invoice_number
+    );
+    const bankDetailsHtml = bankDetailRows.length > 0
+      ? `
+    <div style="background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 18px; margin: 20px 0;">
+      <p style="margin: 0 0 10px; color: #0c4a6e; font-size: 14px; font-weight: 700;">Bank transfer details</p>
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        ${bankDetailRows.map((row) => `
+        <tr>
+          <td style="padding: 4px 12px 4px 0; color: #64748b; vertical-align: top;">${escapeHtml(row.label)}</td>
+          <td style="padding: 4px 0; color: #0f172a; font-weight: 600; text-align: right; white-space: pre-line; word-break: break-word;">${escapeHtml(row.value)}</td>
+        </tr>`).join("")}
+      </table>
+    </div>`
+      : "";
+    const bankDetailsText = bankDetailRows.length > 0
+      ? `Bank transfer details:\n${bankDetailRows
+          .map((row) => `${row.label}: ${row.value}`)
+          .join("\n")}`
+      : "";
 
     // Send email
     const html = `
@@ -109,7 +152,7 @@ export async function POST(
     <p style="margin: 16px 0;">Hi ${invoice.recipient_name || "there"},</p>
 
     <p style="margin: 16px 0;">
-      ${senderName} has sent you an invoice for payment.
+      ${escapeHtml(senderDisplayName)} has sent you an invoice for payment.${senderContactHtml}
     </p>
 
     <!-- Invoice Summary -->
@@ -141,6 +184,8 @@ export async function POST(
     </div>
     ` : ""}
 
+    ${bankDetailsHtml}
+
     <div style="text-align: center; margin: 32px 0;">
       <a href="${paymentUrl}" style="display: inline-block; background-color: #529ec6; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">View &amp; Pay Invoice</a>
     </div>
@@ -166,7 +211,7 @@ You've received an invoice
 
 Hi ${invoice.recipient_name || "there"},
 
-${senderName} has sent you an invoice for payment.
+${senderText} has sent you an invoice for payment.
 
 Invoice Number: ${invoice.invoice_number}
 Reference: ${contractTitle}
@@ -174,6 +219,8 @@ Due Date: ${formatDate(invoice.due_date)}
 Amount Due: ${formattedAmount}
 
 ${invoice.notes ? `Notes: ${invoice.notes}` : ""}
+
+${bankDetailsText}
 
 View and pay your invoice: ${paymentUrl}
 
@@ -195,8 +242,8 @@ Powered by Lexport - Simple, legally binding contracts for startups and freelanc
 
     try {
       const subject = isResend
-        ? `Reminder: Invoice ${invoice.invoice_number} from ${senderName} - ${formattedAmount}`
-        : `Invoice ${invoice.invoice_number} from ${senderName} - ${formattedAmount}`;
+        ? `Reminder: Invoice ${invoice.invoice_number} from ${senderDisplayName} - ${formattedAmount}`
+        : `Invoice ${invoice.invoice_number} from ${senderDisplayName} - ${formattedAmount}`;
 
       const { error } = await sendEmail({
         to: [invoice.recipient_email],
