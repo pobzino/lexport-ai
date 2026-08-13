@@ -27,10 +27,11 @@ export async function extractPdfText(
     // Get document proxy
     const pdf = await getDocumentProxy(uint8Array);
 
-    // Extract text with pages merged
-    const { totalPages, text } = await extractText(pdf, { mergePages: true });
+    // Keep page and line boundaries. unpdf's merged mode collapses every
+    // whitespace run, which makes legal headings impossible to recover.
+    const { totalPages, text } = await extractText(pdf);
 
-    const extractedText = (text as string || "").trim();
+    const extractedText = text.join("\n\n").trim();
     const pageCount = totalPages || 1;
 
     // Detect if PDF is scanned (very little text relative to page count)
@@ -78,10 +79,13 @@ export function detectScannedPdf(text: string, pageCount: number): boolean {
  */
 export function normalizeExtractedText(text: string): string {
   return text
-    // Normalize whitespace
-    .replace(/\s+/g, " ")
+    .replace(/\r\n?/g, "\n")
+    // Normalize horizontal whitespace without destroying paragraph structure.
+    .replace(/[^\S\n]+/g, " ")
     // Fix common OCR artifacts
     .replace(/\s+([.,;:!?])/g, "$1")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
     // Remove excessive line breaks
     .replace(/\n{3,}/g, "\n\n")
     // Trim

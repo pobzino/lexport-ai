@@ -42,6 +42,7 @@ import {
   Lock,
   Upload,
   Folder,
+  RefreshCw,
 } from "lucide-react";
 import type { Clause } from "@/lib/contracts/schemas";
 import { SignatureFieldEditor, type SignatureField } from "@/components/signature-field-editor";
@@ -206,6 +207,8 @@ export default function ContractEditorPage() {
   // Dedicated, non-fatal save error (kept separate from `error` so a failed
   // save shows a dismissible toast instead of tripping the full-screen load guard)
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [reparsing, setReparsing] = useState(false);
+  const [reparseNotice, setReparseNotice] = useState<string | null>(null);
 
   // UI state
   const [activeClause, setActiveClause] = useState<string | null>(null);
@@ -1352,6 +1355,45 @@ export default function ContractEditorPage() {
     }
   };
 
+  const reparseUploadedContract = async () => {
+    if (!contract || reparsing) return;
+
+    const confirmed = await confirmDialog({
+      title: "Reparse uploaded contract",
+      message: "This replaces the current sections with a fresh parse of the original uploaded text. Your current version remains available in version history.",
+      variant: "warning",
+      confirmText: "Reparse",
+    });
+    if (!confirmed) return;
+
+    setReparsing(true);
+    setSaveError(null);
+    setShowToolsMenu(false);
+    try {
+      const response = await fetch(`/api/contracts/${contractId}/reparse`, {
+        method: "POST",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to reparse uploaded contract");
+      }
+
+      setContract(data.contract);
+      setExpandedClauses(
+        new Set(data.contract.content.clauses.map((clause: Clause) => clause.id))
+      );
+      setRiskAnalysis(null);
+      setReparseNotice(`Reparsed into ${data.clauseCount} editable sections.`);
+      setTimeout(() => setReparseNotice(null), 5000);
+    } catch (err) {
+      setSaveError(
+        err instanceof Error ? err.message : "Failed to reparse uploaded contract"
+      );
+    } finally {
+      setReparsing(false);
+    }
+  };
+
   // Download PDF
   const downloadPDF = async () => {
     setDownloading(true);
@@ -1495,6 +1537,21 @@ export default function ContractEditorPage() {
                 Dismiss
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {reparseNotice && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[calc(100%-2rem)] max-w-md">
+          <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-lg">
+            <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-emerald-600" />
+            <p className="flex-1 font-medium">{reparseNotice}</p>
+            <button
+              onClick={() => setReparseNotice(null)}
+              className="text-emerald-600 hover:text-emerald-800"
+              aria-label="Dismiss reparse confirmation"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
       )}
@@ -1676,6 +1733,20 @@ export default function ContractEditorPage() {
                         {saved ? "Saved!" : "Save Changes"}
                       </button>
                     )}
+
+                    {contract.source_type === "uploaded" &&
+                      contract.processing_mode !== "sign_only" &&
+                      contract.extracted_text &&
+                      !isLocked && (
+                        <button
+                          onClick={reparseUploadedContract}
+                          disabled={reparsing}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-4 h-4 text-slate-400 ${reparsing ? "animate-spin" : ""}`} />
+                          {reparsing ? "Reparsing upload..." : "Reparse upload"}
+                        </button>
+                      )}
 
                     {/* Locked indicator in menu */}
                     {isLocked && (
