@@ -31,7 +31,6 @@ const contentSecurityPolicyDirectives = [
         "https://*.posthog.com",
         "https://*.i.posthog.com",
         "https://*.sentry.io",
-        "https://unpkg.com",
         "https://www.googletagmanager.com",
         "https://www.google-analytics.com",
         "https://googleads.g.doubleclick.net",
@@ -63,7 +62,6 @@ const contentSecurityPolicyDirectives = [
         "https://*.posthog.com",
         "https://*.i.posthog.com",
         "https://*.sentry.io",
-        "https://unpkg.com",
         "https://www.google-analytics.com",
         "https://analytics.google.com",
         "https://*.google-analytics.com",
@@ -86,7 +84,7 @@ const contentSecurityPolicyDirectives = [
     ]
         .filter(Boolean)
         .join(" ")}`,
-    "worker-src 'self' blob: https://unpkg.com",
+    "worker-src 'self' blob:",
     "frame-ancestors 'self'",
     "form-action 'self'",
     "base-uri 'self'",

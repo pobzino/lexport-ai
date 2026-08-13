@@ -2,6 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { parseContractText } from "@/lib/upload/parse-contract";
 
+// Netlify terminates synchronous functions at 26 seconds. The parser's AI call
+// times out earlier and falls back locally, leaving enough time to return JSON.
+export const maxDuration = 26;
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
