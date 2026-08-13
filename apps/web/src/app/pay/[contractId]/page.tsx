@@ -35,7 +35,14 @@ interface PaymentInfo {
   amount: number;
   currency: string;
   contractTitle?: string;
-  paymentType?: "full" | "deposit" | "balance";
+  paymentType?: "full" | "deposit" | "balance" | "installment";
+  milestone?: {
+    id: string;
+    label: string;
+    percentage: number;
+    dueDate?: string;
+    index: number;
+  } | null;
   totalAmount?: number;
   depositPaid?: boolean;
   balanceRemaining?: number;
@@ -133,6 +140,7 @@ function CheckoutForm({
   if (succeeded) {
     const isDeposit = paymentInfo.paymentType === "deposit";
     const isBalance = paymentInfo.paymentType === "balance";
+    const isMilestone = paymentInfo.paymentType === "installment";
 
     // ACH bank payments are processing (takes 4 business days)
     if (isAchProcessing) {
@@ -162,13 +170,21 @@ function CheckoutForm({
           <Check className="w-8 h-8 text-emerald-600" />
         </div>
         <h2 className="text-xl font-bold text-slate-900 mb-2">
-          {isDeposit ? "Deposit Paid!" : isBalance ? "Balance Paid!" : "Payment Successful!"}
+          {isDeposit
+            ? "Deposit Paid!"
+            : isBalance
+              ? "Balance Paid!"
+              : isMilestone
+                ? `${paymentInfo.milestone?.label || "Payment stage"} paid!`
+                : "Payment Successful!"}
         </h2>
         <p className="text-slate-600 mb-4">
           {isDeposit && alreadySigned ? (
             <>Your contract has been signed and your deposit has been received. The remaining balance will be collected when due.</>
           ) : isBalance ? (
             <>All payments are now complete. Thank you!</>
+          ) : isMilestone && alreadySigned ? (
+            <>This payment stage has been received. The next stage will become available in order.</>
           ) : alreadySigned ? (
             <>Your payment has been received. Thank you!</>
           ) : (
@@ -295,6 +311,7 @@ export default function PaymentPage() {
           totalAmount: data.totalAmount,
           depositPaid: data.depositPaid,
           balanceRemaining: data.balanceRemaining,
+          milestone: data.milestone,
         });
         if (data.contractTitle) {
           setContractTitle(data.contractTitle);
@@ -488,7 +505,11 @@ export default function PaymentPage() {
                     ? "bg-amber-100 text-amber-800"
                     : "bg-emerald-100 text-emerald-800"
                 }`}>
-                  {paymentInfo.paymentType === "deposit" ? "Deposit Payment" : "Balance Payment"}
+                  {paymentInfo.paymentType === "deposit"
+                    ? "Deposit Payment"
+                    : paymentInfo.paymentType === "installment"
+                      ? `Stage ${(paymentInfo.milestone?.index ?? 0) + 1}: ${paymentInfo.milestone?.label || "Milestone"}`
+                      : "Balance Payment"}
                 </span>
               </div>
             )}
@@ -499,6 +520,8 @@ export default function PaymentPage() {
                   ? "Deposit Amount"
                   : paymentInfo.paymentType === "balance"
                   ? "Balance Due"
+                  : paymentInfo.paymentType === "installment"
+                  ? paymentInfo.milestone?.label || "Payment Stage"
                   : "Amount Due"}
               </span>
               <span className="text-2xl font-bold text-slate-900">
@@ -539,6 +562,29 @@ export default function PaymentPage() {
               <div className="mt-3 flex items-center gap-2 text-sm text-emerald-600">
                 <Check className="w-4 h-4" />
                 <span>Deposit already paid</span>
+              </div>
+            )}
+
+            {paymentInfo.paymentType === "installment" && paymentInfo.totalAmount && (
+              <div className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Contract value</span>
+                  <span className="text-slate-700">
+                    {new Intl.NumberFormat("en-US", {
+                      style: "currency",
+                      currency: paymentInfo.currency,
+                    }).format(paymentInfo.totalAmount / 100)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Remaining after this payment</span>
+                  <span className="text-slate-700">
+                    {new Intl.NumberFormat("en-US", {
+                      style: "currency",
+                      currency: paymentInfo.currency,
+                    }).format((paymentInfo.balanceRemaining || 0) / 100)}
+                  </span>
+                </div>
               </div>
             )}
           </div>

@@ -31,6 +31,7 @@ interface ContractChatProps {
 
 const SUGGESTION_CHIPS = [
   { label: "Review risks", prompt: "Analyze this contract for potential risks and issues" },
+  { label: "Remove a section", prompt: "Help me remove an entire section. Ask which section if I have not named or selected one." },
   { label: "Simplify language", prompt: "Simplify the language in this contract to be more readable" },
   { label: "Explain definitions", prompt: "Explain the definitions section" },
   { label: "Check for missing clauses", prompt: "Are there any standard clauses missing from this contract?" },

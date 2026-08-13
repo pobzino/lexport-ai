@@ -71,6 +71,17 @@ import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 import { ContractPaywall } from "@/components/paywall/ContractPaywall";
 import { TagInput } from "@/components/dashboard/TagInput";
+import {
+  PAYMENT_CURRENCY_OPTIONS,
+  createDefaultPaymentSchedule,
+  formatPaymentAmount,
+  getScheduleTotal,
+  isPaymentScheduleValid,
+  normalizePaymentSchedule,
+  type PaymentCurrency,
+  type PaymentMilestone,
+  type PaymentStructure,
+} from "@/lib/payments/config";
 
 interface ContractContent {
   preamble: string;
@@ -94,7 +105,8 @@ interface Contract {
   payment_amount: number | null;
   payment_currency: string;
   payment_status: string;
-  payment_structure: "full" | "deposit_balance" | "bnpl";
+  payment_structure: PaymentStructure;
+  payment_schedule?: PaymentMilestone[];
   deposit_percentage: number | null;
   // Upload support
   source_type?: "generated" | "uploaded";
@@ -191,6 +203,9 @@ export default function ContractEditorPage() {
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Dedicated, non-fatal save error (kept separate from `error` so a failed
+  // save shows a dismissible toast instead of tripping the full-screen load guard)
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // UI state
   const [activeClause, setActiveClause] = useState<string | null>(null);
@@ -222,8 +237,11 @@ export default function ContractEditorPage() {
   const [showInvoicePanel, setShowInvoicePanel] = useState(false);
   const [paymentRequired, setPaymentRequired] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<string>("");
-  const [paymentCurrency, setPaymentCurrency] = useState("usd");
-  const [paymentStructure, setPaymentStructure] = useState<"full" | "deposit_balance" | "bnpl">("full");
+  const [paymentCurrency, setPaymentCurrency] = useState<PaymentCurrency>("usd");
+  const [paymentStructure, setPaymentStructure] = useState<PaymentStructure>("full");
+  const [paymentSchedule, setPaymentSchedule] = useState<PaymentMilestone[]>(
+    createDefaultPaymentSchedule
+  );
   const [depositPercentage, setDepositPercentage] = useState<string>("30");
   const [balanceDueDate, setBalanceDueDate] = useState<string>("");
 
@@ -926,8 +944,12 @@ export default function ContractEditorPage() {
         if (data.contract) {
           setPaymentRequired(data.contract.payment_required || false);
           setPaymentAmount(data.contract.payment_amount ? String(data.contract.payment_amount) : "");
-          setPaymentCurrency(data.contract.payment_currency || "usd");
-          setPaymentStructure(data.contract.payment_structure || "full");
+          setPaymentCurrency((data.contract.payment_currency || "usd") as PaymentCurrency);
+          setPaymentStructure((data.contract.payment_structure || "full") as PaymentStructure);
+          const storedSchedule = normalizePaymentSchedule(data.contract.payment_schedule);
+          setPaymentSchedule(
+            storedSchedule.length > 0 ? storedSchedule : createDefaultPaymentSchedule()
+          );
           setDepositPercentage(data.contract.deposit_percentage ? String(data.contract.deposit_percentage) : "30");
           // Initialize balance due date (convert to YYYY-MM-DD for input)
           if (data.contract.balance_due_date) {
@@ -1263,8 +1285,18 @@ export default function ContractEditorPage() {
   // Save entire contract
   const saveContract = async () => {
     if (!contract) return;
+    if (
+      paymentRequired &&
+      paymentStructure === "custom" &&
+      !isPaymentScheduleValid(paymentSchedule)
+    ) {
+      setShowPaymentSettings(true);
+      setSaveError("Name every payment stage, use positive percentages, and total 100% before saving.");
+      return;
+    }
     setSaving(true);
     setSaved(false);
+    setSaveError(null);
 
     // Apply filled blanks to all content sections
     const updatedContent = {
@@ -1291,6 +1323,7 @@ export default function ContractEditorPage() {
           payment_amount: paymentAmount ? parseFloat(paymentAmount) : null,
           payment_currency: paymentCurrency,
           payment_structure: paymentStructure,
+          payment_schedule: paymentStructure === "custom" ? paymentSchedule : [],
           deposit_percentage: paymentStructure === "deposit_balance" ? parseInt(depositPercentage) : null,
           balance_due_date: paymentStructure === "deposit_balance" && balanceDueDate
             ? new Date(balanceDueDate).toISOString()
@@ -1307,7 +1340,13 @@ export default function ContractEditorPage() {
       // Auto-hide after 3 seconds
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      setError("Failed to save contract");
+      // Non-fatal: keep the editor and the user's unsaved edits mounted so they
+      // can retry, instead of tripping the full-screen load-error guard.
+      setSaveError(
+        err instanceof Error && err.message && err.message !== "Failed to save"
+          ? err.message
+          : "We couldn't save your changes — your edits are still here. Please try again.",
+      );
     } finally {
       setSaving(false);
     }
@@ -1432,6 +1471,33 @@ export default function ContractEditorPage() {
 
   return (
     <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
+      {saveError && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[calc(100%-2rem)] max-w-md">
+          <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800 shadow-lg">
+            <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-500" />
+            <div className="flex-1 text-sm">
+              <p className="font-medium">Couldn&apos;t save your changes</p>
+              <p className="text-red-700">{saveError}</p>
+            </div>
+            <div className="flex flex-shrink-0 items-center gap-3">
+              <button
+                onClick={() => saveContract()}
+                disabled={saving}
+                className="text-sm font-medium text-red-700 underline hover:text-red-900 disabled:opacity-50"
+              >
+                Retry
+              </button>
+              <button
+                onClick={() => setSaveError(null)}
+                className="text-sm font-medium text-red-500 hover:text-red-700"
+                aria-label="Dismiss save error"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="bg-white/95 backdrop-blur-sm border-b border-slate-200 flex-shrink-0 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-2.5">
@@ -1889,13 +1955,15 @@ export default function ContractEditorPage() {
                             Amount
                           </label>
                           <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">
+                              {paymentCurrency.toUpperCase()}
+                            </span>
                             <input
                               type="number"
                               value={paymentAmount}
                               onChange={(e) => setPaymentAmount(e.target.value)}
                               placeholder="0.00"
-                              className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                              className="w-full pl-14 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                             />
                           </div>
                         </div>
@@ -1905,12 +1973,14 @@ export default function ContractEditorPage() {
                           </label>
                           <select
                             value={paymentCurrency}
-                            onChange={(e) => setPaymentCurrency(e.target.value)}
+                            onChange={(e) => setPaymentCurrency(e.target.value as PaymentCurrency)}
                             className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                           >
-                            <option value="usd">USD ($)</option>
-                            <option value="eur">EUR (€)</option>
-                            <option value="gbp">GBP (£)</option>
+                            {PAYMENT_CURRENCY_OPTIONS.map((currency) => (
+                              <option key={currency.value} value={currency.value}>
+                                {currency.label}
+                              </option>
+                            ))}
                           </select>
                         </div>
                       </div>
@@ -1920,7 +1990,7 @@ export default function ContractEditorPage() {
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                           Payment Structure
                         </label>
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                           <button
                             onClick={() => setPaymentStructure("full")}
                             className={`p-3 rounded-lg border-2 text-left transition-all ${paymentStructure === "full"
@@ -1930,6 +2000,17 @@ export default function ContractEditorPage() {
                           >
                             <p className="font-medium text-slate-900">Full Payment</p>
                             <p className="text-xs text-slate-500 mt-1">Pay 100% upfront</p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPaymentStructure("custom")}
+                            className={`p-3 rounded-lg border-2 text-left transition-all ${paymentStructure === "custom"
+                              ? "border-emerald-500 bg-emerald-50"
+                              : "border-slate-200 hover:border-slate-300"
+                              }`}
+                          >
+                            <p className="font-medium text-slate-900">Payment Stages</p>
+                            <p className="text-xs text-slate-500 mt-1">2-12 milestones</p>
                           </button>
                           <button
                             onClick={() => setPaymentStructure("deposit_balance")}
@@ -1975,8 +2056,18 @@ export default function ContractEditorPage() {
                             </span>
                           </div>
                           <div className="flex justify-between text-xs text-slate-500 mt-2">
-                            <span>Deposit: ${((parseFloat(paymentAmount) || 0) * parseInt(depositPercentage) / 100).toFixed(2)}</span>
-                            <span>Balance: ${((parseFloat(paymentAmount) || 0) * (100 - parseInt(depositPercentage)) / 100).toFixed(2)}</span>
+                            <span>
+                              Deposit: {formatPaymentAmount(
+                                (parseFloat(paymentAmount) || 0) * parseInt(depositPercentage) / 100,
+                                paymentCurrency
+                              )}
+                            </span>
+                            <span>
+                              Balance: {formatPaymentAmount(
+                                (parseFloat(paymentAmount) || 0) * (100 - parseInt(depositPercentage)) / 100,
+                                paymentCurrency
+                              )}
+                            </span>
                           </div>
 
                           {/* Balance Due Date */}
@@ -1999,6 +2090,134 @@ export default function ContractEditorPage() {
                         </div>
                       )}
 
+                      {paymentStructure === "custom" && (
+                        <div className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium text-slate-900">Payment schedule</p>
+                              <p className="text-xs text-slate-500">Stages are collected in this order.</p>
+                            </div>
+                            <span
+                              className={`text-sm font-semibold ${
+                                isPaymentScheduleValid(paymentSchedule)
+                                  ? "text-emerald-700"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {getScheduleTotal(paymentSchedule)}% of 100%
+                            </span>
+                          </div>
+
+                          <div className="space-y-3">
+                            {paymentSchedule.map((milestone, index) => (
+                              <div
+                                key={milestone.id}
+                                className="grid gap-2 rounded-lg border border-emerald-200 bg-white p-3 md:grid-cols-[2rem_1fr_7rem_10rem_2rem] md:items-center"
+                              >
+                                <span className="text-sm font-semibold text-emerald-700">
+                                  {index + 1}
+                                </span>
+                                <input
+                                  value={milestone.label}
+                                  onChange={(event) =>
+                                    setPaymentSchedule((current) =>
+                                      current.map((item) =>
+                                        item.id === milestone.id
+                                          ? { ...item, label: event.target.value }
+                                          : item
+                                      )
+                                    )
+                                  }
+                                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                  placeholder="Stage name"
+                                />
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={100}
+                                    value={milestone.percentage}
+                                    onChange={(event) =>
+                                      setPaymentSchedule((current) =>
+                                        current.map((item) =>
+                                          item.id === milestone.id
+                                            ? {
+                                                ...item,
+                                                percentage: Number(event.target.value) || 0,
+                                              }
+                                            : item
+                                        )
+                                      )
+                                    }
+                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-7 text-sm"
+                                  />
+                                  <span className="absolute right-2 top-2 text-sm text-slate-400">%</span>
+                                </div>
+                                <input
+                                  type="date"
+                                  value={milestone.dueDate || ""}
+                                  onChange={(event) =>
+                                    setPaymentSchedule((current) =>
+                                      current.map((item) =>
+                                        item.id === milestone.id
+                                          ? {
+                                              ...item,
+                                              dueDate: event.target.value || undefined,
+                                            }
+                                          : item
+                                      )
+                                    )
+                                  }
+                                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPaymentSchedule((current) =>
+                                      current.filter((item) => item.id !== milestone.id)
+                                    )
+                                  }
+                                  disabled={paymentSchedule.length <= 2}
+                                  className="text-slate-400 hover:text-red-600 disabled:opacity-30"
+                                  aria-label={`Remove ${milestone.label}`}
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                                <p className="text-xs text-slate-500 md:col-start-2 md:col-span-4">
+                                  {formatPaymentAmount(
+                                    (parseFloat(paymentAmount) || 0) * milestone.percentage / 100,
+                                    paymentCurrency
+                                  )}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPaymentSchedule((current) => [
+                                ...current,
+                                {
+                                  id: `stage-${Date.now()}`,
+                                  label: `Payment ${current.length + 1}`,
+                                  percentage: 0,
+                                },
+                              ])
+                            }
+                            disabled={paymentSchedule.length >= 12}
+                            className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm font-medium text-emerald-700 disabled:opacity-50"
+                          >
+                            <Plus className="h-4 w-4" /> Add payment stage
+                          </button>
+                          {!isPaymentScheduleValid(paymentSchedule) && (
+                            <p className="text-sm font-medium text-red-600">
+                              Name every stage, use a positive percentage, and total 100%.
+                            </p>
+                          )}
+                        </div>
+                      )}
+
                       {/* Info Box */}
                       <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg">
                         <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -2007,6 +2226,7 @@ export default function ContractEditorPage() {
                           <p className="mt-1">
                             {paymentStructure === "full" && "The signer will pay the full amount before or after signing, based on your preference."}
                             {paymentStructure === "deposit_balance" && `The signer will pay ${depositPercentage}% deposit upfront, and the remaining ${100 - parseInt(depositPercentage)}% upon completion.`}
+                            {paymentStructure === "custom" && `${paymentSchedule.length} payment stages will be collected in order.`}
                             {paymentStructure === "bnpl" && "The signer can pay in installments via Klarna or Afterpay. You receive the full amount immediately."}
                           </p>
                         </div>

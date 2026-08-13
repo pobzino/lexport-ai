@@ -82,6 +82,9 @@ TOOL SELECTION GUIDE:
 
 CRITICAL RULES:
 - The clauseId is shown in brackets (e.g., [clauseId: "12"]). Use the EXACT clauseId string.
+- To delete an entire clause or section, use action "remove". Do not replace it with a summary or placeholder.
+- For clause removal, provide clauseId whenever possible. You may use clauseTitle or an exact searchText excerpt as a fallback.
+- Preamble, recitals, and signatureBlock can also be removed as whole sections with action "remove".
 - For modifications, populate the 'before' and 'after' fields to show the diff.
 - Always maintain legal validity when making changes.
 - Be concise but thorough in your analysis.`;
@@ -168,6 +171,13 @@ export async function POST(
             };
           }
 
+          if (["pending_signature", "signed", "completed", "expired"].includes(contract.status)) {
+            return {
+              success: false,
+              error: "This contract is locked because it has already been sent or completed. Duplicate it to make AI edits.",
+            };
+          }
+
           // Apply modifications
           const updatedContent = { ...content, clauses: [...content.clauses] };
           const modifiedClauseIds = new Set<string>();
@@ -179,28 +189,65 @@ export async function POST(
             after: string;
           }> = [];
 
-          for (const mod of modifications) {
-            if (
-              mod.action === "remove" &&
-              mod.section === "clause" &&
-              mod.clauseId
-            ) {
-              const removedClause = updatedContent.clauses.find(
-                (c) => c.id === mod.clauseId
+          const normalize = (value: string) =>
+            value.trim().toLowerCase().replace(/\s+/g, " ");
+          const findClause = (mod: z.infer<typeof ModificationSchema>) => {
+            if (mod.clauseId) {
+              const exactMatch = updatedContent.clauses.find(
+                (clause) => clause.id === mod.clauseId
               );
-              if (removedClause) {
+              if (exactMatch) return exactMatch;
+            }
+            if (mod.clauseTitle) {
+              const title = normalize(mod.clauseTitle);
+              const titleMatch = updatedContent.clauses.find((clause) => {
+                const candidate = normalize(clause.title);
+                return candidate === title ||
+                  candidate.includes(title) ||
+                  title.includes(candidate);
+              });
+              if (titleMatch) return titleMatch;
+            }
+            if (mod.searchText) {
+              const excerpt = normalize(mod.searchText);
+              return updatedContent.clauses.find((clause) =>
+                normalize(clause.content).includes(excerpt)
+              );
+            }
+            return undefined;
+          };
+
+          for (const mod of modifications) {
+            if (mod.action === "remove") {
+              if (mod.section === "clause") {
+                const removedClause = findClause(mod);
+                if (!removedClause) {
+                  return {
+                    success: false,
+                    error: `I could not identify the section to remove${mod.clauseTitle ? `: ${mod.clauseTitle}` : ""}. Please select its text or name the section exactly.`,
+                  };
+                }
                 changes.push({
                   section: "clause",
-                  clauseId: mod.clauseId,
+                  clauseId: removedClause.id,
                   clauseTitle: removedClause.title,
                   before: removedClause.content,
                   after: "[REMOVED]",
                 });
+                updatedContent.clauses = updatedContent.clauses.filter(
+                  (clause: Clause) => clause.id !== removedClause.id
+                );
+                modifiedClauseIds.add(removedClause.id);
+                continue;
               }
-              updatedContent.clauses = updatedContent.clauses.filter(
-                (c: Clause) => c.id !== mod.clauseId
-              );
-              modifiedClauseIds.add(mod.clauseId);
+
+              const before = updatedContent[mod.section];
+              updatedContent[mod.section] = "";
+              changes.push({
+                section: mod.section,
+                before,
+                after: "[REMOVED]",
+              });
               continue;
             }
 
@@ -234,11 +281,18 @@ export async function POST(
                 before: mod.before || before.substring(0, 200),
                 after: mod.after || updatedContent.recitals.substring(0, 200),
               });
-            } else if (mod.section === "clause" && mod.clauseId) {
-              modifiedClauseIds.add(mod.clauseId);
+            } else if (mod.section === "clause") {
+              const targetClause = findClause(mod);
+              if (!targetClause) {
+                return {
+                  success: false,
+                  error: "I could not identify the clause to edit. Please select its text or name the clause exactly.",
+                };
+              }
+              modifiedClauseIds.add(targetClause.id);
               updatedContent.clauses = updatedContent.clauses.map(
                 (c: Clause) => {
-                  if (c.id === mod.clauseId) {
+                  if (c.id === targetClause.id) {
                     const before = c.content;
                     let newClauseContent = c.content;
                     if (mod.searchText && mod.replaceText) {

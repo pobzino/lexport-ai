@@ -82,6 +82,9 @@ export async function POST(
         payment_amount: original.payment_amount,
         payment_currency: original.payment_currency,
         payment_structure: original.payment_structure,
+        payment_schedule:
+          (original as typeof original & { payment_schedule?: unknown })
+            .payment_schedule || [],
         deposit_percentage: original.deposit_percentage,
         source_type: original.source_type,
         source_file_url: original.source_file_url,

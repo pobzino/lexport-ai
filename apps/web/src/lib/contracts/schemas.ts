@@ -300,7 +300,10 @@ export const SalesContractMetadataSchema = z.object({
     specifications: z.string().optional(),
   })).min(1, "At least one product required"),
   totalAmount: z.number().min(0),
-  currency: z.enum(["usd", "eur", "gbp"]).default("usd"),
+  currency: z.enum([
+    "usd", "gbp", "eur", "cad", "aud", "nzd",
+    "chf", "sek", "nok", "dkk", "sgd",
+  ]).default("usd"),
   paymentTerms: z.object({
     method: z.enum(["full_upfront", "net_30", "net_60", "installments", "on_delivery"]),
     depositPercentage: z.number().min(0).max(100).optional(),
@@ -512,13 +515,65 @@ export type ContractMetadata =
 // Payment Configuration Schema
 // ============================================================================
 
-export const PaymentConfigSchema = z.object({
-  paymentRequired: z.boolean().default(false),
-  paymentAmount: z.number().min(0).optional(),
-  paymentCurrency: z.enum(["usd", "eur", "gbp"]).default("usd"),
-  paymentStructure: z.enum(["full", "deposit_balance", "bnpl"]).default("full"),
-  depositPercentage: z.number().min(10).max(90).optional(),
-});
+export const PaymentConfigSchema = z
+  .object({
+    paymentRequired: z.boolean().default(false),
+    paymentAmount: z.number().min(0).optional(),
+    paymentCurrency: z
+      .enum([
+        "usd",
+        "gbp",
+        "eur",
+        "cad",
+        "aud",
+        "nzd",
+        "chf",
+        "sek",
+        "nok",
+        "dkk",
+        "sgd",
+      ])
+      .default("usd"),
+    paymentStructure: z
+      .enum(["full", "deposit_balance", "custom", "bnpl"])
+      .default("full"),
+    depositPercentage: z.number().min(10).max(90).optional(),
+    paymentSchedule: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          label: z.string().min(1),
+          percentage: z.number().positive().max(100),
+          dueDate: z.string().optional(),
+        })
+      )
+      .min(2)
+      .max(12)
+      .optional(),
+  })
+  .superRefine((config, context) => {
+    if (config.paymentStructure !== "custom") return;
+    if (!config.paymentSchedule) {
+      context.addIssue({
+        code: "custom",
+        path: ["paymentSchedule"],
+        message: "A custom payment schedule is required",
+      });
+      return;
+    }
+
+    const total = config.paymentSchedule.reduce(
+      (sum, milestone) => sum + milestone.percentage,
+      0
+    );
+    if (Math.abs(total - 100) > 0.001) {
+      context.addIssue({
+        code: "custom",
+        path: ["paymentSchedule"],
+        message: "Payment schedule percentages must total 100%",
+      });
+    }
+  });
 
 export type PaymentConfig = z.infer<typeof PaymentConfigSchema>;
 

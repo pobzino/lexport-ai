@@ -31,6 +31,7 @@ import {
   ChevronDown,
   ChevronUp,
   Crown,
+  Plus,
 } from "lucide-react";
 import { ContractGeneratingOverlay } from "@/components/contract-generating-overlay";
 import { ContractPreviewModal } from "@/components/contract-preview-modal";
@@ -99,7 +100,9 @@ interface ContractDraftSnapshot {
   formData: Record<string, unknown>;
   paymentRequired: boolean;
   paymentCurrency: string;
-  paymentStructure: "full" | "deposit_balance" | "bnpl";
+  paymentStructure: PaymentStructure;
+  paymentSchedule: PaymentMilestone[];
+  depositPercent: number;
   showAdvancedOptions: boolean;
   templateSearch: string;
   templateJurisdiction: string;
@@ -145,6 +148,17 @@ import {
   upsertRecentContractType,
 } from "./recent-types";
 import { trackContractCreated } from "@/lib/gtm";
+import {
+  PAYMENT_CURRENCY_OPTIONS,
+  SUPPORTED_PAYMENT_CURRENCIES,
+  createDefaultPaymentSchedule,
+  formatPaymentAmount,
+  getScheduleTotal,
+  isPaymentScheduleValid,
+  type PaymentCurrency,
+  type PaymentMilestone,
+  type PaymentStructure,
+} from "@/lib/payments/config";
 
 const SMART_STEPS = [
   { id: 1, name: "Describe", description: "Tell us what you need" },
@@ -312,8 +326,11 @@ export default function NewContractPage() {
 
   // Payment settings state
   const [paymentRequired, setPaymentRequired] = useState(false);
-  const [paymentCurrency, setPaymentCurrency] = useState<"usd" | "eur" | "gbp">("usd");
-  const [paymentStructure, setPaymentStructure] = useState<"full" | "deposit_balance" | "bnpl">("full");
+  const [paymentCurrency, setPaymentCurrency] = useState<PaymentCurrency>("usd");
+  const [paymentStructure, setPaymentStructure] = useState<PaymentStructure>("full");
+  const [paymentSchedule, setPaymentSchedule] = useState<PaymentMilestone[]>(
+    createDefaultPaymentSchedule
+  );
   const [depositPercent, setDepositPercent] = useState(30);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
@@ -487,21 +504,31 @@ export default function NewContractPage() {
           if (typeof draft.paymentRequired === "boolean") {
             setPaymentRequired(draft.paymentRequired);
           }
-          if (typeof draft.paymentCurrency === "string") {
-            if (
-              draft.paymentCurrency === "usd" ||
-              draft.paymentCurrency === "eur" ||
-              draft.paymentCurrency === "gbp"
-            ) {
-              setPaymentCurrency(draft.paymentCurrency);
-            }
+          if (
+            typeof draft.paymentCurrency === "string" &&
+            SUPPORTED_PAYMENT_CURRENCIES.includes(
+              draft.paymentCurrency as PaymentCurrency
+            )
+          ) {
+            setPaymentCurrency(draft.paymentCurrency as PaymentCurrency);
           }
           if (
             draft.paymentStructure === "full" ||
             draft.paymentStructure === "deposit_balance" ||
+            draft.paymentStructure === "custom" ||
             draft.paymentStructure === "bnpl"
           ) {
             setPaymentStructure(draft.paymentStructure);
+          }
+          if (Array.isArray(draft.paymentSchedule)) {
+            setPaymentSchedule(draft.paymentSchedule);
+          }
+          if (
+            typeof draft.depositPercent === "number" &&
+            draft.depositPercent >= 10 &&
+            draft.depositPercent <= 90
+          ) {
+            setDepositPercent(draft.depositPercent);
           }
           if (typeof draft.showAdvancedOptions === "boolean") {
             setShowAdvancedOptions(draft.showAdvancedOptions);
@@ -588,6 +615,8 @@ export default function NewContractPage() {
       paymentRequired,
       paymentCurrency,
       paymentStructure,
+      paymentSchedule,
+      depositPercent,
       showAdvancedOptions,
       templateSearch,
       templateJurisdiction,
@@ -614,6 +643,8 @@ export default function NewContractPage() {
     paymentRequired,
     paymentCurrency,
     paymentStructure,
+    paymentSchedule,
+    depositPercent,
     showAdvancedOptions,
     templateSearch,
     templateJurisdiction,
@@ -703,6 +734,8 @@ export default function NewContractPage() {
     setPaymentRequired(false);
     setPaymentCurrency("usd");
     setPaymentStructure("full");
+    setPaymentSchedule(createDefaultPaymentSchedule());
+    setDepositPercent(30);
     setShowAdvancedOptions(false);
     setTemplateSearch("");
     setTemplateJurisdiction("");
@@ -768,11 +801,11 @@ export default function NewContractPage() {
         setPaymentRequired(true);
         setShowAdvancedOptions(true);
       }
-      if (["usd", "eur", "gbp"].includes(extractedFields.paymentCurrency as string)) {
-        setPaymentCurrency(extractedFields.paymentCurrency as "usd" | "eur" | "gbp");
+      if (SUPPORTED_PAYMENT_CURRENCIES.includes(extractedFields.paymentCurrency as PaymentCurrency)) {
+        setPaymentCurrency(extractedFields.paymentCurrency as PaymentCurrency);
       }
-      if (["full", "deposit_balance", "bnpl"].includes(extractedFields.paymentStructure as string)) {
-        setPaymentStructure(extractedFields.paymentStructure as "full" | "deposit_balance" | "bnpl");
+      if (["full", "deposit_balance", "custom", "bnpl"].includes(extractedFields.paymentStructure as string)) {
+        setPaymentStructure(extractedFields.paymentStructure as PaymentStructure);
       }
       if (typeof extractedFields.depositPercentage === "number" && extractedFields.depositPercentage >= 10 && extractedFields.depositPercentage <= 90) {
         setDepositPercent(extractedFields.depositPercentage);
@@ -864,6 +897,14 @@ export default function NewContractPage() {
       setSelectedType(null);
       return;
     }
+    if (
+      paymentRequired &&
+      paymentStructure === "custom" &&
+      !isPaymentScheduleValid(paymentSchedule)
+    ) {
+      setError("Name every payment stage, use positive percentages, and total 100% before generating.");
+      return;
+    }
 
     // Pre-check contract limit before starting generation
     // If subscription is still loading, wait for it
@@ -914,6 +955,7 @@ export default function NewContractPage() {
             paymentAmount: derivedPaymentAmount || undefined,
             paymentCurrency,
             paymentStructure,
+            paymentSchedule: paymentStructure === "custom" ? paymentSchedule : undefined,
             depositPercentage: paymentStructure === "deposit_balance" ? depositPercentage : undefined,
             depositAmount: paymentStructure === "deposit_balance" ? derivedDepositAmount : undefined,
           }
@@ -2149,13 +2191,15 @@ export default function NewContractPage() {
                             <select
                               value={paymentCurrency}
                               onChange={(e) =>
-                                setPaymentCurrency(e.target.value as "usd" | "eur" | "gbp")
+                                setPaymentCurrency(e.target.value as PaymentCurrency)
                               }
                               className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
                             >
-                              <option value="usd">USD ($)</option>
-                              <option value="eur">EUR (€)</option>
-                              <option value="gbp">GBP (£)</option>
+                              {PAYMENT_CURRENCY_OPTIONS.map((currency) => (
+                                <option key={currency.value} value={currency.value}>
+                                  {currency.label}
+                                </option>
+                              ))}
                             </select>
                           </div>
                         </div>
@@ -2165,7 +2209,7 @@ export default function NewContractPage() {
                           <label className="block text-sm font-medium text-slate-700 mb-2">
                             Payment Structure
                           </label>
-                          <div className="grid md:grid-cols-3 gap-3">
+                          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3">
                             <button
                               type="button"
                               onClick={() => setPaymentStructure("full")}
@@ -2177,6 +2221,18 @@ export default function NewContractPage() {
                             >
                               <p className="font-medium text-slate-900">Full Payment</p>
                               <p className="text-xs text-slate-500 mt-1">Pay 100% upfront</p>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPaymentStructure("custom")}
+                              className={`p-3 rounded-lg border-2 text-left transition-all ${
+                                paymentStructure === "custom"
+                                  ? "border-emerald-500 bg-emerald-50"
+                                  : "border-slate-200 hover:border-slate-300"
+                              }`}
+                            >
+                              <p className="font-medium text-slate-900">Payment Stages</p>
+                              <p className="text-xs text-slate-500 mt-1">2-12 milestones</p>
                             </button>
                             <button
                               type="button"
@@ -2240,14 +2296,14 @@ export default function NewContractPage() {
                                 <div className="bg-white rounded-lg p-3 border border-emerald-200">
                                   <p className="text-xs text-slate-500 mb-1">Deposit ({depositPercentage}%)</p>
                                   <p className="text-lg font-semibold text-emerald-600">
-                                    ${derivedDepositAmount.toLocaleString()}
+                                    {formatPaymentAmount(derivedDepositAmount, paymentCurrency)}
                                   </p>
                                   <p className="text-xs text-slate-500">Due at signing</p>
                                 </div>
                                 <div className="bg-white rounded-lg p-3 border border-slate-200">
                                   <p className="text-xs text-slate-500 mb-1">Balance ({100 - depositPercentage}%)</p>
                                   <p className="text-lg font-semibold text-slate-900">
-                                    ${(derivedPaymentAmount - derivedDepositAmount).toLocaleString()}
+                                    {formatPaymentAmount(derivedPaymentAmount - derivedDepositAmount, paymentCurrency)}
                                   </p>
                                   <p className="text-xs text-slate-500">Due on completion</p>
                                 </div>
@@ -2258,15 +2314,144 @@ export default function NewContractPage() {
                           </div>
                         )}
 
+                        {paymentStructure === "custom" && (
+                          <div className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-medium text-slate-900">Payment schedule</p>
+                                <p className="text-xs text-slate-500">Stages are collected in this order.</p>
+                              </div>
+                              <span
+                                className={`text-sm font-semibold ${
+                                  isPaymentScheduleValid(paymentSchedule)
+                                    ? "text-emerald-700"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {getScheduleTotal(paymentSchedule)}% of 100%
+                              </span>
+                            </div>
+
+                            <div className="space-y-3">
+                              {paymentSchedule.map((milestone, index) => (
+                                <div
+                                  key={milestone.id}
+                                  className="grid gap-2 rounded-lg border border-emerald-200 bg-white p-3 md:grid-cols-[2rem_1fr_7rem_10rem_2rem] md:items-center"
+                                >
+                                  <span className="text-sm font-semibold text-emerald-700">
+                                    {index + 1}
+                                  </span>
+                                  <input
+                                    value={milestone.label}
+                                    onChange={(event) =>
+                                      setPaymentSchedule((current) =>
+                                        current.map((item) =>
+                                          item.id === milestone.id
+                                            ? { ...item, label: event.target.value }
+                                            : item
+                                        )
+                                      )
+                                    }
+                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                    placeholder="Stage name"
+                                  />
+                                  <div className="relative">
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={100}
+                                      value={milestone.percentage}
+                                      onChange={(event) =>
+                                        setPaymentSchedule((current) =>
+                                          current.map((item) =>
+                                            item.id === milestone.id
+                                              ? {
+                                                  ...item,
+                                                  percentage: Number(event.target.value) || 0,
+                                                }
+                                              : item
+                                          )
+                                        )
+                                      }
+                                      className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-7 text-sm"
+                                    />
+                                    <span className="absolute right-2 top-2 text-sm text-slate-400">%</span>
+                                  </div>
+                                  <input
+                                    type="date"
+                                    value={milestone.dueDate || ""}
+                                    onChange={(event) =>
+                                      setPaymentSchedule((current) =>
+                                        current.map((item) =>
+                                          item.id === milestone.id
+                                            ? {
+                                                ...item,
+                                                dueDate: event.target.value || undefined,
+                                              }
+                                            : item
+                                        )
+                                      )
+                                    }
+                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setPaymentSchedule((current) =>
+                                        current.filter((item) => item.id !== milestone.id)
+                                      )
+                                    }
+                                    disabled={paymentSchedule.length <= 2}
+                                    className="text-slate-400 hover:text-red-600 disabled:opacity-30"
+                                    aria-label={`Remove ${milestone.label}`}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                  <p className="text-xs text-slate-500 md:col-start-2 md:col-span-4">
+                                    {formatPaymentAmount(
+                                      derivedPaymentAmount * (milestone.percentage / 100),
+                                      paymentCurrency
+                                    )}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPaymentSchedule((current) => [
+                                  ...current,
+                                  {
+                                    id: `stage-${Date.now()}`,
+                                    label: `Payment ${current.length + 1}`,
+                                    percentage: 0,
+                                  },
+                                ])
+                              }
+                              disabled={paymentSchedule.length >= 12}
+                              className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm font-medium text-emerald-700 disabled:opacity-50"
+                            >
+                              <Plus className="h-4 w-4" /> Add payment stage
+                            </button>
+                            {!isPaymentScheduleValid(paymentSchedule) && (
+                              <p className="text-sm font-medium text-red-600">
+                                Name every stage, use a positive percentage, and total 100%.
+                              </p>
+                            )}
+                          </div>
+                        )}
+
                         {/* Info Box */}
                         <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg">
                           <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                           <div className="text-sm text-blue-800">
                             <p className="font-medium">How Payment Works</p>
                             <p className="mt-1">
-                              {paymentStructure === "full" && `The signer will pay ${derivedPaymentAmount > 0 ? `$${derivedPaymentAmount.toLocaleString()}` : "the full amount"} when signing the contract. You'll receive funds via Stripe.`}
-                              {paymentStructure === "deposit_balance" && `The signer pays $${derivedDepositAmount.toLocaleString()} (${depositPercentage}%) deposit upfront, and the remaining $${(derivedPaymentAmount - derivedDepositAmount).toLocaleString()} upon completion.`}
-                              {paymentStructure === "bnpl" && `The signer can pay $${derivedPaymentAmount.toLocaleString()} in installments via Klarna or Afterpay. You receive the full amount immediately.`}
+                              {paymentStructure === "full" && `The signer will pay ${derivedPaymentAmount > 0 ? formatPaymentAmount(derivedPaymentAmount, paymentCurrency) : "the full amount"} when signing the contract. You'll receive funds via Stripe.`}
+                              {paymentStructure === "deposit_balance" && `The signer pays ${formatPaymentAmount(derivedDepositAmount, paymentCurrency)} (${depositPercentage}%) deposit upfront, and the remaining ${formatPaymentAmount(derivedPaymentAmount - derivedDepositAmount, paymentCurrency)} upon completion.`}
+                              {paymentStructure === "custom" && `${paymentSchedule.length} payment stages will be collected in order.`}
+                              {paymentStructure === "bnpl" && `The signer can pay ${formatPaymentAmount(derivedPaymentAmount, paymentCurrency)} in installments via Klarna or Afterpay. You receive the full amount immediately.`}
                             </p>
                           </div>
                         </div>
@@ -2408,6 +2593,7 @@ export default function NewContractPage() {
                     <p className="font-medium text-slate-900">
                       {paymentStructure === "full" && "Full Payment Upfront"}
                       {paymentStructure === "deposit_balance" && `${depositPercentage}% Deposit + ${100 - depositPercentage}% Balance`}
+                      {paymentStructure === "custom" && `${paymentSchedule.length} Payment Stages`}
                       {paymentStructure === "bnpl" && "Buy Now, Pay Later (Klarna/Afterpay)"}
                     </p>
                   </div>
@@ -2426,6 +2612,26 @@ export default function NewContractPage() {
                         </p>
                       </div>
                     </>
+                  )}
+                  {paymentStructure === "custom" && (
+                    <div className="md:col-span-2 space-y-2">
+                      {paymentSchedule.map((milestone, index) => (
+                        <div
+                          key={milestone.id}
+                          className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"
+                        >
+                          <span className="text-slate-600">
+                            {index + 1}. {milestone.label} ({milestone.percentage}%)
+                          </span>
+                          <span className="font-medium text-slate-900">
+                            {formatPaymentAmount(
+                              derivedPaymentAmount * (milestone.percentage / 100),
+                              paymentCurrency
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>

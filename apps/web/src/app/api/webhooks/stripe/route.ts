@@ -21,6 +21,8 @@ function getPaymentTypeLabel(paymentType: PaymentType): string {
       return "Deposit Payment";
     case "balance":
       return "Balance Payment";
+    case "installment":
+      return "Milestone Payment";
     case "full":
     default:
       return "Full Payment";
@@ -79,7 +81,11 @@ async function createInvoiceForPayment(
       .single();
 
     // Create line items with payment type description
-    const paymentTypeLabel = getPaymentTypeLabel(payment.payment_type as PaymentType);
+    const milestoneLabel = typeof payment.metadata?.payment_milestone_label === "string"
+      ? payment.metadata.payment_milestone_label
+      : null;
+    const paymentTypeLabel =
+      milestoneLabel || getPaymentTypeLabel(payment.payment_type as PaymentType);
     const lineItems: InvoiceLineItem[] = [
       {
         description: `${paymentTypeLabel} - ${contract.title}`,
@@ -205,7 +211,7 @@ async function updatePaymentStatus(
     .update(paymentUpdate)
     .eq("stripe_payment_intent_id", paymentIntentId);
 
-  // Find and update contract
+  // Split payments remain pending until the full contract value is collected.
   const { data: payment } = await supabase
     .from("payments")
     .select("contract_id")
@@ -213,10 +219,33 @@ async function updatePaymentStatus(
     .single();
 
   if (payment?.contract_id) {
+    let contractPaymentStatus = status;
+    if (status === "succeeded") {
+      const [{ data: contract }, { data: successfulPayments }] = await Promise.all([
+        supabase
+          .from("contracts")
+          .select("payment_amount")
+          .eq("id", payment.contract_id)
+          .single(),
+        supabase
+          .from("payments")
+          .select("amount")
+          .eq("contract_id", payment.contract_id)
+          .eq("status", "succeeded"),
+      ]);
+      const totalDue = Math.round((contract?.payment_amount || 0) * 100);
+      const totalPaid = (successfulPayments || []).reduce(
+        (sum, completedPayment) => sum + completedPayment.amount,
+        0
+      );
+      contractPaymentStatus =
+        totalDue > 0 && totalPaid >= totalDue ? "succeeded" : "pending";
+    }
+
     await supabase
       .from("contracts")
       .update({
-        payment_status: status,
+        payment_status: contractPaymentStatus,
         updated_at: new Date().toISOString(),
       })
       .eq("id", payment.contract_id);

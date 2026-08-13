@@ -85,13 +85,38 @@ interface Contract {
   paymentAmount?: number;
   paymentCurrency?: string;
   paymentStatus?: string;
-  paymentStructure?: "full" | "deposit_balance";
+  paymentStructure?: "full" | "deposit_balance" | "custom" | "bnpl";
+  paymentSchedule?: Array<{
+    id: string;
+    label: string;
+    percentage: number;
+    dueDate?: string;
+  }>;
   depositPercentage?: number;
   depositPaid?: boolean;
   paymentSufficientForSigning?: boolean;
   // Sign-only contract fields
   processingMode?: "sign_only" | "edit_and_sign" | null;
   sourceFileUrl?: string | null;
+}
+
+function getInitialPaymentSummary(contract: Contract | null) {
+  const total = contract?.paymentAmount || 0;
+  if (contract?.paymentStructure === "deposit_balance") {
+    const percentage = contract.depositPercentage || 30;
+    return {
+      label: `Deposit (${percentage}%)`,
+      amount: total * (percentage / 100),
+    };
+  }
+  if (contract?.paymentStructure === "custom" && contract.paymentSchedule?.length) {
+    const milestone = contract.paymentSchedule[0];
+    return {
+      label: `${milestone.label} (${milestone.percentage}%)`,
+      amount: total * (milestone.percentage / 100),
+    };
+  }
+  return { label: "Payment", amount: total };
 }
 
 // Signature field types
@@ -191,6 +216,8 @@ export default function SignContractPage() {
   const [paymentCompleted, setPaymentCompleted] = useState(false);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const initialPayment = getInitialPaymentSummary(contract);
+  const fullyPaid = contract?.paymentStatus === "succeeded";
 
   // Email verification state
   const [emailVerified, setEmailVerified] = useState(false);
@@ -1199,15 +1226,21 @@ export default function SignContractPage() {
                     <CreditCard className={`w-5 h-5 flex-shrink-0 mt-0.5 ${paymentCompleted ? "text-emerald-600" : "text-blue-600"}`} />
                     <div>
                       <p className={`font-medium ${paymentCompleted ? "text-emerald-900" : "text-blue-900"}`}>
-                        {paymentCompleted ? "Payment Complete" : "Payment Information"}
+                        {paymentCompleted
+                          ? fullyPaid
+                            ? "Payment Complete"
+                            : "Initial Payment Received"
+                          : "Payment Information"}
                       </p>
                       <p className={`text-sm ${paymentCompleted ? "text-emerald-700" : "text-blue-700"}`}>
                         {paymentCompleted
-                          ? "Your payment has been received."
-                          : `A payment of ${new Intl.NumberFormat("en-US", {
+                          ? fullyPaid
+                            ? "Your payment has been received."
+                            : "The upfront payment has been received. Remaining stages will be collected according to the contract."
+                          : `${initialPayment.label} of ${new Intl.NumberFormat("en-US", {
                               style: "currency",
                               currency: contract?.paymentCurrency || "usd",
-                            }).format(contract?.paymentAmount || 0)} will be collected after you sign.`
+                            }).format(initialPayment.amount)} will be collected after you sign.`
                         }
                       </p>
                     </div>
@@ -1919,16 +1952,22 @@ export default function SignContractPage() {
                         <CreditCard className="w-5 h-5 text-amber-600" />
                       )}
                       <span className={`font-medium ${paymentCompleted ? "text-emerald-900" : "text-amber-900"}`}>
-                        {paymentCompleted ? "Payment Complete" : "Payment Required"}
+                        {paymentCompleted
+                          ? fullyPaid
+                            ? "Payment Complete"
+                            : "Initial Payment Received"
+                          : "Payment Required"}
                       </span>
                     </div>
                     <p className="text-sm text-slate-600 mb-3">
                       {paymentCompleted
-                        ? "Your payment has been processed successfully."
-                        : `A payment of ${new Intl.NumberFormat("en-US", {
+                        ? fullyPaid
+                          ? "Your payment has been processed successfully."
+                          : "The upfront payment has been received. Remaining stages stay payable in order."
+                        : `${initialPayment.label} of ${new Intl.NumberFormat("en-US", {
                           style: "currency",
                           currency: contract?.paymentCurrency || "usd",
-                        }).format(contract?.paymentAmount || 0)} will be collected after you sign.`}
+                        }).format(initialPayment.amount)} will be collected after you sign.`}
                     </p>
                     {paymentError && (
                       <p className="text-sm text-red-600 mt-2">{paymentError}</p>

@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { stripe, calculatePlatformFee, getPlatformFeePercent, type SubscriptionTier } from "@/lib/stripe";
 import type { PaymentType } from "@/db/types";
+import {
+  getMilestoneAmount,
+  getScheduleTotal,
+  normalizePaymentSchedule,
+} from "@/lib/payments/config";
 
 // Create a payment intent for a contract
-// Supports full payment, deposit, or balance payment based on payment_structure
+// Supports full, deposit/balance, and ordered milestone payments.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -15,10 +20,14 @@ export async function POST(
 
     // Parse request body for payment type (deposit, balance, or full)
     let requestedPaymentType: PaymentType = "full";
+    let requestedMilestoneId: string | undefined;
     try {
       const body = await request.json();
-      if (body.paymentType && ["deposit", "balance", "full"].includes(body.paymentType)) {
+      if (body.paymentType && ["deposit", "balance", "full", "installment"].includes(body.paymentType)) {
         requestedPaymentType = body.paymentType;
+      }
+      if (typeof body.milestoneId === "string") {
+        requestedMilestoneId = body.milestoneId;
       }
     } catch {
       // No body or invalid JSON, use default
@@ -59,11 +68,18 @@ export async function POST(
     let paymentAmount: number;
     let paymentType: PaymentType;
     let paymentDescription: string;
+    let activeMilestone: {
+      id: string;
+      label: string;
+      percentage: number;
+      dueDate?: string;
+      index: number;
+    } | null = null;
 
     // Check existing payments to determine what's due
     const { data: existingPayments } = await supabase
       .from("payments")
-      .select("payment_type, status, amount")
+      .select("payment_type, status, amount, metadata")
       .eq("contract_id", id)
       .eq("status", "succeeded");
 
@@ -77,7 +93,53 @@ export async function POST(
       );
     }
 
-    if (contract.payment_structure === "deposit_balance") {
+    if (contract.payment_structure === "custom") {
+      const schedule = normalizePaymentSchedule(contract.payment_schedule);
+      if (schedule.length < 2 || getScheduleTotal(schedule) !== 100) {
+        return NextResponse.json(
+          { error: "This contract has an invalid payment schedule" },
+          { status: 400 }
+        );
+      }
+
+      const paidMilestoneIds = new Set(
+        (existingPayments || [])
+          .filter((payment) => payment.payment_type === "installment")
+          .map((payment) => {
+            const metadata = payment.metadata as Record<string, unknown> | null;
+            return typeof metadata?.payment_milestone_id === "string"
+              ? metadata.payment_milestone_id
+              : null;
+          })
+          .filter((milestoneId): milestoneId is string => Boolean(milestoneId))
+      );
+      const nextMilestoneIndex = schedule.findIndex(
+        (milestone) => !paidMilestoneIds.has(milestone.id)
+      );
+
+      if (nextMilestoneIndex === -1) {
+        return NextResponse.json(
+          { error: "Payment has already been completed" },
+          { status: 400 }
+        );
+      }
+
+      const nextMilestone = schedule[nextMilestoneIndex];
+      if (requestedMilestoneId && requestedMilestoneId !== nextMilestone.id) {
+        return NextResponse.json(
+          {
+            error: "Payment stages must be completed in order",
+            nextMilestoneId: nextMilestone.id,
+          },
+          { status: 400 }
+        );
+      }
+
+      activeMilestone = { ...nextMilestone, index: nextMilestoneIndex };
+      paymentAmount = getMilestoneAmount(totalAmount, schedule, nextMilestoneIndex);
+      paymentType = "installment";
+      paymentDescription = `${nextMilestone.label} (${nextMilestone.percentage}%) for: ${contract.title}`;
+    } else if (contract.payment_structure === "deposit_balance") {
       const depositAmount = Math.round(totalAmount * (depositPercentage / 100));
       const balanceAmount = totalAmount - depositAmount;
 
@@ -119,13 +181,18 @@ export async function POST(
     }
 
     // Check for existing valid payment intent for this payment type
-    const { data: existingPayment } = await supabase
+    const { data: pendingPayments } = await supabase
       .from("payments")
-      .select("stripe_payment_intent_id")
+      .select("stripe_payment_intent_id, metadata")
       .eq("contract_id", id)
       .eq("payment_type", paymentType)
-      .eq("status", "pending")
-      .single();
+      .eq("status", "pending");
+
+    const existingPayment = pendingPayments?.find((payment) => {
+      if (!activeMilestone) return true;
+      const metadata = payment.metadata as Record<string, unknown> | null;
+      return metadata?.payment_milestone_id === activeMilestone.id;
+    });
 
     if (existingPayment?.stripe_payment_intent_id) {
       try {
@@ -142,9 +209,24 @@ export async function POST(
             paymentIntentId: existingIntent.id,
             amount: existingIntent.amount,
             currency: existingIntent.currency,
+            contractTitle: contract.title,
             paymentType,
             totalAmount,
             depositPaid,
+            milestone: activeMilestone,
+            balanceRemaining: contract.payment_structure === "custom"
+              ? Math.max(
+                  0,
+                  totalAmount -
+                    (existingPayments || []).reduce(
+                      (sum, payment) => sum + payment.amount,
+                      0
+                    ) -
+                    existingIntent.amount
+                )
+              : contract.payment_structure === "deposit_balance" && !depositPaid
+                ? totalAmount - existingIntent.amount
+                : 0,
           });
         }
       } catch {
@@ -186,6 +268,13 @@ export async function POST(
         payment_type: paymentType,
         total_amount: totalAmount.toString(),
         deposit_percentage: depositPercentage.toString(),
+        ...(activeMilestone
+          ? {
+              payment_milestone_id: activeMilestone.id,
+              payment_milestone_index: activeMilestone.index.toString(),
+              payment_milestone_label: activeMilestone.label,
+            }
+          : {}),
       },
       description: paymentDescription,
       // Explicitly specify payment methods by currency
@@ -255,11 +344,19 @@ export async function POST(
         connected_account_id: contractOwner?.stripe_connect_account_id || null,
         total_amount: totalAmount,
         deposit_percentage: depositPercentage,
+        ...(activeMilestone
+          ? {
+              payment_milestone_id: activeMilestone.id,
+              payment_milestone_index: activeMilestone.index,
+              payment_milestone_label: activeMilestone.label,
+              payment_milestone_percentage: activeMilestone.percentage,
+            }
+          : {}),
       },
     });
 
     // Update contract with payment intent ID (only for first payment or full payment)
-    if (paymentType === "full" || paymentType === "deposit") {
+    if (paymentType === "full" || paymentType === "deposit" || paymentType === "installment") {
       await supabase
         .from("contracts")
         .update({
@@ -275,12 +372,24 @@ export async function POST(
       paymentIntentId: paymentIntent.id,
       amount: paymentIntent.amount,
       currency: paymentIntent.currency,
+      contractTitle: contract.title,
       paymentType,
       totalAmount,
       depositPaid,
+      milestone: activeMilestone,
       balanceRemaining: contract.payment_structure === "deposit_balance" && !depositPaid
         ? totalAmount - paymentAmount
-        : 0,
+        : contract.payment_structure === "custom"
+          ? Math.max(
+              0,
+              totalAmount -
+                (existingPayments || []).reduce(
+                  (sum, payment) => sum + payment.amount,
+                  0
+                ) -
+                paymentAmount
+            )
+          : 0,
       hasConnectedAccount: !!(
         contractOwner?.stripe_connect_account_id &&
         contractOwner.stripe_connect_status === "active"
@@ -306,7 +415,7 @@ export async function GET(
 
     const { data: contract, error } = await supabase
       .from("contracts")
-      .select("payment_required, payment_amount, payment_currency, payment_status, stripe_payment_intent_id, payment_structure, deposit_percentage")
+      .select("payment_required, payment_amount, payment_currency, payment_status, stripe_payment_intent_id, payment_structure, deposit_percentage, payment_schedule")
       .eq("id", id)
       .single();
 
@@ -317,7 +426,7 @@ export async function GET(
     // Get all payments for this contract
     const { data: payments } = await supabase
       .from("payments")
-      .select("id, payment_type, status, amount, created_at")
+      .select("id, payment_type, status, amount, created_at, metadata")
       .eq("contract_id", id)
       .order("created_at", { ascending: true });
 
@@ -334,8 +443,37 @@ export async function GET(
     // Determine next payment due
     let nextPaymentType: PaymentType | null = null;
     let nextPaymentAmount = 0;
+    let nextMilestone: (ReturnType<typeof normalizePaymentSchedule>[number] & { index: number }) | null = null;
+    const customSchedule = normalizePaymentSchedule(contract.payment_schedule);
 
-    if (contract.payment_structure === "deposit_balance") {
+    if (contract.payment_structure === "custom") {
+      const paidMilestoneIds = new Set(
+        (payments || [])
+          .filter(
+            (payment) =>
+              payment.payment_type === "installment" && payment.status === "succeeded"
+          )
+          .map((payment) => {
+            const metadata = payment.metadata as Record<string, unknown> | null;
+            return typeof metadata?.payment_milestone_id === "string"
+              ? metadata.payment_milestone_id
+              : null;
+          })
+          .filter((milestoneId): milestoneId is string => Boolean(milestoneId))
+      );
+      const nextIndex = customSchedule.findIndex(
+        (milestone) => !paidMilestoneIds.has(milestone.id)
+      );
+      if (nextIndex >= 0) {
+        nextMilestone = { ...customSchedule[nextIndex], index: nextIndex };
+        nextPaymentType = "installment";
+        nextPaymentAmount = getMilestoneAmount(
+          totalAmount,
+          customSchedule,
+          nextIndex
+        );
+      }
+    } else if (contract.payment_structure === "deposit_balance") {
       if (!depositPayment || depositPayment.status !== "succeeded") {
         nextPaymentType = "deposit";
         nextPaymentAmount = depositAmount;
@@ -367,16 +505,33 @@ export async function GET(
         balancePaymentId: balancePayment?.id || null,
         depositPaymentDate: depositPayment?.created_at || null,
         balancePaymentDate: balancePayment?.created_at || null,
+      } : contract.payment_structure === "custom" ? {
+        milestones: customSchedule.map((milestone, index) => {
+          const payment = payments?.find((candidate) => {
+            const metadata = candidate.metadata as Record<string, unknown> | null;
+            return candidate.status === "succeeded" &&
+              metadata?.payment_milestone_id === milestone.id;
+          });
+          return {
+            ...milestone,
+            amount: getMilestoneAmount(totalAmount, customSchedule, index),
+            paid: Boolean(payment),
+            paymentId: payment?.id || null,
+            paymentDate: payment?.created_at || null,
+          };
+        }),
       } : null,
       // Next payment info
       nextPayment: nextPaymentType ? {
         type: nextPaymentType,
         amount: nextPaymentAmount,
+        milestone: nextMilestone,
       } : null,
       // All completed
       fullyPaid: contract.payment_status === "succeeded" ||
         (fullPayment?.status === "succeeded") ||
-        (depositPayment?.status === "succeeded" && balancePayment?.status === "succeeded"),
+        (depositPayment?.status === "succeeded" && balancePayment?.status === "succeeded") ||
+        (contract.payment_structure === "custom" && nextMilestone === null && customSchedule.length > 0),
     });
   } catch (error) {
     return NextResponse.json(

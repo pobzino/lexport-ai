@@ -9,6 +9,7 @@ import { sendCompletedContractWithCertificate, sendInvoiceEmail } from "@/lib/em
 import { insertInvoiceWithRetry } from "@/lib/invoices/create-invoice";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { randomBytes } from "crypto";
+import { getMilestoneAmount, normalizePaymentSchedule } from "@/lib/payments/config";
 
 // GET - Fetch signature request details
 export async function GET(
@@ -51,12 +52,11 @@ export async function GET(
         // Check if there are any successful payments
         const { data: successfulPayments } = await supabase
           .from("payments")
-          .select("payment_type, status")
+          .select("payment_type, status, metadata")
           .eq("contract_id", contract.id)
           .eq("status", "succeeded");
 
         const hasFullPayment = successfulPayments?.some(p => p.payment_type === "full");
-        const hasDepositPayment = successfulPayments?.some(p => p.payment_type === "deposit");
         const hasBalancePayment = successfulPayments?.some(p => p.payment_type === "balance");
 
         // Payment is pending if no full payment and (no deposit or balance depending on structure)
@@ -64,6 +64,19 @@ export async function GET(
           if (contract.payment_structure === "deposit_balance") {
             // For deposit_balance, payment is pending if balance not paid
             paymentPending = !hasBalancePayment;
+          } else if (contract.payment_structure === "custom") {
+            const schedule = normalizePaymentSchedule(contract.payment_schedule);
+            const paidMilestoneIds = new Set(
+              (successfulPayments || []).map((payment) => {
+                const metadata = payment.metadata as Record<string, unknown> | null;
+                return typeof metadata?.payment_milestone_id === "string"
+                  ? metadata.payment_milestone_id
+                  : null;
+              })
+            );
+            paymentPending = schedule.some(
+              (milestone) => !paidMilestoneIds.has(milestone.id)
+            );
           } else {
             // For full payment structure
             paymentPending = true;
@@ -169,13 +182,16 @@ export async function GET(
       // Check if any payments have succeeded
       const { data: successfulPayments } = await supabase
         .from("payments")
-        .select("payment_type, status, amount")
+        .select("payment_type, status, amount, metadata")
         .eq("contract_id", contract.id)
         .eq("status", "succeeded");
 
       const hasDepositPayment = successfulPayments?.some(p => p.payment_type === "deposit");
       const hasFullPayment = successfulPayments?.some(p => p.payment_type === "full");
       const hasBalancePayment = successfulPayments?.some(p => p.payment_type === "balance");
+      const hasInstallmentPayment = successfulPayments?.some(
+        p => p.payment_type === "installment"
+      );
 
       depositPaid = hasDepositPayment || false;
 
@@ -186,6 +202,9 @@ export async function GET(
         paymentSufficientForSigning = true;
       } else if (contract.payment_structure === "deposit_balance" && hasDepositPayment) {
         // Deposit paid is sufficient to sign for deposit_balance contracts
+        paymentSufficientForSigning = true;
+      } else if (contract.payment_structure === "custom" && hasInstallmentPayment) {
+        // The first stage serves as the upfront payment for a custom schedule.
         paymentSufficientForSigning = true;
       } else if (contract.payment_status === "succeeded") {
         paymentSufficientForSigning = true;
@@ -251,6 +270,7 @@ export async function GET(
         paymentCurrency: contract.payment_currency,
         paymentStatus: contract.payment_status,
         paymentStructure: contract.payment_structure,
+        paymentSchedule: normalizePaymentSchedule(contract.payment_schedule),
         depositPercentage: contract.deposit_percentage,
         depositPaid,
         paymentSufficientForSigning,
@@ -468,7 +488,7 @@ export async function POST(
           try {
             // Calculate amount based on payment structure
             let amount = Math.round((contractData.payment_amount || 0) * 100);
-            let paymentType = "full";
+            let paymentLabel = "Full";
 
             if (contractData.payment_structure === "deposit_balance") {
               // Check if deposit already paid
@@ -484,13 +504,37 @@ export async function POST(
                 // First payment is deposit
                 const depositPercentage = contractData.deposit_percentage || 50;
                 amount = Math.round(amount * (depositPercentage / 100));
-                paymentType = "deposit";
+                paymentLabel = "Deposit";
               } else {
                 // Balance payment
                 const depositPercentage = contractData.deposit_percentage || 50;
                 amount = Math.round(amount * ((100 - depositPercentage) / 100));
-                paymentType = "balance";
+                paymentLabel = "Balance";
               }
+            } else if (contractData.payment_structure === "custom") {
+              const schedule = normalizePaymentSchedule(contractData.payment_schedule);
+              const { data: existingPayments } = await supabase
+                .from("payments")
+                .select("payment_type, status, metadata")
+                .eq("contract_id", sigRequest.contract_id)
+                .eq("status", "succeeded");
+              const paidMilestoneIds = new Set(
+                (existingPayments || []).map((payment) => {
+                  const metadata = payment.metadata as Record<string, unknown> | null;
+                  return typeof metadata?.payment_milestone_id === "string"
+                    ? metadata.payment_milestone_id
+                    : null;
+                })
+              );
+              const nextMilestoneIndex = schedule.findIndex(
+                (milestone) => !paidMilestoneIds.has(milestone.id)
+              );
+              if (nextMilestoneIndex < 0) {
+                throw new Error("No unpaid payment milestones remain");
+              }
+              const milestone = schedule[nextMilestoneIndex];
+              amount = getMilestoneAmount(amount, schedule, nextMilestoneIndex);
+              paymentLabel = milestone.label;
             }
 
             const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -498,7 +542,7 @@ export async function POST(
             // Create line items
             const lineItems = [
               {
-                description: `${paymentType === "deposit" ? "Deposit" : paymentType === "balance" ? "Balance" : "Full"} Payment - ${contractData.title}`,
+                description: `${paymentLabel} Payment - ${contractData.title}`,
                 quantity: 1,
                 unit_price: amount,
                 amount: amount,

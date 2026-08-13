@@ -59,6 +59,7 @@ export async function persistGeneratedContract({
     contractData.payment_amount = paymentConfig.paymentAmount || null;
     contractData.payment_currency = paymentConfig.paymentCurrency;
     contractData.payment_structure = paymentConfig.paymentStructure;
+    contractData.payment_schedule = paymentConfig.paymentSchedule || [];
     contractData.deposit_percentage = paymentConfig.depositPercentage || null;
   }
 

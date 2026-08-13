@@ -11,7 +11,13 @@ export type SignatureFieldType = "signature" | "initials" | "date" | "text" | "c
 export type PaymentStatus = "pending" | "processing" | "succeeded" | "failed" | "refunded";
 export type StripeConnectStatus = "not_connected" | "pending" | "active" | "restricted";
 export type PaymentType = "full" | "deposit" | "balance" | "installment";
-export type PaymentStructure = "full" | "deposit_balance" | "bnpl";
+export type PaymentStructure = "full" | "deposit_balance" | "custom" | "bnpl";
+export interface PaymentMilestone {
+  id: string;
+  label: string;
+  percentage: number;
+  dueDate?: string;
+}
 export type ContractSourceType = "generated" | "uploaded";
 export type UploadedFileType = "pdf" | "docx" | "jpg" | "png";
 export type ProcessingMode = "full";
@@ -217,6 +223,7 @@ export interface Contract {
   stripe_payment_intent_id: string | null;
   // Payment structure
   payment_structure: PaymentStructure;
+  payment_schedule: PaymentMilestone[];
   deposit_percentage: number;
   // Upload support
   source_type: ContractSourceType;
