@@ -1,4 +1,4 @@
-export const PUBLIC_INVOICE_STATUSES = ["sent", "paid"] as const;
+export const PUBLIC_INVOICE_STATUSES = ["sent", "overdue", "paid"] as const;
 
 export function getInvoicePaymentUrl(invoiceId: string, baseUrl?: string): string {
   const appUrl = (baseUrl || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000")

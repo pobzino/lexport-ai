@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 import {
   ArrowLeft,
   Download,
@@ -24,6 +24,7 @@ import {
   Banknote,
   Building2,
   MoreHorizontal,
+  Copy,
   X,
 } from "lucide-react";
 import type { InvoiceStatus } from "@/db/types";
@@ -203,6 +204,17 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  async function copyPaymentLink() {
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/pay/invoice/${invoiceId}`
+      );
+      showSuccess("Payment link copied");
+    } catch {
+      showError("Could not copy the payment link");
+    }
+  }
+
   function openStatusModal(type: "paid" | "void" | "cancelled") {
     setStatusModalType(type);
     setPaymentMethod("bank_transfer");
@@ -290,7 +302,7 @@ export default function InvoiceDetailPage() {
       {/* Header */}
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <Link
                 href="/invoices"
@@ -317,7 +329,33 @@ export default function InvoiceDetailPage() {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {(invoice.status === "sent" ||
+                invoice.status === "overdue" ||
+                invoice.status === "paid") && (
+                <>
+                  <button
+                    onClick={copyPaymentLink}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg font-medium hover:bg-blue-100 transition-colors"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Copy Payment Link
+                  </button>
+                  <button
+                    onClick={() =>
+                      window.open(
+                        `/pay/invoice/${invoiceId}`,
+                        "_blank",
+                        "noopener,noreferrer"
+                      )
+                    }
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Open Payment Page
+                  </button>
+                </>
+              )}
               {invoice.status === "draft" && (
                 <button
                   onClick={handleSend}

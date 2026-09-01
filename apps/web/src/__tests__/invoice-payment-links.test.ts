@@ -21,7 +21,7 @@ describe("invoice payment links", () => {
   });
 
   it("only exposes statuses defined by the production invoice enum", () => {
-    expect(PUBLIC_INVOICE_STATUSES).toEqual(["sent", "paid"]);
+    expect(PUBLIC_INVOICE_STATUSES).toEqual(["sent", "overdue", "paid"]);
   });
 });
 

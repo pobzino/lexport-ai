@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
 import Link from "next/link";
-import { showError } from "@/lib/toast";
+import { showError, showSuccess } from "@/lib/toast";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Plus,
@@ -21,6 +21,8 @@ import {
   ChevronRight,
   Loader2,
   RefreshCw,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 import type { InvoiceStatus } from "@/db/types";
 
@@ -117,6 +119,18 @@ interface InvoiceRowProps {
 
 // Shared action menu used by both table row and mobile card
 function InvoiceActions({ invoice, openMenu, setOpenMenu, actionLoading, onSend, onDelete }: Omit<InvoiceRowProps, never>) {
+  async function copyPaymentLink() {
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/pay/invoice/${invoice.id}`
+      );
+      showSuccess("Payment link copied");
+      setOpenMenu(null);
+    } catch {
+      showError("Could not copy the payment link");
+    }
+  }
+
   return (
     <div className="flex items-center gap-2">
       {invoice.status === "draft" && (
@@ -173,6 +187,27 @@ function InvoiceActions({ invoice, openMenu, setOpenMenu, actionLoading, onSend,
                   {actionLoading === invoice.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                   {actionLoading === invoice.id ? "Sending..." : "Resend Invoice"}
                 </button>
+              )}
+              {(invoice.status === "sent" ||
+                invoice.status === "overdue" ||
+                invoice.status === "paid") && (
+                <>
+                  <button
+                    onClick={copyPaymentLink}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
+                  >
+                    <Copy className="w-4 h-4" />Copy Payment Link
+                  </button>
+                  <a
+                    href={`/pay/invoice/${invoice.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => setOpenMenu(null)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    <ExternalLink className="w-4 h-4" />Open Payment Page
+                  </a>
+                </>
               )}
               <button
                 onClick={() => { window.open(`/api/invoices/${invoice.id}?format=pdf&download=true`, '_blank'); setOpenMenu(null); }}
