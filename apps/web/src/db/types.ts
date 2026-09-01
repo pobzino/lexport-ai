@@ -517,6 +517,7 @@ export interface Invoice {
   paid_at: string | null;
   sent_at: string | null;
   pdf_url: string | null;
+  stripe_payment_intent_id: string | null;
   recipient_name: string | null;
   recipient_email: string | null;
   recipient_address: Record<string, unknown> | null;

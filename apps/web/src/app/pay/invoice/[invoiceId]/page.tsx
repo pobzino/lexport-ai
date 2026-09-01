@@ -40,8 +40,10 @@ interface LineItem {
 }
 
 interface PaymentInfo {
-  clientSecret: string;
-  paymentIntentId: string;
+  clientSecret: string | null;
+  paymentIntentId: string | null;
+  paymentStatus: string;
+  paymentUnavailableReason?: string;
   amount: number;
   currency: string;
   invoiceNumber: string;
@@ -301,6 +303,10 @@ export default function InvoicePaymentPage() {
     paymentInfo.bankDetails,
     paymentInfo.invoiceNumber
   );
+  const isPaid = paymentInfo.paymentStatus === "succeeded";
+  const isProcessing =
+    paymentInfo.paymentStatus === "processing" ||
+    paymentInfo.paymentStatus === "requires_capture";
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -316,7 +322,7 @@ export default function InvoicePaymentPage() {
               className="h-8 w-auto"
             />
             <a
-              href={`/api/invoices/${invoiceId}?format=pdf`}
+              href={`/api/invoices/${invoiceId}?format=pdf&public=true`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
@@ -475,7 +481,7 @@ export default function InvoicePaymentPage() {
                 </div>
               )}
 
-              {bankDetailRows.length > 0 && (
+              {bankDetailRows.length > 0 && !isPaid && !isProcessing && (
                 <div className="px-8 py-5 border-t border-sky-100 bg-sky-50">
                   <div className="flex items-center gap-2 mb-3">
                     <Building2 className="w-4 h-4 text-sky-700" />
@@ -507,7 +513,7 @@ export default function InvoicePaymentPage() {
                   </div>
                   <div>
                     <h2 className="text-lg font-semibold text-slate-900">
-                      Pay Invoice
+                      {isPaid ? "Payment Received" : isProcessing ? "Payment Processing" : "Pay Invoice"}
                     </h2>
                     <p className="text-sm text-slate-500">
                       {paymentInfo.invoiceNumber}
@@ -519,7 +525,9 @@ export default function InvoicePaymentPage() {
               {/* Amount Summary */}
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Amount Due</span>
+                  <span className="text-sm text-slate-500">
+                    {isPaid ? "Amount Paid" : "Amount Due"}
+                  </span>
                   <span className="text-2xl font-bold text-slate-900">
                     {formatCurrency(paymentInfo.amount, paymentInfo.currency)}
                   </span>
@@ -546,21 +554,51 @@ export default function InvoicePaymentPage() {
                 </div>
               )}
               <div className="px-6 py-6">
-                <Elements
-                  stripe={stripePromise}
-                  options={{
-                    clientSecret: paymentInfo.clientSecret,
-                    appearance: {
-                      theme: "stripe",
-                      variables: {
-                        colorPrimary: "#529ec6",
-                        borderRadius: "8px",
+                {isPaid ? (
+                  <div className="text-center py-4">
+                    <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Check className="w-7 h-7 text-emerald-600" />
+                    </div>
+                    <h3 className="font-semibold text-slate-900">This invoice is paid</h3>
+                    <p className="text-sm text-slate-600 mt-2">
+                      No further payment is required.
+                    </p>
+                  </div>
+                ) : isProcessing ? (
+                  <div className="text-center py-4">
+                    <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Clock className="w-7 h-7 text-blue-600" />
+                    </div>
+                    <h3 className="font-semibold text-slate-900">Payment is processing</h3>
+                    <p className="text-sm text-slate-600 mt-2">
+                      Bank payments can take several business days to complete.
+                    </p>
+                  </div>
+                ) : paymentInfo.clientSecret ? (
+                  <Elements
+                    stripe={stripePromise}
+                    options={{
+                      clientSecret: paymentInfo.clientSecret,
+                      appearance: {
+                        theme: "stripe",
+                        variables: {
+                          colorPrimary: "#529ec6",
+                          borderRadius: "8px",
+                        },
                       },
-                    },
-                  }}
-                >
-                  <CheckoutForm paymentInfo={paymentInfo} invoiceId={invoiceId} />
-                </Elements>
+                    }}
+                  >
+                    <CheckoutForm paymentInfo={paymentInfo} invoiceId={invoiceId} />
+                  </Elements>
+                ) : (
+                  <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                    <p className="text-sm text-amber-800">
+                      {paymentInfo.paymentUnavailableReason ||
+                        "Online payment is temporarily unavailable. Use the bank details shown or contact the sender."}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

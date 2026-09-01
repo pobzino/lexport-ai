@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { isPayingSignerRole } from "@/lib/payments/payer-role";
 import {
   ArrowRight,
   ArrowLeft,
@@ -71,6 +72,7 @@ interface SignatureRequest {
   status: string;
   expiresAt: string;
   message?: string;
+  emailVerified?: boolean;
 }
 
 interface Contract {
@@ -184,11 +186,18 @@ export default function SignContractPage() {
   }, []);
 
   const [loading, setLoading] = useState(true);
+  // `error` is reserved SOLELY for fatal load failures (token/contract could
+  // not be fetched). It is the only state that trips the full-screen
+  // "Unable to Load Contract" guard, and is only ever set by fetchData.
   const [error, setError] = useState<string | null>(null);
+  // `actionError` holds recoverable, in-UI errors (upload validation, submit
+  // failures) so they show inline without unmounting the signing form.
+  const [actionError, setActionError] = useState<string | null>(null);
   const [alreadySigned, setAlreadySigned] = useState(false);
   const [notYourTurn, setNotYourTurn] = useState(false);
   const [waitingMessage, setWaitingMessage] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
+  const [expiredAt, setExpiredAt] = useState<string | null>(null);
   const [signatureRequest, setSignatureRequest] = useState<SignatureRequest | null>(null);
   const [contract, setContract] = useState<Contract | null>(null);
   const [signingProgress, setSigningProgress] = useState<{
@@ -227,6 +236,15 @@ export default function SignContractPage() {
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [verificationExpiry, setVerificationExpiry] = useState<number>(10);
   const [maskedEmail, setMaskedEmail] = useState<string>("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendCooldown((remaining) => Math.max(0, remaining - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
 
   // Signature fields state
   const [signatureFields, setSignatureFields] = useState<SignatureField[]>([]);
@@ -261,6 +279,12 @@ export default function SignContractPage() {
 
         if (!response.ok) {
           const data = await response.json();
+          if (data.expired) {
+            setExpired(true);
+            setExpiredAt(data.expiresAt || null);
+            setLoading(false);
+            return;
+          }
           if (data.alreadySigned) {
             // If payment is pending, redirect to payment page
             if (data.paymentPending && data.contractId) {
@@ -525,13 +549,15 @@ export default function SignContractPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setActionError(null);
+
     if (!file.type.startsWith("image/")) {
-      setError("Please upload an image file");
+      setActionError("Please upload an image file");
       return;
     }
 
     if (file.size > 2 * 1024 * 1024) {
-      setError("Image must be smaller than 2MB");
+      setActionError("Image must be smaller than 2MB");
       return;
     }
 
@@ -557,6 +583,9 @@ export default function SignContractPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (typeof data.retryAfterSeconds === "number") {
+          setResendCooldown(data.retryAfterSeconds);
+        }
         throw new Error(data.error || "Failed to send verification code");
       }
 
@@ -569,6 +598,7 @@ export default function SignContractPage() {
       setVerificationSent(true);
       setMaskedEmail(data.email || "");
       setVerificationExpiry(data.expiresInMinutes || 10);
+      setResendCooldown(60);
     } catch (err) {
       setVerificationError(err instanceof Error ? err.message : "Failed to send code");
     } finally {
@@ -839,25 +869,27 @@ export default function SignContractPage() {
   };
 
   const handleSign = async () => {
+    setActionError(null);
+
     // For field-guided flow, check all required fields are completed
     if (myFields.length > 0 && !allRequiredFieldsCompleted()) {
-      setError("Please complete all required fields");
+      setActionError("Please complete all required fields");
       return;
     }
 
     // For no-fields flow, check signature
     if (myFields.length === 0 && !hasValidSignature()) {
-      setError("Please provide a signature");
+      setActionError("Please provide a signature");
       return;
     }
 
     if (!agreedToTerms) {
-      setError("Please agree to the terms");
+      setActionError("Please agree to the terms");
       return;
     }
 
     if (!identityConfirmed) {
-      setError("Please confirm your identity");
+      setActionError("Please confirm your identity");
       return;
     }
 
@@ -874,7 +906,7 @@ export default function SignContractPage() {
     }
 
     if (!signatureData) {
-      setError("Failed to capture signature");
+      setActionError("Failed to capture signature");
       return;
     }
 
@@ -928,25 +960,12 @@ export default function SignContractPage() {
         throw new Error(data.error || "Failed to sign");
       }
 
-      const data = await response.json();
-
       // Check if payment is required and not yet complete
       // Only redirect the PAYING party (Client/Company/Hiring Party), not the service provider
       if (paymentRequired && !paymentCompleted) {
-        const signerRole = signatureRequest?.signerRole?.toLowerCase() || "";
-        // These roles are typically the paying party
-        const payingRoles = ["client", "company", "hiring party", "disclosing party", "investor"];
-        // These roles are service providers who receive payment, not pay
-        const nonPayingRoles = ["freelancer", "contractor", "consultant", "receiving party"];
-
-        const isPayingRole = payingRoles.some(role => signerRole.includes(role));
-        const isNonPayingRole = nonPayingRoles.some(role => signerRole.includes(role));
-
         // Only redirect to payment if this is a paying role
-        if (isPayingRole && !isNonPayingRole) {
-          // Include invoice ID if one was auto-generated
-          const invoiceParam = data.invoiceId ? `&invoice=${data.invoiceId}` : "";
-          window.location.href = `/pay/${contract?.id}?token=${token}&signed=true${invoiceParam}`;
+        if (isPayingSignerRole(signatureRequest?.signerRole)) {
+          window.location.href = `/pay/${contract?.id}?token=${token}&signed=true`;
           return;
         }
       }
@@ -954,7 +973,7 @@ export default function SignContractPage() {
       trackSignatureCompleted();
       setSigned(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to sign");
+      setActionError(err instanceof Error ? err.message : "Failed to sign");
     } finally {
       setSigning(false);
     }
@@ -1023,8 +1042,8 @@ export default function SignContractPage() {
           <p className="text-slate-600 mb-4">
             This signing link expired on{" "}
             <span className="font-medium">
-              {signatureRequest?.expiresAt
-                ? new Date(signatureRequest.expiresAt).toLocaleDateString("en-US", {
+              {expiredAt || signatureRequest?.expiresAt
+                ? new Date(expiredAt || signatureRequest!.expiresAt).toLocaleDateString("en-US", {
                     month: "long",
                     day: "numeric",
                     year: "numeric",
@@ -1046,7 +1065,11 @@ export default function SignContractPage() {
     );
   }
 
-  if (error || !contract || !signatureRequest) {
+  // Fatal load-failure guard ONLY: contract/signatureRequest are null when the
+  // token or contract could not be fetched (fetchData's catch also sets
+  // `error` for the message). Recoverable submit/upload errors use
+  // `actionError` and render inline below, so they never reach this screen.
+  if (!contract || !signatureRequest) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="bg-white rounded-xl border border-slate-200 p-8 max-w-md text-center">
@@ -1318,11 +1341,13 @@ export default function SignContractPage() {
                               </p>
                               <button
                                 onClick={resendVerificationCode}
-                                disabled={verificationLoading}
+                                disabled={verificationLoading || resendCooldown > 0}
                                 className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
                               >
                                 <RefreshCw className="w-3.5 h-3.5" />
-                                Resend Code
+                                {resendCooldown > 0
+                                  ? `Resend in ${resendCooldown}s`
+                                  : "Resend Code"}
                               </button>
                             </div>
                           </div>
@@ -2278,6 +2303,23 @@ export default function SignContractPage() {
                 <p>By clicking &quot;Sign Document&quot;, you are entering into a legally binding agreement.</p>
               </div>
 
+              {/* Recoverable action error (upload validation / submit failure).
+                  Shown inline so the form stays mounted; the Sign Document
+                  button below remains the retry affordance. */}
+              {actionError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                  <p className="flex-1 text-sm text-red-700">{actionError}</p>
+                  <button
+                    onClick={() => setActionError(null)}
+                    className="text-red-400 hover:text-red-600 transition-colors"
+                    aria-label="Dismiss error"
+                  >
+                    <X className="w-4 h-4" aria-hidden="true" />
+                  </button>
+                </div>
+              )}
+
               {/* Sign Document Button */}
               <button
                 onClick={handleSign}
@@ -2523,6 +2565,21 @@ export default function SignContractPage() {
                         aria-label="Remove uploaded signature"
                       >
                         <X className="w-4 h-4 text-slate-500" aria-hidden="true" />
+                      </button>
+                    </div>
+                  )}
+                  {/* Inline upload error (e.g. oversized image) shown inside the
+                      modal, since the panel's error slot is hidden behind it. */}
+                  {actionError && (
+                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                      <p className="flex-1 text-sm text-red-700">{actionError}</p>
+                      <button
+                        onClick={() => setActionError(null)}
+                        className="text-red-400 hover:text-red-600 transition-colors"
+                        aria-label="Dismiss error"
+                      >
+                        <X className="w-4 h-4" aria-hidden="true" />
                       </button>
                     </div>
                   )}

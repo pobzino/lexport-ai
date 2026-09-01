@@ -26,24 +26,24 @@ export function Hero() {
 
                     <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-slate-900 mb-4 sm:mb-6">
                         <motion.span
-                            initial={{ opacity: 0, y: 16 }}
-                            animate={{ opacity: 1, y: 0 }}
+                            initial={{ y: 16 }}
+                            animate={{ y: 0 }}
                             transition={{ duration: 0.4, delay: 0.1 }}
                             className="block"
                         >
                             Generate contracts.
                         </motion.span>
                         <motion.span
-                            initial={{ opacity: 0, y: 16 }}
-                            animate={{ opacity: 1, y: 0 }}
+                            initial={{ y: 16 }}
+                            animate={{ y: 0 }}
                             transition={{ duration: 0.4, delay: 0.3 }}
                             className="block text-[#529ec6]"
                         >
                             Get them signed.
                         </motion.span>
                         <motion.span
-                            initial={{ opacity: 0, y: 16 }}
-                            animate={{ opacity: 1, y: 0 }}
+                            initial={{ y: 16 }}
+                            animate={{ y: 0 }}
                             transition={{ duration: 0.4, delay: 0.5 }}
                             className="block text-gradient"
                         >
@@ -52,8 +52,8 @@ export function Hero() {
                     </h1>
 
                     <motion.p
-                        initial={{ opacity: 0, y: 16 }}
-                        animate={{ opacity: 1, y: 0 }}
+                        initial={{ y: 16 }}
+                        animate={{ y: 0 }}
                         transition={{ duration: 0.4, delay: 0.15 }}
                         className="text-base sm:text-lg md:text-xl text-slate-500 mb-8 sm:mb-10 max-w-xl mx-auto leading-relaxed px-2 sm:px-0"
                     >

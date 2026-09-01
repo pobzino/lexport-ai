@@ -147,7 +147,7 @@ export async function POST(
 
     // Build payment URL
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
-    const paymentUrl = `${baseUrl}/portal/contracts/${id}?action=pay`;
+    const paymentUrl = `${baseUrl}/pay/${id}`;
 
     // Send the reminder email
     const emailResult = await sendBalanceReminderEmail({

@@ -180,7 +180,7 @@ export function LoginForm({ initialError, action, prompt }: LoginFormProps) {
 
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(emailValue, {
-      redirectTo: getAuthCallbackUrl("/settings"),
+      redirectTo: getAuthCallbackUrl("/reset-password"),
     });
 
     if (error) {
@@ -244,7 +244,7 @@ export function LoginForm({ initialError, action, prompt }: LoginFormProps) {
 
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(emailValue, {
-      redirectTo: getAuthCallbackUrl("/settings"),
+      redirectTo: getAuthCallbackUrl("/reset-password"),
     });
 
     if (error) {

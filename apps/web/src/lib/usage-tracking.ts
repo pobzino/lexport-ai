@@ -94,11 +94,51 @@ export async function getContractCountThisMonth(userId: string): Promise<number>
 }
 
 /**
+ * Get the number of in-flight (queued/processing) generation jobs for the
+ * current billing period.
+ *
+ * The persisted `contracts` row is only written when a generation job COMPLETES,
+ * so counting committed contracts alone lets concurrent/rapid generate requests
+ * all pass the limit check before any row exists (GEN-1 / BILLING-5). Folding
+ * active jobs into the count reserves quota for work that is already in flight.
+ *
+ * Only recently-created queued/processing jobs are counted (matching the
+ * reserve_contract_generation_job RPC's 15-minute window) so a stuck or
+ * not-yet-reconciled job cannot permanently consume the user's quota; completed
+ * jobs are excluded because their persisted contract already counts, and
+ * failed/timed_out jobs never count.
+ */
+export async function getActiveGenerationJobCountThisMonth(userId: string): Promise<number> {
+    const supabase = await createClient();
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const freshnessCutoff = new Date(now.getTime() - 15 * 60 * 1000);
+
+    const { count, error } = await supabase
+        .from("contract_generation_jobs")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .in("status", ["queued", "processing"])
+        .gte("created_at", monthStart.toISOString())
+        .gt("created_at", freshnessCutoff.toISOString());
+
+    if (error) {
+        console.error("Error getting active generation job count:", error);
+        return 0;
+    }
+
+    return count || 0;
+}
+
+/**
  * Check if user can create a new contract
  */
 export async function checkContractLimit(userId: string): Promise<UsageCheckResult> {
     const tier = await getUserTier(userId);
-    const current = await getContractCountThisMonth(userId);
+    const contractsThisMonth = await getContractCountThisMonth(userId);
+    const activeJobs = await getActiveGenerationJobCountThisMonth(userId);
+    const current = contractsThisMonth + activeJobs;
     const limit = TIER_LIMITS[tier].contractsPerMonth;
     const remaining = getRemainingQuota(current, tier, "contractsPerMonth");
 

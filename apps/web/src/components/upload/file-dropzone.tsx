@@ -3,28 +3,23 @@
 import { useState, useCallback } from "react";
 import { Upload, FileText, Image, X, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  MAX_UPLOAD_FILE_SIZE_MB,
+  getUploadFileType,
+} from "@/lib/upload/file-validation";
 
 interface FileDropzoneProps {
-  onFileSelect: (file: File) => void;
+  onFileSelect: (file: File | null) => void;
   isUploading?: boolean;
   error?: string;
-  acceptedTypes?: string[];
   maxSizeMB?: number;
 }
-
-const DEFAULT_ACCEPTED_TYPES = [
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "image/jpeg",
-  "image/png",
-];
 
 export function FileDropzone({
   onFileSelect,
   isUploading = false,
   error,
-  acceptedTypes = DEFAULT_ACCEPTED_TYPES,
-  maxSizeMB = 50,
+  maxSizeMB = MAX_UPLOAD_FILE_SIZE_MB,
 }: FileDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -32,7 +27,7 @@ export function FileDropzone({
 
   const validateFile = useCallback(
     (file: File): string | null => {
-      if (!acceptedTypes.includes(file.type)) {
+      if (!getUploadFileType(file.name, file.type)) {
         return "Invalid file type. Please upload a PDF, Word document, or image.";
       }
       if (file.size > maxSizeMB * 1024 * 1024) {
@@ -40,7 +35,7 @@ export function FileDropzone({
       }
       return null;
     },
-    [acceptedTypes, maxSizeMB]
+    [maxSizeMB]
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -98,7 +93,8 @@ export function FileDropzone({
   const clearFile = useCallback(() => {
     setSelectedFile(null);
     setValidationError(null);
-  }, []);
+    onFileSelect(null);
+  }, [onFileSelect]);
 
   const getFileIcon = (file: File) => {
     if (file.type.startsWith("image/")) {
@@ -135,7 +131,9 @@ export function FileDropzone({
             </div>
             {!isUploading && (
               <button
+                type="button"
                 onClick={clearFile}
+                aria-label="Remove selected file"
                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />

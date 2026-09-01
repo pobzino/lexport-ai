@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, Check, FileSignature } from "lucide-react";
+import { ScanText, Check, FileSignature } from "lucide-react";
 import { motion } from "framer-motion";
 
 export type ProcessingMode = "sign_only" | "edit_and_sign";
@@ -19,28 +19,27 @@ export function ModeSelector({
   const modes = [
     {
       id: "sign_only" as const,
-      title: "Sign Only",
+      title: "Keep the original",
       description:
-        "Keep your original PDF layout. Place signature fields visually on top of your document.",
+        "Preserve the uploaded layout and place signature fields directly on it.",
       icon: FileSignature,
+      badge: "Fastest",
       features: [
-        "Preserve original formatting",
-        "Visual signature field placement",
-        "AI risk analysis",
-        "E-signatures on original PDF",
+        "No reformatting",
+        "Best for ready-to-sign documents",
+        "PDF, DOCX, or scanned files",
       ],
     },
     {
       id: "edit_and_sign" as const,
-      title: "Edit & Sign",
+      title: "Convert to editable",
       description:
-        "AI parses your contract into editable clauses. Modify content before sending for signatures.",
-      icon: Sparkles,
+        "Extract the legal text into clauses so you can review and edit it first.",
+      icon: ScanText,
       features: [
-        "Edit individual clauses",
-        "AI-powered modifications",
-        "AI risk analysis",
-        "E-signatures embedded in PDF",
+        "Review extracted clauses",
+        "Edit wording with AI",
+        "Original file remains attached",
       ],
     },
   ];
@@ -93,6 +92,11 @@ export function ModeSelector({
             <h3 className="text-lg font-semibold text-slate-900 mb-2">
               {mode.title}
             </h3>
+            {mode.badge && (
+              <span className="mb-3 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                {mode.badge}
+              </span>
+            )}
             <p className="text-sm text-slate-500 mb-4">{mode.description}</p>
 
             <div className="space-y-2">

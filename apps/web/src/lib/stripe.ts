@@ -26,6 +26,7 @@ export const stripe = {
   get accountLinks() { return getStripe().accountLinks; },
   get webhooks() { return getStripe().webhooks; },
   get charges() { return getStripe().charges; },
+  get subscriptions() { return getStripe().subscriptions; },
 };
 
 export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
@@ -44,13 +45,72 @@ export function calculatePlatformFee(
   amountInCents: number,
   subscriptionTier: SubscriptionTier = "free"
 ): number {
-  const feePercent = PLATFORM_FEES[subscriptionTier] || PLATFORM_FEES.free;
+  // BILLING-3: use ?? not || so a legitimate 0% (team) fee isn't treated as
+  // falsy and replaced by the free-tier fallback; only fall back when the tier
+  // key is genuinely absent.
+  const feePercent = PLATFORM_FEES[subscriptionTier] ?? PLATFORM_FEES.free;
   return Math.round(amountInCents * (feePercent / 100));
 }
 
 // Get fee percentage for display
 export function getPlatformFeePercent(subscriptionTier: SubscriptionTier = "free"): number {
-  return PLATFORM_FEES[subscriptionTier] || PLATFORM_FEES.free;
+  return PLATFORM_FEES[subscriptionTier] ?? PLATFORM_FEES.free;
+}
+
+type StripePaymentMethodType = NonNullable<
+  Stripe.PaymentIntentCreateParams["payment_method_types"]
+>[number];
+
+export function getPaymentMethodConfiguration(currency: string): {
+  paymentMethodTypes: StripePaymentMethodType[];
+  paymentMethodOptions?: Stripe.PaymentIntentCreateParams.PaymentMethodOptions;
+} {
+  const normalizedCurrency = currency.toLowerCase();
+  const paymentMethodTypes: StripePaymentMethodType[] = [
+    "card",
+    "link",
+  ];
+
+  if (normalizedCurrency === "usd") {
+    paymentMethodTypes.push("us_bank_account");
+    return {
+      paymentMethodTypes,
+      paymentMethodOptions: {
+        us_bank_account: {
+          financial_connections: {
+            permissions: ["payment_method", "balances"],
+          },
+          verification_method: "automatic",
+        },
+      },
+    };
+  }
+
+  if (normalizedCurrency === "gbp") {
+    paymentMethodTypes.push("bacs_debit");
+    return {
+      paymentMethodTypes,
+      paymentMethodOptions: {
+        bacs_debit: {
+          mandate_options: { reference_prefix: "LEX" },
+        },
+      },
+    };
+  }
+
+  if (normalizedCurrency === "eur") {
+    paymentMethodTypes.push("sepa_debit");
+    return {
+      paymentMethodTypes,
+      paymentMethodOptions: {
+        sepa_debit: {
+          mandate_options: { reference_prefix: "LEX" },
+        },
+      },
+    };
+  }
+
+  return { paymentMethodTypes };
 }
 
 // Stripe Connect helpers

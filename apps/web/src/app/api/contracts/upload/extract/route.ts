@@ -2,75 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { extractPdfText, normalizeExtractedText } from "@/lib/upload/extract-pdf";
 import { extractDocxText } from "@/lib/upload/extract-docx";
-import { performOCR, toDataUrl } from "@/lib/upload/ocr";
-import OpenAI from "openai";
+import { isOwnedUploadPath, type UploadFileType } from "@/lib/upload/file-validation";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+export const maxDuration = 26;
 
-interface QuickClassification {
-  suggestedTitle: string;
-  suggestedType: string;
-  suggestedJurisdiction: string;
-  confidence: "high" | "medium" | "low";
-}
-
-/**
- * Quick AI classification to detect contract type, title, and jurisdiction
- * Uses GPT-4o-mini for speed and cost efficiency
- */
-async function classifyContract(text: string): Promise<QuickClassification> {
-  try {
-    // Use first 5000 chars for classification (enough to detect type)
-    const sampleText = text.slice(0, 5000);
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `You are a legal document classifier. Analyze the contract text and identify its type, suggest a title, and detect the jurisdiction. Output JSON only.`,
-        },
-        {
-          role: "user",
-          content: `Classify this contract:
-
-${sampleText}
-
-Output JSON with:
-{
-  "title": "Descriptive title for this contract",
-  "type": "One of: nda_mutual, nda_oneway, contractor_agreement, consulting_agreement, service_agreement, employment_offer, safe_note, ip_assignment, advisor_agreement, sow, other",
-  "jurisdiction": "Detected jurisdiction code: CA, TX, NY, UK, or other",
-  "confidence": "high, medium, or low based on how certain you are"
-}`,
-        },
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 256,
-      temperature: 0.1,
-    });
-
-    const result = JSON.parse(response.choices[0]?.message?.content || "{}");
-
-    return {
-      suggestedTitle: result.title || "Uploaded Contract",
-      suggestedType: result.type || "service_agreement",
-      suggestedJurisdiction: result.jurisdiction || "other",
-      confidence: result.confidence || "medium",
-    };
-  } catch (error) {
-    console.error("Classification error:", error);
-    // Return defaults if classification fails
-    return {
-      suggestedTitle: "Uploaded Contract",
-      suggestedType: "service_agreement",
-      suggestedJurisdiction: "other",
-      confidence: "low",
-    };
-  }
-}
+const UPLOAD_FILE_TYPES = new Set<UploadFileType>(["pdf", "docx", "jpg", "png"]);
 
 export async function POST(request: Request) {
   try {
@@ -83,11 +19,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { filePath, fileType, signedUrl } = await request.json();
+    const { filePath, fileType } = await request.json();
 
-    if (!filePath || !fileType) {
+    if (
+      typeof filePath !== "string" ||
+      !isOwnedUploadPath(filePath, user.id) ||
+      !UPLOAD_FILE_TYPES.has(fileType)
+    ) {
       return NextResponse.json(
-        { error: "Missing file path or type" },
+        { error: "Invalid file path or type" },
         { status: 400 }
       );
     }
@@ -150,9 +90,6 @@ export async function POST(request: Request) {
     // Normalize the extracted text
     const normalizedText = normalizeExtractedText(extractedText);
 
-    // Quick AI classification to detect contract type
-    const classification = await classifyContract(normalizedText);
-
     return NextResponse.json({
       success: true,
       needsOCR: false,
@@ -160,11 +97,7 @@ export async function POST(request: Request) {
       pageCount,
       wordCount: normalizedText.split(/\s+/).length,
       characterCount: normalizedText.length,
-      // AI-detected metadata
-      suggestedTitle: classification.suggestedTitle,
-      suggestedType: classification.suggestedType,
-      suggestedJurisdiction: classification.suggestedJurisdiction,
-      confidence: classification.confidence,
+      textQuality: normalizedText.length >= 500 ? "good" : "limited",
     });
   } catch (error) {
     console.error("Extraction error:", error);

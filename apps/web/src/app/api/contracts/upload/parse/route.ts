@@ -5,6 +5,7 @@ import { parseContractText } from "@/lib/upload/parse-contract";
 // Netlify terminates synchronous functions at 26 seconds. The parser's AI call
 // times out earlier and falls back locally, leaving enough time to return JSON.
 export const maxDuration = 26;
+const MAX_PARSE_TEXT_LENGTH = 1_000_000;
 
 export async function POST(request: Request) {
   try {
@@ -30,6 +31,13 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Text too short to parse" },
         { status: 400 }
+      );
+    }
+
+    if (text.length > MAX_PARSE_TEXT_LENGTH) {
+      return NextResponse.json(
+        { error: "Document is too long to convert safely. Keep the original for signing instead." },
+        { status: 413 }
       );
     }
 

@@ -34,10 +34,7 @@ export async function extractPdfText(
     const extractedText = text.join("\n\n").trim();
     const pageCount = totalPages || 1;
 
-    // Detect if PDF is scanned (very little text relative to page count)
-    // Note: We don't support OCR for PDFs (GPT Vision doesn't accept PDFs)
-    // So we always return isScanned: false to use whatever text was extracted
-    const isScanned = false;
+    const isScanned = detectScannedPdf(extractedText, pageCount);
 
     return {
       text: extractedText,
@@ -59,19 +56,15 @@ export async function extractPdfText(
 
 /**
  * Detect if a PDF is likely a scanned document
- * Note: Currently we don't support OCR for PDFs (would need pdf-to-image conversion)
- * So we always return false to use whatever text was extracted
+ * A text-layer PDF normally contains hundreds of characters per page. Keep the
+ * threshold conservative so short agreements are not unnecessarily sent to OCR.
  */
 export function detectScannedPdf(text: string, pageCount: number): boolean {
-  // PDF OCR is not currently supported (GPT Vision doesn't accept PDFs)
-  // Always use extracted text, even if minimal
-  // To enable OCR in future: uncomment the detection logic and add pdf-to-image conversion
+  const cleanText = text.replace(/\s+/g, " ").trim();
+  const safePageCount = Math.max(pageCount, 1);
+  const averageCharactersPerPage = cleanText.length / safePageCount;
 
-  // const cleanText = text.replace(/\s+/g, " ").trim();
-  // const avgCharsPerPage = cleanText.length / Math.max(pageCount, 1);
-  // return avgCharsPerPage < 100;
-
-  return false;
+  return cleanText.length < 80 || averageCharactersPerPage < 60;
 }
 
 /**

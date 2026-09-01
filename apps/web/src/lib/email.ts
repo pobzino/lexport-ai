@@ -581,7 +581,7 @@ export interface PaymentReceiptEmailParams {
   invoiceNumber: string;
   amount: number; // in cents
   currency: string;
-  paymentType: "deposit" | "balance" | "full";
+  paymentType: "deposit" | "balance" | "full" | "installment";
   paidAt: string;
   invoiceUrl?: string;
   senderName?: string;
@@ -621,7 +621,9 @@ export async function sendPaymentReceiptEmail({
       ? "Deposit Payment"
       : paymentType === "balance"
         ? "Balance Payment"
-        : "Full Payment";
+        : paymentType === "installment"
+          ? "Milestone Payment"
+          : "Full Payment";
 
   const content = `
     <div style="text-align: center; margin-bottom: 24px;">

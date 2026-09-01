@@ -34,8 +34,8 @@ export function ContractPaywall({ type, currentUsage, limit }: ContractPaywallPr
 
           <p className="text-slate-600 mb-6">
             {isContractLimit
-              ? `You've created ${currentUsage} of ${limit} free AI-generated contract${limit > 1 ? 's' : ''}. Upgrade to Pro for unlimited contracts.`
-              : `You've used ${currentUsage} of ${limit} free signatures. Upgrade to collect unlimited signatures.`}
+              ? `You've created ${currentUsage} of ${limit} free AI-generated contract${limit > 1 ? 's' : ''}. Upgrade to Pro for 50 contracts/month.`
+              : `You've used ${currentUsage} of ${limit} free signatures. Upgrade to Pro for 500 signatures/month.`}
           </p>
 
           <div className="space-y-3 mb-6 text-left">
@@ -43,13 +43,13 @@ export function ContractPaywall({ type, currentUsage, limit }: ContractPaywallPr
               <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
                 <Check className="w-3 h-3 text-emerald-600" />
               </div>
-              <span className="text-slate-700">Unlimited AI-generated contracts</span>
+              <span className="text-slate-700">50 AI-generated contracts/month</span>
             </div>
             <div className="flex items-center gap-3 text-sm">
               <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
                 <Check className="w-3 h-3 text-emerald-600" />
               </div>
-              <span className="text-slate-700">Unlimited e-signatures</span>
+              <span className="text-slate-700">500 e-signatures/month</span>
             </div>
             <div className="flex items-center gap-3 text-sm">
               <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">

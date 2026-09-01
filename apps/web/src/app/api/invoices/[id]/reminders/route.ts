@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { getInvoicePaymentUrl } from "@/lib/invoices/payment-link";
 import { sendBalanceReminderEmail } from "@/lib/email";
 
 // Schema for PATCH - update reminder settings
@@ -233,10 +234,7 @@ export async function POST(
     }
 
     // Build payment URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const paymentUrl = invoice.contract_id
-      ? `${baseUrl}/portal/contracts/${invoice.contract_id}?action=pay`
-      : `${baseUrl}/pay/invoice/${invoice.id}`;
+    const paymentUrl = getInvoicePaymentUrl(invoice.id);
 
     // Get contract title if available
     const contractTitle = invoice.contract?.title || `Invoice ${invoice.invoice_number}`;

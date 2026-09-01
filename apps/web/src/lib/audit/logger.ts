@@ -34,6 +34,7 @@ export interface AuditLogOptions {
   newValue?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
   context?: RequestContext;
+  includeGeoLocation?: boolean;
 }
 
 /**
@@ -211,12 +212,15 @@ export async function logAuditEventWithClient(
     // Parse device info from user agent
     const deviceInfo = parseUserAgent(options.context?.userAgent || null);
 
-    // Fetch geolocation (non-blocking - we don't await if it fails)
+    // Geolocation is optional because latency-sensitive flows can enrich their
+    // primary records after responding while still writing the audit event now.
     let geoLocation: GeoLocation | null = null;
-    try {
-      geoLocation = await getGeoLocation(options.context?.ipAddress || null);
-    } catch {
-      // Geolocation is optional, continue without it
+    if (options.includeGeoLocation !== false) {
+      try {
+        geoLocation = await getGeoLocation(options.context?.ipAddress || null);
+      } catch {
+        // Geolocation is optional, continue without it
+      }
     }
 
     const auditData = {

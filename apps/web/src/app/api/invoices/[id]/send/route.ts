@@ -5,6 +5,7 @@ import {
   getBankDetailRows,
   readInvoiceSenderSnapshot,
 } from "@/lib/invoices/bank-details";
+import { getInvoicePaymentUrl } from "@/lib/invoices/payment-link";
 
 function escapeHtml(value: string): string {
   return value
@@ -88,10 +89,7 @@ export async function POST(
     }
 
     // Generate payment URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const paymentUrl = invoice.contract_id
-      ? `${baseUrl}/portal/contracts/${invoice.contract_id}?action=pay`
-      : `${baseUrl}/pay/invoice/${invoice.id}`;
+    const paymentUrl = getInvoicePaymentUrl(invoice.id);
 
     // Get user profile for sender name
     const { data: profile } = await supabase

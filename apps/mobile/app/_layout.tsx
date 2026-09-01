@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Subscription } from "expo-notifications";
+import type { Subscription } from "expo-notifications";
 import {
   registerForPushNotifications,
   setupNotificationResponseHandler,
@@ -22,8 +22,8 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  const notificationResponseListener = useRef<Subscription>();
-  const notificationReceivedListener = useRef<Subscription>();
+  const notificationResponseListener = useRef<Subscription | null>(null);
+  const notificationReceivedListener = useRef<Subscription | null>(null);
 
   useEffect(() => {
     // Register for push notifications

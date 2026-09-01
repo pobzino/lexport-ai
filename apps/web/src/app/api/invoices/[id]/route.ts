@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { PDFDocument, rgb, StandardFonts, degrees } from "pdf-lib";
 import {
   getBankDetailRows,
   readInvoiceSenderSnapshot,
   type InvoiceBankDetails,
 } from "@/lib/invoices/bank-details";
+import { PUBLIC_INVOICE_STATUSES } from "@/lib/invoices/payment-link";
 
 interface LineItem {
   description: string;
@@ -528,24 +530,32 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const format = searchParams.get("format");
     const download = searchParams.get("download") === "true";
+    const isPublic = searchParams.get("public") === "true";
+    const sessionSupabase = await createClient();
+    const supabase = isPublic ? createAdminClient() : sessionSupabase;
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    let userId: string | null = null;
+    if (!isPublic) {
+      const { data: { user }, error: authError } = await sessionSupabase.auth.getUser();
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      userId = user.id;
     }
 
-    // Fetch the invoice - only if owned by this user
-    const { data: invoice, error: invoiceError } = await supabase
+    let invoiceQuery = supabase
       .from("invoices")
       .select("*")
-      .eq("id", id)
-      .eq("user_id", user.id)
-      .single();
+      .eq("id", id);
+
+    invoiceQuery = isPublic
+      ? invoiceQuery.in("status", [...PUBLIC_INVOICE_STATUSES])
+      : invoiceQuery.eq("user_id", userId);
+
+    const { data: invoice, error: invoiceError } = await invoiceQuery.single();
 
     if (invoiceError || !invoice) {
       return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
@@ -557,6 +567,7 @@ export async function GET(
 
       const headers: Record<string, string> = {
         "Content-Type": "application/pdf",
+        "Cache-Control": "private, no-store",
       };
 
       if (download) {
@@ -568,7 +579,10 @@ export async function GET(
       return new NextResponse(Buffer.from(pdfBytes), { headers });
     }
 
-    return NextResponse.json({ invoice });
+    return NextResponse.json(
+      { invoice },
+      { headers: { "Cache-Control": "private, no-store" } }
+    );
   } catch (error) {
     console.error("Error fetching invoice:", error);
     return NextResponse.json(

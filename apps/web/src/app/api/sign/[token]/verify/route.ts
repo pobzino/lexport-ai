@@ -3,10 +3,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
 import { randomInt } from "crypto";
 import { sendVerificationCodeEmail } from "@/lib/email";
-import { auditLogger, getRequestContextFromRequest } from "@/lib/audit";
+import {
+  getRequestContextFromRequest,
+  logAuditEventWithClient,
+} from "@/lib/audit";
 
 const CODE_EXPIRY_MINUTES = 10;
 const MAX_ATTEMPTS = 5;
+const RESEND_COOLDOWN_SECONDS = 60;
 
 // POST - Send verification code
 const SendCodeSchema = z.object({
@@ -62,6 +66,13 @@ export async function POST(
 
     // Determine action
     if (body.action === "send") {
+      const parseResult = SendCodeSchema.safeParse(body);
+      if (!parseResult.success) {
+        return NextResponse.json(
+          { error: "Invalid request", details: parseResult.error.flatten() },
+          { status: 400 }
+        );
+      }
       return handleSendCode(supabase, signatureRequest, request);
     } else if (body.action === "verify") {
       const parseResult = VerifyCodeSchema.safeParse(body);
@@ -98,6 +109,30 @@ async function handleSendCode(
   },
   request: NextRequest
 ) {
+  const { data: recentCode } = await supabase
+    .from("signer_verification_codes")
+    .select("created_at")
+    .eq("signature_request_id", signatureRequest.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (recentCode?.created_at) {
+    const elapsedSeconds = Math.floor(
+      (Date.now() - new Date(recentCode.created_at).getTime()) / 1000
+    );
+    const retryAfter = Math.max(0, RESEND_COOLDOWN_SECONDS - elapsedSeconds);
+    if (retryAfter > 0) {
+      return NextResponse.json(
+        {
+          error: `Please wait ${retryAfter} seconds before requesting another code`,
+          retryAfterSeconds: retryAfter,
+        },
+        { status: 429, headers: { "Retry-After": retryAfter.toString() } }
+      );
+    }
+  }
+
   // Generate 6-digit code
   const code = randomInt(100000, 999999).toString();
   const expiresAt = new Date(Date.now() + CODE_EXPIRY_MINUTES * 60 * 1000);
@@ -137,6 +172,11 @@ async function handleSendCode(
     });
   } catch (emailError) {
     console.error("Failed to send verification email:", emailError);
+    await supabase
+      .from("signer_verification_codes")
+      .delete()
+      .eq("signature_request_id", signatureRequest.id)
+      .eq("code", code);
     return NextResponse.json(
       { error: "Failed to send verification email" },
       { status: 500 }
@@ -167,16 +207,11 @@ async function handleVerifyCode(
     .from("signer_verification_codes")
     .select("*")
     .eq("signature_request_id", signatureRequest.id)
-    .eq("code", code)
-    .single();
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (codeError || !verificationCode) {
-    // Increment attempts on wrong code
-    await supabase
-      .from("signer_verification_codes")
-      .update({ attempts: (verificationCode?.attempts || 0) + 1 })
-      .eq("signature_request_id", signatureRequest.id);
-
     return NextResponse.json(
       { error: "Invalid verification code" },
       { status: 400 }
@@ -196,6 +231,25 @@ async function handleVerifyCode(
     return NextResponse.json(
       { error: "Too many attempts. Please request a new code." },
       { status: 429 }
+    );
+  }
+
+  if (verificationCode.code !== code) {
+    const attempts = verificationCode.attempts + 1;
+    await supabase
+      .from("signer_verification_codes")
+      .update({ attempts })
+      .eq("id", verificationCode.id);
+
+    return NextResponse.json(
+      {
+        error:
+          attempts >= MAX_ATTEMPTS
+            ? "Too many attempts. Please request a new code."
+            : "Invalid verification code",
+        attemptsRemaining: Math.max(0, MAX_ATTEMPTS - attempts),
+      },
+      { status: attempts >= MAX_ATTEMPTS ? 429 : 400 }
     );
   }
 
@@ -222,7 +276,7 @@ async function handleVerifyCode(
 
   // Log the verification event
   const context = getRequestContextFromRequest(request);
-  await auditLogger.log({
+  await logAuditEventWithClient(supabase, {
     contractId: signatureRequest.contract_id,
     signatureRequestId: signatureRequest.id,
     eventType: "signature_request_viewed",

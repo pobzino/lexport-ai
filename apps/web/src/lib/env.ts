@@ -12,6 +12,7 @@ const serverEnvSchema = z.object({
   // Supabase (required)
   NEXT_PUBLIC_SUPABASE_URL: z.string().url("Invalid Supabase URL"),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, "Supabase anon key is required"),
+  SUPABASE_SECRET_KEY: z.string().min(1, "Supabase secret key is required").optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, "Supabase service role key is required").optional(),
 
   // OpenAI (required for AI features)

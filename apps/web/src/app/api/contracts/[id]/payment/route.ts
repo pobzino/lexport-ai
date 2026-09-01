@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { stripe, calculatePlatformFee, getPlatformFeePercent, type SubscriptionTier } from "@/lib/stripe";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  stripe,
+  calculatePlatformFee,
+  getPaymentMethodConfiguration,
+  getPlatformFeePercent,
+  type SubscriptionTier,
+} from "@/lib/stripe";
 import type { PaymentType } from "@/db/types";
 import {
   getMilestoneAmount,
@@ -16,7 +22,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // Parse request body for payment type (deposit, balance, or full)
     let requestedPaymentType: PaymentType = "full";
@@ -180,6 +186,33 @@ export async function POST(
       );
     }
 
+    // Destination charges must always have a real payout destination. Creating
+    // a PaymentIntent without transfer_data would collect the customer's money
+    // into Lexport's platform balance with no automated way to pay the contract
+    // owner. Fail closed until the owner has completed Stripe Connect.
+    const { data: contractOwner, error: contractOwnerError } = await supabase
+      .from("users")
+      .select("stripe_connect_account_id, stripe_connect_status, subscription_tier")
+      .eq("id", contract.user_id)
+      .single();
+
+    if (
+      contractOwnerError ||
+      !contractOwner?.stripe_connect_account_id ||
+      contractOwner.stripe_connect_status !== "active"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Online payment is not available yet. The contract owner must finish Stripe payout setup before accepting payment.",
+          code: "CONNECT_ACCOUNT_REQUIRED",
+        },
+        { status: 409 }
+      );
+    }
+
+    const connectedAccountId = contractOwner.stripe_connect_account_id;
+
     // Check for existing valid payment intent for this payment type
     const { data: pendingPayments } = await supabase
       .from("payments")
@@ -189,8 +222,11 @@ export async function POST(
       .eq("status", "pending");
 
     const existingPayment = pendingPayments?.find((payment) => {
-      if (!activeMilestone) return true;
       const metadata = payment.metadata as Record<string, unknown> | null;
+      const isSameDestination =
+        metadata?.connected_account_id === connectedAccountId;
+      if (!isSameDestination) return false;
+      if (!activeMilestone) return true;
       return metadata?.payment_milestone_id === activeMilestone.id;
     });
 
@@ -234,28 +270,14 @@ export async function POST(
       }
     }
 
-    // Get contract owner's Connect account and subscription tier for payouts
-    const { data: contractOwner } = await supabase
-      .from("users")
-      .select("stripe_connect_account_id, stripe_connect_status, subscription_status")
-      .eq("id", contract.user_id)
-      .single();
-
-    // Determine subscription tier for platform fee calculation
+    // Determine subscription tier for platform fee calculation.
+    // BILLING-3: use subscription_tier (free|pro|team), NOT subscription_status
+    // (active|past_due|...), so Pro/Team sellers get their reduced fee.
     const subscriptionTier: SubscriptionTier =
-      (contractOwner?.subscription_status as SubscriptionTier) || "free";
+      (contractOwner?.subscription_tier as SubscriptionTier) || "free";
 
-    // Determine payment methods based on currency
-    let paymentMethodTypes: string[] = ["card", "link"];
-
-    // Add region-specific bank payment methods
-    if (currency === "usd") {
-      paymentMethodTypes.push("us_bank_account");
-    } else if (currency === "gbp") {
-      paymentMethodTypes.push("bacs_debit");
-    } else if (currency === "eur") {
-      paymentMethodTypes.push("sepa_debit");
-    }
+    const { paymentMethodTypes, paymentMethodOptions } =
+      getPaymentMethodConfiguration(currency);
 
     // Build payment intent options
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -277,58 +299,27 @@ export async function POST(
           : {}),
       },
       description: paymentDescription,
-      // Explicitly specify payment methods by currency
       payment_method_types: paymentMethodTypes,
-      // Bank payment options
-      payment_method_options: {
-        // US: ACH Direct Debit
-        us_bank_account: {
-          financial_connections: {
-            permissions: ["payment_method", "balances"],
-          },
-          verification_method: "automatic",
-        },
-        // UK: Bacs Direct Debit
-        bacs_debit: {
-          mandate_options: {
-            reference_prefix: "LEX",
-          },
-        },
-        // EU: SEPA Direct Debit
-        sepa_debit: {
-          mandate_options: {
-            reference_prefix: "LEX",
-          },
-        },
-      },
+      ...(paymentMethodOptions
+        ? { payment_method_options: paymentMethodOptions }
+        : {}),
     };
 
-    // If contract owner has an active Connect account, add Connect params
-    if (
-      contractOwner?.stripe_connect_account_id &&
-      contractOwner.stripe_connect_status === "active"
-    ) {
-      const platformFee = calculatePlatformFee(paymentAmount, subscriptionTier);
+    // Every new charge is a destination charge. A zero-fee tier still carries
+    // transfer_data so the seller, never the platform, receives the funds.
+    const platformFee = calculatePlatformFee(paymentAmount, subscriptionTier);
+    if (platformFee > 0) {
       paymentIntentOptions.application_fee_amount = platformFee;
-      paymentIntentOptions.transfer_data = {
-        destination: contractOwner.stripe_connect_account_id,
-      };
-      paymentIntentOptions.metadata.connected_account_id =
-        contractOwner.stripe_connect_account_id;
-      paymentIntentOptions.metadata.platform_fee = platformFee.toString();
-      paymentIntentOptions.metadata.platform_fee_percent = getPlatformFeePercent(subscriptionTier).toString();
-      paymentIntentOptions.metadata.subscription_tier = subscriptionTier;
     }
+    paymentIntentOptions.transfer_data = { destination: connectedAccountId };
+    paymentIntentOptions.metadata.connected_account_id = connectedAccountId;
+    paymentIntentOptions.metadata.platform_fee = platformFee.toString();
+    paymentIntentOptions.metadata.platform_fee_percent = getPlatformFeePercent(subscriptionTier).toString();
+    paymentIntentOptions.metadata.subscription_tier = subscriptionTier;
 
     const paymentIntent = await stripe.paymentIntents.create(paymentIntentOptions);
 
     // Calculate platform fee for tracking
-    const platformFee =
-      contractOwner?.stripe_connect_account_id &&
-      contractOwner.stripe_connect_status === "active"
-        ? calculatePlatformFee(paymentAmount, subscriptionTier)
-        : 0;
-
     // Create payment record in our database
     await supabase.from("payments").insert({
       contract_id: id,
@@ -341,7 +332,7 @@ export async function POST(
       payment_type: paymentType,
       metadata: {
         contract_title: contract.title,
-        connected_account_id: contractOwner?.stripe_connect_account_id || null,
+        connected_account_id: connectedAccountId,
         total_amount: totalAmount,
         deposit_percentage: depositPercentage,
         ...(activeMilestone
@@ -411,7 +402,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     const { data: contract, error } = await supabase
       .from("contracts")

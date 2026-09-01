@@ -277,7 +277,7 @@ export default function PaymentPage() {
       try {
         // Fetch invoice if ID is provided
         if (invoiceId) {
-          const invoiceResponse = await fetch(`/api/invoices/${invoiceId}`);
+          const invoiceResponse = await fetch(`/api/invoices/${invoiceId}?public=true`);
           if (invoiceResponse.ok) {
             const invoiceData = await invoiceResponse.json();
             setInvoiceInfo(invoiceData.invoice);

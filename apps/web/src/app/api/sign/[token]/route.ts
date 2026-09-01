@@ -1,20 +1,33 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
-import { generateContentHash, generateIdentityConfirmationText } from "@/lib/document-integrity";
-import { auditLogger, getRequestContextFromRequest } from "@/lib/audit";
+import {
+  generateContentHash,
+  generateIdentityConfirmationText,
+} from "@/lib/document-integrity";
+import {
+  getRequestContextFromRequest,
+  logAuditEventWithClient,
+} from "@/lib/audit";
 import { lookupGeoLocation } from "@/lib/geolocation";
 import { requestTimestamp, hashSignatureData } from "@/lib/rfc3161-timestamp";
-import { sendCompletedContractWithCertificate, sendInvoiceEmail } from "@/lib/email";
+import {
+  sendCompletedContractWithCertificate,
+  sendInvoiceEmail,
+} from "@/lib/email";
 import { insertInvoiceWithRetry } from "@/lib/invoices/create-invoice";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { randomBytes } from "crypto";
-import { getMilestoneAmount, normalizePaymentSchedule } from "@/lib/payments/config";
+import {
+  getMilestoneAmount,
+  normalizePaymentSchedule,
+} from "@/lib/payments/config";
+import { isPayingSignerRole } from "@/lib/payments/payer-role";
 
 // GET - Fetch signature request details
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ token: string }> }
+  { params }: { params: Promise<{ token: string }> },
 ) {
   try {
     const { token } = await params;
@@ -30,15 +43,22 @@ export async function GET(
     if (error || !signatureRequest) {
       return NextResponse.json(
         { error: "Signature request not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     // Check if expired
-    if (signatureRequest.expires_at && new Date() > new Date(signatureRequest.expires_at)) {
+    if (
+      signatureRequest.expires_at &&
+      new Date() > new Date(signatureRequest.expires_at)
+    ) {
       return NextResponse.json(
-        { error: "Signature request has expired" },
-        { status: 410 }
+        {
+          error: "Signature request has expired",
+          expired: true,
+          expiresAt: signatureRequest.expires_at,
+        },
+        { status: 410 },
       );
     }
 
@@ -48,7 +68,10 @@ export async function GET(
     if (signatureRequest.status === "signed") {
       // Check if payment is still required - if so, include contract info for redirect
       let paymentPending = false;
-      if (contract.payment_required && contract.payment_status !== "succeeded") {
+      if (
+        contract.payment_required &&
+        contract.payment_status !== "succeeded"
+      ) {
         // Check if there are any successful payments
         const { data: successfulPayments } = await supabase
           .from("payments")
@@ -56,8 +79,12 @@ export async function GET(
           .eq("contract_id", contract.id)
           .eq("status", "succeeded");
 
-        const hasFullPayment = successfulPayments?.some(p => p.payment_type === "full");
-        const hasBalancePayment = successfulPayments?.some(p => p.payment_type === "balance");
+        const hasFullPayment = successfulPayments?.some(
+          (p) => p.payment_type === "full",
+        );
+        const hasBalancePayment = successfulPayments?.some(
+          (p) => p.payment_type === "balance",
+        );
 
         // Payment is pending if no full payment and (no deposit or balance depending on structure)
         if (!hasFullPayment) {
@@ -65,17 +92,22 @@ export async function GET(
             // For deposit_balance, payment is pending if balance not paid
             paymentPending = !hasBalancePayment;
           } else if (contract.payment_structure === "custom") {
-            const schedule = normalizePaymentSchedule(contract.payment_schedule);
+            const schedule = normalizePaymentSchedule(
+              contract.payment_schedule,
+            );
             const paidMilestoneIds = new Set(
               (successfulPayments || []).map((payment) => {
-                const metadata = payment.metadata as Record<string, unknown> | null;
+                const metadata = payment.metadata as Record<
+                  string,
+                  unknown
+                > | null;
                 return typeof metadata?.payment_milestone_id === "string"
                   ? metadata.payment_milestone_id
                   : null;
-              })
+              }),
             );
             paymentPending = schedule.some(
-              (milestone) => !paidMilestoneIds.has(milestone.id)
+              (milestone) => !paidMilestoneIds.has(milestone.id),
             );
           } else {
             // For full payment structure
@@ -93,7 +125,7 @@ export async function GET(
           paymentAmount: contract.payment_amount,
           paymentCurrency: contract.payment_currency,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -109,7 +141,7 @@ export async function GET(
       if (allRequests) {
         // Find previous signers who haven't signed yet
         const previousUnsigned = allRequests.filter(
-          (r) => r.order < signatureRequest.order && r.status !== "signed"
+          (r) => r.order < signatureRequest.order && r.status !== "signed",
         );
 
         if (previousUnsigned.length > 0) {
@@ -120,7 +152,7 @@ export async function GET(
               message: `This contract requires signatures in order. ${previousUnsigned.length} signer(s) before you still need to sign.`,
               notYourTurn: true,
             },
-            { status: 403 }
+            { status: 403 },
           );
         }
       }
@@ -135,13 +167,14 @@ export async function GET(
 
       // Log signature request viewed event
       const context = getRequestContextFromRequest(request);
-      await auditLogger.signatureRequestViewed(
-        contract.id,
-        signatureRequest.id,
-        signatureRequest.signer_email,
-        signatureRequest.signer_name,
-        context
-      );
+      await logAuditEventWithClient(supabase, {
+        contractId: contract.id,
+        signatureRequestId: signatureRequest.id,
+        eventType: "signature_request_viewed",
+        actorEmail: signatureRequest.signer_email,
+        actorName: signatureRequest.signer_name,
+        context,
+      });
     }
 
     // Fetch signature fields for this contract
@@ -156,19 +189,28 @@ export async function GET(
     if (contract.processing_mode === "sign_only" && contract.source_file_url) {
       const isFullUrl = contract.source_file_url.startsWith("http");
       if (!isFullUrl) {
-        const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-          .from("contract-uploads")
-          .createSignedUrl(contract.source_file_url, 3600); // 1 hour
+        const { data: signedUrlData, error: signedUrlError } =
+          await supabase.storage
+            .from("contract-uploads")
+            .createSignedUrl(contract.source_file_url, 3600); // 1 hour
 
         if (signedUrlError) {
-          console.error("[Sign API] Failed to create signed URL for source file:", {
-            error: signedUrlError,
-            path: contract.source_file_url,
-            contractId: contract.id,
-          });
+          console.error(
+            "[Sign API] Failed to create signed URL for source file:",
+            {
+              error: signedUrlError,
+              path: contract.source_file_url,
+              contractId: contract.id,
+            },
+          );
         }
         sourceFileSignedUrl = signedUrlData?.signedUrl || null;
-        console.log("[Sign API] Source file signed URL:", sourceFileSignedUrl ? "Generated successfully" : "FAILED - returning raw path");
+        console.log(
+          "[Sign API] Source file signed URL:",
+          sourceFileSignedUrl
+            ? "Generated successfully"
+            : "FAILED - returning raw path",
+        );
       } else {
         sourceFileSignedUrl = contract.source_file_url;
       }
@@ -186,11 +228,17 @@ export async function GET(
         .eq("contract_id", contract.id)
         .eq("status", "succeeded");
 
-      const hasDepositPayment = successfulPayments?.some(p => p.payment_type === "deposit");
-      const hasFullPayment = successfulPayments?.some(p => p.payment_type === "full");
-      const hasBalancePayment = successfulPayments?.some(p => p.payment_type === "balance");
+      const hasDepositPayment = successfulPayments?.some(
+        (p) => p.payment_type === "deposit",
+      );
+      const hasFullPayment = successfulPayments?.some(
+        (p) => p.payment_type === "full",
+      );
+      const hasBalancePayment = successfulPayments?.some(
+        (p) => p.payment_type === "balance",
+      );
       const hasInstallmentPayment = successfulPayments?.some(
-        p => p.payment_type === "installment"
+        (p) => p.payment_type === "installment",
       );
 
       depositPaid = hasDepositPayment || false;
@@ -200,10 +248,16 @@ export async function GET(
       // 2. For deposit_balance structure: deposit is paid (balance can be collected later)
       if (hasFullPayment || (hasDepositPayment && hasBalancePayment)) {
         paymentSufficientForSigning = true;
-      } else if (contract.payment_structure === "deposit_balance" && hasDepositPayment) {
+      } else if (
+        contract.payment_structure === "deposit_balance" &&
+        hasDepositPayment
+      ) {
         // Deposit paid is sufficient to sign for deposit_balance contracts
         paymentSufficientForSigning = true;
-      } else if (contract.payment_structure === "custom" && hasInstallmentPayment) {
+      } else if (
+        contract.payment_structure === "custom" &&
+        hasInstallmentPayment
+      ) {
         // The first stage serves as the upfront payment for a custom schedule.
         paymentSufficientForSigning = true;
       } else if (contract.payment_status === "succeeded") {
@@ -241,7 +295,7 @@ export async function GET(
     // Generate identity confirmation text for this signer
     const identityConfirmationText = generateIdentityConfirmationText(
       signatureRequest.signer_name,
-      signatureRequest.signer_role
+      signatureRequest.signer_role,
     );
 
     // Return contract details for signing
@@ -283,10 +337,16 @@ export async function GET(
       identityConfirmationText,
     });
   } catch (error) {
-    console.error("[sign GET] Error:", error instanceof Error ? error.message : error);
+    console.error(
+      "[sign GET] Error:",
+      error instanceof Error ? error.message : error,
+    );
     return NextResponse.json(
-      { error: "Failed to fetch signature request", detail: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
+      {
+        error: "Failed to fetch signature request",
+        detail: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
     );
   }
 }
@@ -296,6 +356,18 @@ const FieldValueSchema = z.object({
   fieldId: z.string().uuid(),
   value: z.string().optional(),
   signatureData: z.string().optional(),
+  attachmentData: z
+    .object({
+      fileName: z.string().min(1).max(255),
+      fileSize: z
+        .number()
+        .int()
+        .positive()
+        .max(10 * 1024 * 1024),
+      fileType: z.string().min(1).max(120),
+      dataUrl: z.string().min(1),
+    })
+    .optional(),
 });
 
 // POST - Submit signature
@@ -303,8 +375,12 @@ const SignatureSchema = z.object({
   signatureData: z.string().min(1, "Signature required"), // Base64 signature image
   signatureType: z.enum(["draw", "type", "upload"]).default("draw"),
   agreedToTerms: z.boolean().refine((v) => v === true, "Must agree to terms"),
-  identityConfirmed: z.boolean().refine((v) => v === true, "Must confirm identity"),
-  identityConfirmationText: z.string().min(1, "Identity confirmation text required"),
+  identityConfirmed: z
+    .boolean()
+    .refine((v) => v === true, "Must confirm identity"),
+  identityConfirmationText: z
+    .string()
+    .min(1, "Identity confirmation text required"),
   documentHash: z.string().optional(), // For tamper verification
   ipAddress: z.string().optional(),
   userAgent: z.string().optional(),
@@ -313,7 +389,7 @@ const SignatureSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ token: string }> }
+  { params }: { params: Promise<{ token: string }> },
 ) {
   try {
     const { token } = await params;
@@ -326,101 +402,207 @@ export async function POST(
     if (!parseResult.success) {
       return NextResponse.json(
         { error: "Invalid request", details: parseResult.error.flatten() },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const { signatureData, signatureType, ipAddress, userAgent, identityConfirmed, identityConfirmationText, documentHash, fieldValues } = parseResult.data;
+    const {
+      signatureData,
+      signatureType,
+      ipAddress,
+      userAgent,
+      identityConfirmed,
+      identityConfirmationText,
+      documentHash,
+      fieldValues,
+    } = parseResult.data;
+
+    const { data: signatureRequest, error: signatureRequestError } =
+      await supabase
+        .from("signature_requests")
+        .select(
+          "id, contract_id, signer_email, signer_name, signer_role, status, expires_at, email_verified_at, order, contracts(id, require_sequential_signing)",
+        )
+        .eq("token", token)
+        .single();
+
+    if (signatureRequestError || !signatureRequest) {
+      return NextResponse.json(
+        { error: "Signature request not found" },
+        { status: 404 },
+      );
+    }
+
+    if (
+      signatureRequest.expires_at &&
+      new Date() > new Date(signatureRequest.expires_at)
+    ) {
+      return NextResponse.json(
+        { error: "Signature request has expired", expired: true },
+        { status: 410 },
+      );
+    }
+
+    if (signatureRequest.status === "signed") {
+      return NextResponse.json(
+        { error: "Contract has already been signed" },
+        { status: 400 },
+      );
+    }
+
+    if (!signatureRequest.email_verified_at) {
+      return NextResponse.json(
+        { error: "Verify your email before signing" },
+        { status: 403 },
+      );
+    }
+
+    const contractRelation = Array.isArray(signatureRequest.contracts)
+      ? signatureRequest.contracts[0]
+      : signatureRequest.contracts;
+    if (contractRelation?.require_sequential_signing) {
+      const { data: previousSigner } = await supabase
+        .from("signature_requests")
+        .select("id")
+        .eq("contract_id", signatureRequest.contract_id)
+        .lt("order", signatureRequest.order)
+        .neq("status", "signed")
+        .limit(1)
+        .maybeSingle();
+
+      if (previousSigner) {
+        return NextResponse.json(
+          { error: "Waiting for previous signers", notYourTurn: true },
+          { status: 409 },
+        );
+      }
+    }
+
+    const { data: contractFields, error: contractFieldsError } = await supabase
+      .from("signature_fields")
+      .select("id, signer_role, required, type")
+      .eq("contract_id", signatureRequest.contract_id);
+
+    if (contractFieldsError) {
+      console.error(
+        "Failed to validate signature fields:",
+        contractFieldsError,
+      );
+      return NextResponse.json(
+        { error: "Failed to validate signature fields" },
+        { status: 500 },
+      );
+    }
+
+    const assignedFields = (contractFields || []).filter((field) =>
+      signatureRequest.signer_role
+        ? field.signer_role === signatureRequest.signer_role
+        : !field.signer_role,
+    );
+    const allowedFieldIds = new Set(assignedFields.map((field) => field.id));
+    const submittedValues = fieldValues || [];
+    const submittedFieldIds = submittedValues.map((field) => field.fieldId);
+
+    if (new Set(submittedFieldIds).size !== submittedFieldIds.length) {
+      return NextResponse.json(
+        { error: "A signature field was submitted more than once" },
+        { status: 400 },
+      );
+    }
+
+    if (submittedFieldIds.some((fieldId) => !allowedFieldIds.has(fieldId))) {
+      return NextResponse.json(
+        { error: "One or more fields are not assigned to this signer" },
+        { status: 403 },
+      );
+    }
+
+    const valuesByFieldId = new Map(
+      submittedValues.map((field) => [field.fieldId, field]),
+    );
+    const missingRequiredField = assignedFields.find((field) => {
+      if (!field.required) return false;
+      const submitted = valuesByFieldId.get(field.id);
+      if (!submitted) return true;
+      return !(
+        submitted.signatureData?.trim() ||
+        submitted.value?.trim() ||
+        submitted.attachmentData?.dataUrl
+      );
+    });
+
+    if (missingRequiredField) {
+      return NextResponse.json(
+        { error: "Complete all required fields before signing" },
+        { status: 400 },
+      );
+    }
 
     // Get IP and user agent from headers if not provided
-    const clientIp = ipAddress || request.headers.get("x-forwarded-for") || "unknown";
-    const clientUserAgent = userAgent || request.headers.get("user-agent") || "unknown";
+    const clientIp =
+      ipAddress || request.headers.get("x-forwarded-for") || "unknown";
+    const clientUserAgent =
+      userAgent || request.headers.get("user-agent") || "unknown";
 
     // Call the database function to submit the signature
     // This bypasses RLS using SECURITY DEFINER
-    const { data: result, error: rpcError } = await supabase.rpc("submit_signature", {
-      p_token: token,
-      p_signature_data: signatureData,
-      p_signature_type: signatureType,
-      p_ip_address: clientIp,
-      p_user_agent: clientUserAgent,
-      p_identity_confirmed: identityConfirmed,
-      p_identity_confirmation_text: identityConfirmationText,
-      p_document_hash: documentHash || null,
-    });
+    const { data: result, error: rpcError } = await supabase.rpc(
+      "submit_signature",
+      {
+        p_token: token,
+        p_signature_data: signatureData,
+        p_signature_type: signatureType,
+        p_ip_address: clientIp,
+        p_user_agent: clientUserAgent,
+        p_identity_confirmed: identityConfirmed,
+        p_identity_confirmation_text: identityConfirmationText,
+        p_document_hash: documentHash || null,
+      },
+    );
 
     if (rpcError) {
       console.error("Error calling submit_signature:", rpcError);
       return NextResponse.json(
         { error: "Failed to submit signature" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     // Check the result from the database function
     if (!result.success) {
-      const statusCode = result.error === "Signature request not found" ? 404
-        : result.error === "Signature request has expired" ? 410
-        : result.error === "Contract has already been signed" ? 400
-        : 500;
+      const statusCode =
+        result.error === "Signature request not found"
+          ? 404
+          : result.error === "Signature request has expired"
+            ? 410
+            : result.error === "Contract has already been signed"
+              ? 400
+              : result.error === "Email verification is required"
+                ? 403
+                : result.error === "Waiting for previous signers"
+                  ? 409
+                  : 500;
 
-      return NextResponse.json(
-        { error: result.error },
-        { status: statusCode }
-      );
+      return NextResponse.json({ error: result.error }, { status: statusCode });
     }
 
-    // Get geolocation and timestamp in parallel for the signature
+    // The signature is legally recorded by the atomic RPC above. Persist the
+    // signer-supplied fields and core audit trail before responding; these are
+    // first-party database writes and part of the signing evidence.
     const signatureId = result.signatureId;
+    const sigRequest = signatureRequest;
+    const auditContext = getRequestContextFromRequest(request);
 
-    // Fetch geolocation (non-blocking)
-    const geoLocationPromise = lookupGeoLocation(clientIp);
-
-    // Request RFC 3161 timestamp
-    const signatureHash = hashSignatureData(
-      signatureData,
-      documentHash || "",
-      "", // signer email will be fetched below
-      clientIp
-    );
-    const timestampPromise = requestTimestamp(signatureHash);
-
-    // Wait for both
-    const [geoLocation, timestampResult] = await Promise.all([
-      geoLocationPromise,
-      timestampPromise,
-    ]);
-
-    // Update signature with geolocation and timestamp
-    if (signatureId) {
-      await supabase
-        .from("signatures")
-        .update({
-          geo_location: geoLocation,
-          rfc3161_timestamp_token: timestampResult.token,
-          rfc3161_timestamp_authority: timestampResult.authority,
-          timestamp_verified: timestampResult.success,
-          legal_terms_version: "1.0",
-          legal_terms_accepted_at: new Date().toISOString(),
-        })
-        .eq("id", signatureId);
-    }
-
-    // Log signature completed event
-    // First fetch the signature request to get contract info
-    const { data: sigRequest } = await supabase
-      .from("signature_requests")
-      .select("id, contract_id, signer_email, signer_name, signer_role")
-      .eq("token", token)
-      .single();
-
-    // Save field values if provided
     if (fieldValues && fieldValues.length > 0 && sigRequest && signatureId) {
-      const fieldValueInserts = fieldValues.map((fv) => ({
-        field_id: fv.fieldId,
+      const fieldValueInserts = fieldValues.map((fieldValue) => ({
+        field_id: fieldValue.fieldId,
         signature_request_id: sigRequest.id,
-        value: fv.value || null,
-        signature_id: fv.signatureData ? signatureId : null,
+        value:
+          fieldValue.value ||
+          (fieldValue.attachmentData
+            ? JSON.stringify(fieldValue.attachmentData)
+            : null),
+        signature_id: fieldValue.signatureData ? signatureId : null,
         completed_at: new Date().toISOString(),
       }));
 
@@ -430,218 +612,274 @@ export async function POST(
 
       if (fieldValueError) {
         console.error("Error saving field values:", fieldValueError);
-        // Don't fail the signature - field values are secondary
       }
     }
 
     if (sigRequest) {
-      const context = getRequestContextFromRequest(request);
-      await auditLogger.signatureCompleted(
-        sigRequest.contract_id,
-        sigRequest.id,
-        sigRequest.signer_email,
-        sigRequest.signer_name,
-        context
-      );
+      await logAuditEventWithClient(supabase, {
+        contractId: sigRequest.contract_id,
+        signatureRequestId: sigRequest.id,
+        eventType: "signature_completed",
+        actorEmail: sigRequest.signer_email,
+        actorName: sigRequest.signer_name,
+        context: auditContext,
+        includeGeoLocation: false,
+      });
 
-      // If all parties have signed, log contract completed and send certificate
       if (result.allSigned) {
-        await auditLogger.contractCompleted(
-          sigRequest.contract_id,
-          null, // No user ID for signer
-          context
-        );
-
-        // Generate and send certificate to all parties
-        try {
-          await generateAndSendCertificate(sigRequest.contract_id);
-        } catch (certError) {
-          console.error("Error sending certificate emails:", certError);
-          // Don't fail the signature - certificate email is non-critical
-        }
+        await logAuditEventWithClient(supabase, {
+          contractId: sigRequest.contract_id,
+          eventType: "contract_completed",
+          actorEmail: sigRequest.signer_email,
+          actorName: sigRequest.signer_name,
+          context: auditContext,
+          includeGeoLocation: false,
+        });
       }
     }
 
-    // Auto-generate invoice for paying party
-    let invoiceId = null;
-    let invoiceNumber = null;
+    // Slow enrichment and follow-up work runs after the response so TSA,
+    // geolocation, certificate generation, email delivery, and invoice creation
+    // cannot make a successful signature appear to fail at the Netlify timeout.
+    after(async () => {
+      try {
+        const geoLocationPromise = lookupGeoLocation(clientIp);
+        const signatureHash = hashSignatureData(
+          signatureData,
+          documentHash || "",
+          "",
+          clientIp,
+        );
+        const timestampPromise = requestTimestamp(signatureHash);
+        const [geoLocation, timestampResult] = await Promise.all([
+          geoLocationPromise,
+          timestampPromise,
+        ]);
 
-    if (sigRequest) {
-      // Check if payment is required and this is a paying party
-      const { data: contractData } = await supabase
-        .from("contracts")
-        .select("*, users!contracts_user_id_fkey(id, email, name)")
-        .eq("id", sigRequest.contract_id)
-        .single();
+        if (signatureId) {
+          await supabase
+            .from("signatures")
+            .update({
+              geo_location: geoLocation,
+              rfc3161_timestamp_token: timestampResult.token,
+              rfc3161_timestamp_authority: timestampResult.authority,
+              timestamp_verified: timestampResult.success,
+              legal_terms_version: "1.0",
+              legal_terms_accepted_at: new Date().toISOString(),
+            })
+            .eq("id", signatureId);
+        }
 
-      if (contractData?.payment_required && contractData.payment_amount > 0) {
-        const signerRole = sigRequest.signer_role?.toLowerCase() || "";
-        // These roles are typically the paying party
-        const payingRoles = ["client", "company", "hiring party", "disclosing party", "investor"];
-        const nonPayingRoles = ["freelancer", "contractor", "consultant", "receiving party"];
-
-        const isPayingRole = payingRoles.some(role => signerRole.includes(role));
-        const isNonPayingRole = nonPayingRoles.some(role => signerRole.includes(role));
-
-        // Only generate invoice for paying roles
-        if (isPayingRole && !isNonPayingRole) {
+        if (sigRequest && result.allSigned) {
           try {
-            // Calculate amount based on payment structure
-            let amount = Math.round((contractData.payment_amount || 0) * 100);
-            let paymentLabel = "Full";
-
-            if (contractData.payment_structure === "deposit_balance") {
-              // Check if deposit already paid
-              const { data: existingPayments } = await supabase
-                .from("payments")
-                .select("payment_type, status")
-                .eq("contract_id", sigRequest.contract_id)
-                .eq("status", "succeeded");
-
-              const hasDeposit = existingPayments?.some(p => p.payment_type === "deposit");
-
-              if (!hasDeposit) {
-                // First payment is deposit
-                const depositPercentage = contractData.deposit_percentage || 50;
-                amount = Math.round(amount * (depositPercentage / 100));
-                paymentLabel = "Deposit";
-              } else {
-                // Balance payment
-                const depositPercentage = contractData.deposit_percentage || 50;
-                amount = Math.round(amount * ((100 - depositPercentage) / 100));
-                paymentLabel = "Balance";
-              }
-            } else if (contractData.payment_structure === "custom") {
-              const schedule = normalizePaymentSchedule(contractData.payment_schedule);
-              const { data: existingPayments } = await supabase
-                .from("payments")
-                .select("payment_type, status, metadata")
-                .eq("contract_id", sigRequest.contract_id)
-                .eq("status", "succeeded");
-              const paidMilestoneIds = new Set(
-                (existingPayments || []).map((payment) => {
-                  const metadata = payment.metadata as Record<string, unknown> | null;
-                  return typeof metadata?.payment_milestone_id === "string"
-                    ? metadata.payment_milestone_id
-                    : null;
-                })
-              );
-              const nextMilestoneIndex = schedule.findIndex(
-                (milestone) => !paidMilestoneIds.has(milestone.id)
-              );
-              if (nextMilestoneIndex < 0) {
-                throw new Error("No unpaid payment milestones remain");
-              }
-              const milestone = schedule[nextMilestoneIndex];
-              amount = getMilestoneAmount(amount, schedule, nextMilestoneIndex);
-              paymentLabel = milestone.label;
-            }
-
-            const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-            // Create line items
-            const lineItems = [
-              {
-                description: `${paymentLabel} Payment - ${contractData.title}`,
-                quantity: 1,
-                unit_price: amount,
-                amount: amount,
-              },
-            ];
-
-            // Create invoice
-            const owner = contractData.users as { id: string; email: string; name: string } | null;
-
-            const { data: invoice, error: invoiceError } = await insertInvoiceWithRetry<{
-              id: string;
-              invoice_number: string;
-            }>(supabase, {
-                contract_id: sigRequest.contract_id,
-                user_id: contractData.user_id,
-                amount,
-                currency: contractData.payment_currency || "usd",
-                status: "sent",
-                line_items: lineItems,
-                subtotal: amount,
-                tax_amount: 0,
-                total: amount,
-                due_date: dueDate,
-                sent_at: new Date().toISOString(),
-                recipient_name: sigRequest.signer_name,
-                recipient_email: sigRequest.signer_email,
-                sender_name: owner?.name || null,
-                sender_email: owner?.email || null,
-              });
-
-            if (!invoiceError && invoice) {
-              invoiceId = invoice.id;
-              invoiceNumber = invoice.invoice_number;
-
-              // Send invoice email
-              const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
-              const paymentUrl = `${baseUrl}/pay/${sigRequest.contract_id}?invoice=${invoice.id}`;
-
-              try {
-                await sendInvoiceEmail({
-                  to: sigRequest.signer_email,
-                  recipientName: sigRequest.signer_name,
-                  contractTitle: contractData.title,
-                  invoiceNumber: invoice.invoice_number,
-                  amount,
-                  currency: contractData.payment_currency || "usd",
-                  dueDate,
-                  paymentUrl,
-                  lineItems: lineItems.map(item => ({
-                    description: item.description,
-                    quantity: item.quantity,
-                    amount: item.amount,
-                  })),
-                  senderName: owner?.name,
-                  senderEmail: owner?.email,
-                });
-                console.log(`Invoice email sent to ${sigRequest.signer_email}`);
-              } catch (emailError) {
-                console.error("Failed to send invoice email:", emailError);
-                // Don't fail the signature - invoice email is non-critical
-              }
-
-              // Log audit event
-              await supabase.from("audit_logs").insert({
-                contract_id: sigRequest.contract_id,
-                user_id: contractData.user_id,
-                event_type: "invoice_created",
-                actor_email: sigRequest.signer_email,
-                metadata: {
-                  invoice_id: invoice.id,
-                  invoice_number: invoice.invoice_number,
-                  amount,
-                  currency: contractData.payment_currency || "usd",
-                  auto_generated: true,
-                  trigger: "signature_completed",
-                },
-              });
-            }
-          } catch (invoiceGenError) {
-            console.error("Error auto-generating invoice:", invoiceGenError);
-            // Don't fail the signature - invoice generation is non-critical
+            await generateAndSendCertificate(sigRequest.contract_id);
+          } catch (certError) {
+            console.error("Error sending certificate emails:", certError);
           }
         }
+
+        // Auto-generate invoice for paying party
+        if (sigRequest) {
+          // Check if payment is required and this is a paying party
+          const { data: contractData } = await supabase
+            .from("contracts")
+            .select("*, users!contracts_user_id_fkey(id, email, name)")
+            .eq("id", sigRequest.contract_id)
+            .single();
+
+          if (
+            contractData?.payment_required &&
+            contractData.payment_amount > 0
+          ) {
+            // Only generate invoice for paying roles
+            if (isPayingSignerRole(sigRequest.signer_role)) {
+              try {
+                // Calculate amount based on payment structure
+                let amount = Math.round(
+                  (contractData.payment_amount || 0) * 100,
+                );
+                let paymentLabel = "Full";
+
+                if (contractData.payment_structure === "deposit_balance") {
+                  // Check if deposit already paid
+                  const { data: existingPayments } = await supabase
+                    .from("payments")
+                    .select("payment_type, status")
+                    .eq("contract_id", sigRequest.contract_id)
+                    .eq("status", "succeeded");
+
+                  const hasDeposit = existingPayments?.some(
+                    (p) => p.payment_type === "deposit",
+                  );
+
+                  if (!hasDeposit) {
+                    // First payment is deposit
+                    const depositPercentage =
+                      contractData.deposit_percentage || 50;
+                    amount = Math.round(amount * (depositPercentage / 100));
+                    paymentLabel = "Deposit";
+                  } else {
+                    // Balance payment
+                    const depositPercentage =
+                      contractData.deposit_percentage || 50;
+                    amount = Math.round(
+                      amount * ((100 - depositPercentage) / 100),
+                    );
+                    paymentLabel = "Balance";
+                  }
+                } else if (contractData.payment_structure === "custom") {
+                  const schedule = normalizePaymentSchedule(
+                    contractData.payment_schedule,
+                  );
+                  const { data: existingPayments } = await supabase
+                    .from("payments")
+                    .select("payment_type, status, metadata")
+                    .eq("contract_id", sigRequest.contract_id)
+                    .eq("status", "succeeded");
+                  const paidMilestoneIds = new Set(
+                    (existingPayments || []).map((payment) => {
+                      const metadata = payment.metadata as Record<
+                        string,
+                        unknown
+                      > | null;
+                      return typeof metadata?.payment_milestone_id === "string"
+                        ? metadata.payment_milestone_id
+                        : null;
+                    }),
+                  );
+                  const nextMilestoneIndex = schedule.findIndex(
+                    (milestone) => !paidMilestoneIds.has(milestone.id),
+                  );
+                  if (nextMilestoneIndex < 0) {
+                    throw new Error("No unpaid payment milestones remain");
+                  }
+                  const milestone = schedule[nextMilestoneIndex];
+                  amount = getMilestoneAmount(
+                    amount,
+                    schedule,
+                    nextMilestoneIndex,
+                  );
+                  paymentLabel = milestone.label;
+                }
+
+                const dueDate = new Date(
+                  Date.now() + 30 * 24 * 60 * 60 * 1000,
+                ).toISOString();
+
+                // Create line items
+                const lineItems = [
+                  {
+                    description: `${paymentLabel} Payment - ${contractData.title}`,
+                    quantity: 1,
+                    unit_price: amount,
+                    amount: amount,
+                  },
+                ];
+
+                // Create invoice
+                const owner = contractData.users as {
+                  id: string;
+                  email: string;
+                  name: string;
+                } | null;
+
+                const { data: invoice, error: invoiceError } =
+                  await insertInvoiceWithRetry<{
+                    id: string;
+                    invoice_number: string;
+                  }>(supabase, {
+                    contract_id: sigRequest.contract_id,
+                    user_id: contractData.user_id,
+                    amount,
+                    currency: contractData.payment_currency || "usd",
+                    status: "sent",
+                    line_items: lineItems,
+                    subtotal: amount,
+                    tax_amount: 0,
+                    total: amount,
+                    due_date: dueDate,
+                    sent_at: new Date().toISOString(),
+                    recipient_name: sigRequest.signer_name,
+                    recipient_email: sigRequest.signer_email,
+                    sender_name: owner?.name || null,
+                    sender_email: owner?.email || null,
+                  });
+
+                if (!invoiceError && invoice) {
+                  // Send invoice email
+                  const baseUrl =
+                    process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
+                  const paymentUrl = `${baseUrl}/pay/${sigRequest.contract_id}?invoice=${invoice.id}`;
+
+                  try {
+                    await sendInvoiceEmail({
+                      to: sigRequest.signer_email,
+                      recipientName: sigRequest.signer_name,
+                      contractTitle: contractData.title,
+                      invoiceNumber: invoice.invoice_number,
+                      amount,
+                      currency: contractData.payment_currency || "usd",
+                      dueDate,
+                      paymentUrl,
+                      lineItems: lineItems.map((item) => ({
+                        description: item.description,
+                        quantity: item.quantity,
+                        amount: item.amount,
+                      })),
+                      senderName: owner?.name,
+                      senderEmail: owner?.email,
+                    });
+                    console.log(
+                      `Invoice email sent to ${sigRequest.signer_email}`,
+                    );
+                  } catch (emailError) {
+                    console.error("Failed to send invoice email:", emailError);
+                    // Don't fail the signature - invoice email is non-critical
+                  }
+
+                  // Log audit event
+                  await supabase.from("audit_logs").insert({
+                    contract_id: sigRequest.contract_id,
+                    user_id: contractData.user_id,
+                    event_type: "invoice_created",
+                    actor_email: sigRequest.signer_email,
+                    metadata: {
+                      invoice_id: invoice.id,
+                      invoice_number: invoice.invoice_number,
+                      amount,
+                      currency: contractData.payment_currency || "usd",
+                      auto_generated: true,
+                      trigger: "signature_completed",
+                    },
+                  });
+                }
+              } catch (invoiceGenError) {
+                console.error(
+                  "Error auto-generating invoice:",
+                  invoiceGenError,
+                );
+                // Don't fail the signature - invoice generation is non-critical
+              }
+            }
+          }
+        }
+      } catch (postSignatureError) {
+        console.error("Post-signature processing failed:", postSignatureError);
       }
-    }
+    });
 
     return NextResponse.json({
       success: true,
       message: result.message,
       allSigned: result.allSigned,
       signatureId: result.signatureId,
-      invoiceId,
-      invoiceNumber,
+      followUpProcessing: true,
     });
   } catch (error) {
     console.error("Error submitting signature:", error);
     return NextResponse.json(
       { error: "Failed to submit signature" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -655,7 +893,8 @@ async function generateAndSendCertificate(contractId: string) {
   // Fetch contract with all related data
   const { data: contract, error: contractError } = await supabase
     .from("contracts")
-    .select(`
+    .select(
+      `
       *,
       signature_requests (
         id,
@@ -681,7 +920,8 @@ async function generateAndSendCertificate(contractId: string) {
         created_at,
         metadata
       )
-    `)
+    `,
+    )
     .eq("id", contractId)
     .single();
 
@@ -740,7 +980,8 @@ async function generateAndSendCertificate(contractId: string) {
     const summary = {
       contract_title: contract.title,
       contract_id: contract.id,
-      completed_at: contract.completed_at || contract.signed_at || new Date().toISOString(),
+      completed_at:
+        contract.completed_at || contract.signed_at || new Date().toISOString(),
       document_hash: contract.content_hash || null,
       document_hash_algorithm: contract.content_hash_algorithm || "SHA-256",
       signers: signatureRequests.map((sr) => {
@@ -755,10 +996,15 @@ async function generateAndSendCertificate(contractId: string) {
         };
       }),
       audit_events: auditLogs
-        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+        .sort(
+          (a, b) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+        )
         .slice(0, 20)
         .map((log) => ({
-          event: log.event_type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          event: log.event_type
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase()),
           timestamp: log.created_at,
           ip: log.ip_address || "N/A",
         })),
@@ -782,7 +1028,12 @@ async function generateAndSendCertificate(contractId: string) {
   }
 
   // Generate PDF
-  const pdfBytes = await generateCertificatePdf(contract, certificate, signatureRequests, signatures);
+  const pdfBytes = await generateCertificatePdf(
+    contract,
+    certificate,
+    signatureRequests,
+    signatures,
+  );
   const pdfBuffer = Buffer.from(pdfBytes);
 
   // Build signers list for email
@@ -794,45 +1045,90 @@ async function generateAndSendCertificate(contractId: string) {
 
   const contractUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com"}/contracts/${contractId}/edit`;
 
-  // Send to contract owner
+  const deliveries: Array<{ email: string; send: Promise<unknown> }> = [];
   if (owner?.email) {
-    await sendCompletedContractWithCertificate({
-      to: owner.email,
-      recipientName: owner.name || "Contract Owner",
-      contractTitle: contract.title,
-      contractUrl,
-      certificatePdf: pdfBuffer,
-      certificateNumber: certificate.certificate_number,
-      isOwner: true,
-      signers,
+    deliveries.push({
+      email: owner.email,
+      send: sendCompletedContractWithCertificate({
+        to: owner.email,
+        recipientName: owner.name || "Contract Owner",
+        contractTitle: contract.title,
+        contractUrl,
+        certificatePdf: pdfBuffer,
+        certificateNumber: certificate.certificate_number,
+        isOwner: true,
+        signers,
+      }),
     });
-    console.log(`Certificate sent to owner: ${owner.email}`);
   }
 
-  // Send to each signer
   for (const signer of signers) {
-    await sendCompletedContractWithCertificate({
-      to: signer.email,
-      recipientName: signer.name,
-      contractTitle: contract.title,
-      contractUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com"}/portal`,
-      certificatePdf: pdfBuffer,
-      certificateNumber: certificate.certificate_number,
-      isOwner: false,
-      signers,
+    deliveries.push({
+      email: signer.email,
+      send: sendCompletedContractWithCertificate({
+        to: signer.email,
+        recipientName: signer.name,
+        contractTitle: contract.title,
+        contractUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com"}/portal`,
+        certificatePdf: pdfBuffer,
+        certificateNumber: certificate.certificate_number,
+        isOwner: false,
+        signers,
+      }),
     });
-    console.log(`Certificate sent to signer: ${signer.email}`);
   }
+
+  const deliveryResults = await Promise.allSettled(
+    deliveries.map((delivery) => delivery.send),
+  );
+  deliveryResults.forEach((deliveryResult, index) => {
+    const email = deliveries[index]?.email || "unknown recipient";
+    if (deliveryResult.status === "fulfilled") {
+      console.log(`Certificate sent to: ${email}`);
+    } else {
+      console.error(
+        `Certificate delivery failed for ${email}:`,
+        deliveryResult.reason,
+      );
+    }
+  });
 }
 
 /**
  * Generate certificate PDF using pdf-lib
  */
 async function generateCertificatePdf(
-  contract: { title: string; content_hash?: string; content_hash_algorithm?: string },
-  certificate: { certificate_number: string; summary: { completed_at?: string; signers: Array<{ name: string; email: string; role: string; signed_at: string; ip_address: string; signature_hash: string }>; audit_events: Array<{ event: string; timestamp: string; ip: string }> } },
-  signatureRequests: Array<{ signer_name: string; signer_email: string; signer_role: string; signed_at: string | null }>,
-  signatures: Array<{ signature_request_id: string; ip_address: string; image_hash: string }>
+  contract: {
+    title: string;
+    content_hash?: string;
+    content_hash_algorithm?: string;
+  },
+  certificate: {
+    certificate_number: string;
+    summary: {
+      completed_at?: string;
+      signers: Array<{
+        name: string;
+        email: string;
+        role: string;
+        signed_at: string;
+        ip_address: string;
+        signature_hash: string;
+      }>;
+      audit_events: Array<{ event: string; timestamp: string; ip: string }>;
+    };
+  },
+  signatureRequests: Array<{
+    signer_name: string;
+    signer_email: string;
+    signer_role: string;
+    signed_at: string | null;
+  }>,
+  signatures: Array<{
+    signature_request_id: string;
+    ip_address: string;
+    image_hash: string;
+  }>,
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([612, 792]); // Letter size
@@ -900,21 +1196,26 @@ async function generateCertificatePdf(
   y -= 30;
 
   // Completion Date
-  const completedDate = new Date(certificate.summary.completed_at || new Date());
-  page.drawText(`Completed: ${completedDate.toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`, {
-    x: margin,
-    y,
-    size: 11,
-    font: helvetica,
-    color: rgb(0.3, 0.3, 0.3),
-  });
+  const completedDate = new Date(
+    certificate.summary.completed_at || new Date(),
+  );
+  page.drawText(
+    `Completed: ${completedDate.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`,
+    {
+      x: margin,
+      y,
+      size: 11,
+      font: helvetica,
+      color: rgb(0.3, 0.3, 0.3),
+    },
+  );
   y -= 25;
 
   // Document Hash
@@ -984,13 +1285,16 @@ async function generateCertificatePdf(
     y -= 12;
 
     const signedDate = new Date(signer.signed_at);
-    page.drawText(`Signed: ${signedDate.toLocaleString()}  •  IP: ${signer.ip_address}`, {
-      x: margin + 10,
-      y,
-      size: 9,
-      font: helvetica,
-      color: rgb(0.4, 0.4, 0.4),
-    });
+    page.drawText(
+      `Signed: ${signedDate.toLocaleString()}  •  IP: ${signer.ip_address}`,
+      {
+        x: margin + 10,
+        y,
+        size: 9,
+        font: helvetica,
+        color: rgb(0.4, 0.4, 0.4),
+      },
+    );
     y -= 12;
 
     page.drawText(`Signature Hash: ${signer.signature_hash}...`, {
@@ -1053,13 +1357,16 @@ async function generateCertificatePdf(
     color: rgb(0.8, 0.8, 0.8),
   });
 
-  page.drawText("This certificate confirms that all parties have signed the document.", {
-    x: margin,
-    y: 45,
-    size: 8,
-    font: helvetica,
-    color: rgb(0.5, 0.5, 0.5),
-  });
+  page.drawText(
+    "This certificate confirms that all parties have signed the document.",
+    {
+      x: margin,
+      y: 45,
+      size: 8,
+      font: helvetica,
+      color: rgb(0.5, 0.5, 0.5),
+    },
+  );
 
   page.drawText(`Generated by Lexport  •  ${new Date().toISOString()}`, {
     x: margin,

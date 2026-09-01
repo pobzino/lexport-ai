@@ -30,17 +30,10 @@ const CONTRACT_ICONS: Record<string, typeof Shield> = {
   edit: Edit,
 };
 
-interface Contract {
+interface CompletedContract {
   id: string;
   title: string;
-  type: string;
-  jurisdiction: string;
-  status: string;
   updated_at: string;
-  expires_at?: string | null;
-  payment_status?: string;
-  payment_amount?: number;
-  payment_currency?: string;
 }
 
 interface SignatureRequest {
@@ -48,13 +41,12 @@ interface SignatureRequest {
   signer_name: string;
   signer_email: string;
   status: string;
+  token: string;
 }
 
 interface PendingContract {
   id: string;
   title: string;
-  type: string;
-  status: string;
   updated_at: string;
   expires_at: string | null;
   signature_requests: SignatureRequest[] | null;
@@ -124,48 +116,68 @@ export default async function DashboardPage() {
     user?.email?.split("@")[0] ||
     "there";
 
-  // Fetch all contracts for accurate stats
-  const { data: allContracts = [] } = await supabase
-    .from("contracts")
-    .select("id, title, type, jurisdiction, status, updated_at, expires_at, payment_status, payment_amount, payment_currency")
-    .eq("user_id", user.id)
-    .order("updated_at", { ascending: false });
-
-  // Fetch pending signature contracts with signer state for action feed.
-  const { data: pendingContractsData = [] } = await supabase
-    .from("contracts")
-    .select(`
-      id,
-      title,
-      type,
-      updated_at,
-      expires_at,
-      status,
-      signature_requests (
-        id,
-        signer_name,
-        signer_email,
-        status
-      )
-    `)
-    .eq("user_id", user.id)
-    .eq("status", "pending_signature")
-    .order("updated_at", { ascending: false });
-
-  // Calculate stats
+  // Stats window: start of the current month (local time).
   const thisMonthStart = new Date();
   thisMonthStart.setDate(1);
   thisMonthStart.setHours(0, 0, 0, 0);
 
-  const contracts = (allContracts || []) as Contract[];
+  // Run the independent dashboard queries in parallel. Stats use head-only
+  // count queries instead of downloading every contract row, and the
+  // attention-feed lists are fetched already scoped (and bounded).
+  const [
+    { data: pendingContractsData = [] },
+    { count: totalContractsCount },
+    { count: completedThisMonthCount },
+    { data: completedContractsData = [] },
+  ] = await Promise.all([
+    // Pending-signature contracts with signer state for the action feed.
+    supabase
+      .from("contracts")
+      .select(`
+        id,
+        title,
+        updated_at,
+        expires_at,
+        signature_requests (
+          id,
+          signer_name,
+          signer_email,
+          status,
+          token
+        )
+      `)
+      .eq("user_id", user.id)
+      .eq("status", "pending_signature")
+      .order("updated_at", { ascending: false }),
+    // Total contracts (count only).
+    supabase
+      .from("contracts")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id),
+    // Contracts signed this month (count only).
+    supabase
+      .from("contracts")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "signed")
+      .gte("updated_at", thisMonthStart.toISOString()),
+    // Most-recent completed contracts for the action feed (bounded).
+    supabase
+      .from("contracts")
+      .select("id, title, updated_at")
+      .eq("user_id", user.id)
+      .in("status", ["signed", "completed"])
+      .order("updated_at", { ascending: false })
+      .limit(2),
+  ]);
+
   const pendingContracts = (pendingContractsData || []) as PendingContract[];
+  const completedContracts = (completedContractsData || []) as CompletedContract[];
 
   const stats = {
-    totalContracts: contracts.length,
-    pendingSignatures: contracts.filter(c => c.status === "pending_signature").length,
-    completedThisMonth: contracts.filter(
-      c => c.status === "signed" && new Date(c.updated_at) >= thisMonthStart
-    ).length,
+    totalContracts: totalContractsCount ?? 0,
+    pendingSignatures: pendingContracts.length,
+    completedThisMonth: completedThisMonthCount ?? 0,
   };
 
   const now = new Date();
@@ -196,10 +208,6 @@ export default async function DashboardPage() {
     (contract.signature_requests || []).some(
       (request) => request.status === "viewed" || request.status === "pending"
     )
-  );
-
-  const completedContracts = contracts.filter(
-    (contract) => contract.status === "signed" || contract.status === "completed"
   );
 
   const attentionItems: AttentionItem[] = [
@@ -235,23 +243,34 @@ export default async function DashboardPage() {
         ],
       };
     }),
-    ...yourTurnContracts.slice(0, 2).map((contract) => ({
-      id: contract.id,
-      title: contract.title,
-      subtitle: "Awaiting your signature",
-      icon: "pen" as const,
-      iconColor: "text-blue-500",
-      iconBg: "bg-blue-50",
-      badge: "Your turn",
-      badgeColor: "bg-blue-100 text-blue-700",
-      actions: [
-        {
-          label: "Sign now",
-          href: `/contracts/${contract.id}/edit`,
-          primary: true,
-        },
-      ],
-    })),
+    ...yourTurnContracts.slice(0, 2).map((contract) => {
+      // Route to the current user's own signing page; fall back to the
+      // send-for-signature flow if their signing token can't be resolved.
+      const myRequest = (contract.signature_requests || []).find(
+        (request) =>
+          request.status === "pending" &&
+          request.signer_email?.toLowerCase() === userEmail
+      );
+      return {
+        id: contract.id,
+        title: contract.title,
+        subtitle: "Awaiting your signature",
+        icon: "pen" as const,
+        iconColor: "text-blue-500",
+        iconBg: "bg-blue-50",
+        badge: "Your turn",
+        badgeColor: "bg-blue-100 text-blue-700",
+        actions: [
+          {
+            label: "Sign now",
+            href: myRequest?.token
+              ? `/sign/${myRequest.token}`
+              : `/contracts/${contract.id}/sign`,
+            primary: true,
+          },
+        ],
+      };
+    }),
     ...waitingContracts.slice(0, 2).map((contract) => ({
       id: contract.id,
       title: contract.title,

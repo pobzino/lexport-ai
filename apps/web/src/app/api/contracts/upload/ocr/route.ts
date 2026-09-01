@@ -1,7 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { performOCR, toDataUrl } from "@/lib/upload/ocr";
+import { performOCR, performPdfOCR } from "@/lib/upload/ocr";
 import { normalizeExtractedText } from "@/lib/upload/extract-pdf";
+import { isOwnedUploadPath, type UploadFileType } from "@/lib/upload/file-validation";
+
+export const maxDuration = 26;
+
+const OCR_FILE_TYPES = new Set<UploadFileType>(["pdf", "jpg", "png"]);
 
 export async function POST(request: Request) {
   try {
@@ -14,61 +19,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { filePath, fileType, signedUrl } = await request.json();
+    const { filePath, fileType } = await request.json();
 
-    if (!filePath || !fileType) {
+    if (
+      typeof filePath !== "string" ||
+      !isOwnedUploadPath(filePath, user.id) ||
+      !OCR_FILE_TYPES.has(fileType)
+    ) {
       return NextResponse.json(
-        { error: "Missing file path or type" },
+        { error: "Invalid file path or type for OCR" },
         { status: 400 }
       );
     }
 
-    // Download file from storage
-    const { data: fileData, error: downloadError } = await supabase.storage
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from("contract-uploads")
-      .download(filePath);
+      .createSignedUrl(filePath, 600);
 
-    if (downloadError || !fileData) {
-      console.error("Download error:", downloadError);
+    if (signedUrlError || !signedUrlData?.signedUrl) {
+      console.error("OCR signed URL error:", signedUrlError);
       return NextResponse.json(
-        { error: "Failed to download file" },
+        { error: "Failed to access the uploaded file" },
         { status: 500 }
       );
     }
 
-    const buffer = Buffer.from(await fileData.arrayBuffer());
-    let imageUrl: string;
-
-    if (fileType === "pdf") {
-      // For PDFs, we need to convert to images first
-      // For now, we'll use the signed URL directly if GPT-4o supports it
-      // Otherwise, we'd need a PDF-to-image conversion step
-
-      // Get a fresh signed URL for the file
-      const { data: signedUrlData } = await supabase.storage
-        .from("contract-uploads")
-        .createSignedUrl(filePath, 3600);
-
-      if (!signedUrlData?.signedUrl) {
-        return NextResponse.json(
-          { error: "Failed to generate signed URL" },
-          { status: 500 }
-        );
-      }
-
-      imageUrl = signedUrlData.signedUrl;
-    } else {
-      // For images, convert to base64 data URL
-      const base64 = buffer.toString("base64");
-      const mimeType = fileType === "png" ? "image/png" : "image/jpeg";
-      imageUrl = toDataUrl(base64, mimeType);
-    }
-
-    // Perform OCR
-    const result = await performOCR(imageUrl, {
-      preserveFormatting: true,
-      extractTables: true,
-    });
+    const result = fileType === "pdf"
+      ? await performPdfOCR(signedUrlData.signedUrl, {
+          preserveFormatting: true,
+          extractTables: true,
+        })
+      : await performOCR(signedUrlData.signedUrl, {
+          preserveFormatting: true,
+          extractTables: true,
+        });
 
     // Normalize the extracted text
     const normalizedText = normalizeExtractedText(result.text);
@@ -82,9 +66,15 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("OCR error:", error);
+    const isTimeout = error instanceof Error && /timeout|timed out/i.test(error.message);
     return NextResponse.json(
-      { error: "Failed to perform OCR on document" },
-      { status: 500 }
+      {
+        error: isTimeout
+          ? "We could not read this scan in time. Retry, or keep the original document for signing."
+          : "We could not recover complete text from this scan. Retry, or keep the original document for signing.",
+        retryable: true,
+      },
+      { status: isTimeout ? 504 : 422 }
     );
   }
 }

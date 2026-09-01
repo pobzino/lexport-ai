@@ -441,6 +441,16 @@ function parseGeneratedContractContent(
     signatureBlock: string;
   };
 
+  // Validate the shape before mapping so malformed/empty model output fails with
+  // a clear, user-facing message instead of throwing a raw TypeError inside
+  // mapGeneratedClauses (or silently persisting a degraded contract). See GEN-4.
+  if (typeof input.title !== "string" || !input.title.trim()) {
+    throw new Error(`${errorMessage}: missing contract title`);
+  }
+  if (!Array.isArray(input.clauses) || input.clauses.length === 0) {
+    throw new Error(`${errorMessage}: no contract clauses were generated`);
+  }
+
   return {
     title: input.title,
     preamble: input.preamble,

@@ -11,9 +11,9 @@ import {
 describe("Rate Limits", () => {
   describe("TIER_LIMITS configuration", () => {
     it("should have correct limits for free tier", () => {
-      expect(TIER_LIMITS.free.contractsPerMonth).toBe(3);
-      expect(TIER_LIMITS.free.signaturesPerMonth).toBe(5);
-      expect(TIER_LIMITS.free.chatMessagesPerContract).toBe(5);
+      expect(TIER_LIMITS.free.contractsPerMonth).toBe(1);
+      expect(TIER_LIMITS.free.signaturesPerMonth).toBe(2);
+      expect(TIER_LIMITS.free.chatMessagesPerContract).toBe(3);
     });
 
     it("should have correct limits for pro tier", () => {
@@ -30,12 +30,11 @@ describe("Rate Limits", () => {
 
   describe("isLimitExceeded", () => {
     it("should return false when under limit", () => {
-      expect(isLimitExceeded(1, "free", "contractsPerMonth")).toBe(false);
       expect(isLimitExceeded(0, "free", "contractsPerMonth")).toBe(false);
     });
 
     it("should return true when at limit", () => {
-      expect(isLimitExceeded(2, "free", "contractsPerMonth")).toBe(true);
+      expect(isLimitExceeded(1, "free", "contractsPerMonth")).toBe(true);
     });
 
     it("should return true when over limit", () => {
@@ -50,9 +49,8 @@ describe("Rate Limits", () => {
 
   describe("getRemainingQuota", () => {
     it("should return correct remaining quota", () => {
-      expect(getRemainingQuota(0, "free", "contractsPerMonth")).toBe(3);
-      expect(getRemainingQuota(1, "free", "contractsPerMonth")).toBe(1);
-      expect(getRemainingQuota(2, "free", "contractsPerMonth")).toBe(0);
+      expect(getRemainingQuota(0, "free", "contractsPerMonth")).toBe(1);
+      expect(getRemainingQuota(1, "free", "contractsPerMonth")).toBe(0);
     });
 
     it("should never return negative values", () => {
@@ -67,11 +65,11 @@ describe("Rate Limits", () => {
     });
 
     it("should return 50% for half usage", () => {
-      expect(getUsagePercentage(1, "free", "contractsPerMonth")).toBe(50);
+      expect(getUsagePercentage(25, "pro", "contractsPerMonth")).toBe(50);
     });
 
     it("should return 100% at limit", () => {
-      expect(getUsagePercentage(2, "free", "contractsPerMonth")).toBe(100);
+      expect(getUsagePercentage(1, "free", "contractsPerMonth")).toBe(100);
     });
 
     it("should cap at 100% when over limit", () => {

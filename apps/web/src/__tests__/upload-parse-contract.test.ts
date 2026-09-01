@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { parseContractTextFallback } from "@/lib/upload/parse-contract";
-import { normalizeExtractedText } from "@/lib/upload/extract-pdf";
+import {
+  detectScannedPdf,
+  normalizeExtractedText,
+} from "@/lib/upload/extract-pdf";
 
 describe("uploaded contract fallback parser", () => {
   it("splits headed contracts and preserves their legal text", () => {
@@ -71,5 +74,11 @@ Signed for Acme Ltd: ____________________`;
     expect(normalizeExtractedText(source)).toBe(
       "SERVICE AGREEMENT\n\n1. Services\nThe Supplier will perform work.\n\n2. Fees\nGBP 1,000"
     );
+  });
+
+  it("detects image-only PDFs without misclassifying readable contracts", () => {
+    expect(detectScannedPdf("", 3)).toBe(true);
+    expect(detectScannedPdf("Page 1", 4)).toBe(true);
+    expect(detectScannedPdf("A".repeat(600), 3)).toBe(false);
   });
 });

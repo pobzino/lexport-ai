@@ -1,24 +1,110 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import Stripe from "stripe";
-import { calculatePlatformFee, getPlatformFeePercent, type SubscriptionTier } from "@/lib/stripe";
+import type { Invoice } from "@/db/types";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  calculatePlatformFee,
+  getPaymentMethodConfiguration,
+  getPlatformFeePercent,
+  getStripe,
+  type SubscriptionTier,
+} from "@/lib/stripe";
 import { readInvoiceSenderSnapshot } from "@/lib/invoices/bank-details";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2025-12-15.clover",
-});
+type InvoiceRecord = Invoice & { stripe_payment_intent_id: string | null };
 
-// POST - Create payment intent for invoice
+async function linkInvoicePayment(
+  supabase: ReturnType<typeof createAdminClient>,
+  invoice: InvoiceRecord,
+  paymentIntent: Stripe.PaymentIntent
+) {
+  if (!invoice.payment_id || !invoice.contract_id) return;
+
+  const paymentStatus = paymentIntent.status === "succeeded"
+    ? "succeeded"
+    : paymentIntent.status === "processing"
+      ? "processing"
+      : "pending";
+  const { error } = await supabase
+    .from("payments")
+    .update({
+      stripe_payment_intent_id: paymentIntent.id,
+      status: paymentStatus,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", invoice.payment_id)
+    .eq("contract_id", invoice.contract_id);
+
+  if (error) {
+    console.error(
+      `Failed to link invoice ${invoice.id} to payment ${invoice.payment_id}:`,
+      error
+    );
+  }
+}
+
+function getInvoiceAmount(invoice: InvoiceRecord): number {
+  return invoice.total ?? invoice.amount;
+}
+
+function buildPaymentResponse(
+  invoice: InvoiceRecord,
+  paymentIntent?: Stripe.PaymentIntent | null
+) {
+  const senderSnapshot = readInvoiceSenderSnapshot(invoice);
+  const amount = getInvoiceAmount(invoice);
+
+  return {
+    clientSecret: paymentIntent?.client_secret || null,
+    paymentIntentId: paymentIntent?.id || invoice.stripe_payment_intent_id || null,
+    paymentStatus:
+      paymentIntent?.status || (invoice.status === "paid" ? "succeeded" : "unpaid"),
+    amount,
+    currency: (invoice.currency || "usd").toLowerCase(),
+    invoiceNumber: invoice.invoice_number,
+    recipientName: invoice.recipient_name,
+    recipientEmail: invoice.recipient_email,
+    recipientAddress: invoice.recipient_address,
+    senderName: invoice.sender_name,
+    senderCompany: senderSnapshot.company,
+    senderEmail: invoice.sender_email,
+    senderAddress: invoice.sender_address,
+    bankDetails: senderSnapshot.bankDetails,
+    lineItems: invoice.line_items,
+    subtotal: invoice.subtotal,
+    taxAmount: invoice.tax_amount,
+    total: amount,
+    dueDate: invoice.due_date,
+    notes: invoice.notes,
+    createdAt: invoice.created_at,
+  };
+}
+
+function isReusablePaymentIntent(
+  paymentIntent: Stripe.PaymentIntent,
+  amount: number,
+  currency: string,
+  connectedAccountId: string
+): boolean {
+  return (
+    paymentIntent.status !== "canceled" &&
+    paymentIntent.amount === amount &&
+    paymentIntent.currency === currency &&
+    paymentIntent.metadata.connected_account_id === connectedAccountId
+  );
+}
+
+// Public invoice checkout. The invoice UUID is the bearer identifier and draft,
+// void, and cancelled invoices are never payable.
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
     const supabase = createAdminClient();
+    const stripe = getStripe();
 
-    // Fetch invoice (no auth required for public payment page)
     const { data: invoice, error: invoiceError } = await supabase
       .from("invoices")
       .select("*")
@@ -29,12 +115,8 @@ export async function POST(
       return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
     }
 
-    // Check if invoice can be paid
     if (invoice.status === "paid") {
-      return NextResponse.json(
-        { error: "Invoice has already been paid" },
-        { status: 400 }
-      );
+      return NextResponse.json(buildPaymentResponse(invoice));
     }
 
     if (invoice.status === "void" || invoice.status === "cancelled") {
@@ -51,162 +133,156 @@ export async function POST(
       );
     }
 
-    // Get invoice owner for Stripe connect (if they have connected account) and subscription tier
-    const { data: invoiceSettings } = await supabase
-      .from("invoice_settings")
-      .select("stripe_account_id")
-      .eq("user_id", invoice.user_id)
-      .single();
+    const amount = getInvoiceAmount(invoice);
+    const currency = (invoice.currency || "usd").toLowerCase();
+    if (!Number.isInteger(amount) || amount <= 0) {
+      return NextResponse.json(
+        { error: "Invoice has an invalid payment amount" },
+        { status: 400 }
+      );
+    }
 
-    // Get user's subscription tier for platform fee calculation
-    const { data: invoiceOwner } = await supabase
+    const { data: invoiceOwner, error: invoiceOwnerError } = await supabase
       .from("users")
-      .select("subscription_status")
+      .select("stripe_connect_account_id, stripe_connect_status, subscription_tier")
       .eq("id", invoice.user_id)
       .single();
+    const connectedAccountId =
+      !invoiceOwnerError &&
+      invoiceOwner?.stripe_connect_status === "active" &&
+      invoiceOwner.stripe_connect_account_id
+        ? invoiceOwner.stripe_connect_account_id
+        : null;
 
-    const subscriptionTier: SubscriptionTier =
-      (invoiceOwner?.subscription_status as SubscriptionTier) || "free";
-
-    // Check if there's an existing payment intent
     if (invoice.stripe_payment_intent_id) {
       try {
         const existingIntent = await stripe.paymentIntents.retrieve(
           invoice.stripe_payment_intent_id
         );
 
-        if (existingIntent.status === "succeeded") {
-          return NextResponse.json(
-            { error: "Invoice has already been paid" },
-            { status: 400 }
-          );
+        if (
+          existingIntent.status === "succeeded" ||
+          existingIntent.status === "processing" ||
+          existingIntent.status === "requires_capture"
+        ) {
+          await linkInvoicePayment(supabase, invoice as InvoiceRecord, existingIntent);
+          return NextResponse.json(buildPaymentResponse(invoice, existingIntent));
         }
 
-        // Cancel old payment intent to create a fresh one with all payment methods
+        if (
+          connectedAccountId &&
+          isReusablePaymentIntent(
+            existingIntent,
+            amount,
+            currency,
+            connectedAccountId
+          )
+        ) {
+          await linkInvoicePayment(supabase, invoice as InvoiceRecord, existingIntent);
+          return NextResponse.json(buildPaymentResponse(invoice, existingIntent));
+        }
+
         if (
           existingIntent.status === "requires_payment_method" ||
-          existingIntent.status === "requires_confirmation"
+          existingIntent.status === "requires_confirmation" ||
+          existingIntent.status === "requires_action"
         ) {
           await stripe.paymentIntents.cancel(existingIntent.id);
         }
-      } catch {
-        // Payment intent not found or expired, create new one
+      } catch (error) {
+        console.warn(
+          `Could not reuse invoice PaymentIntent ${invoice.stripe_payment_intent_id}:`,
+          error
+        );
       }
     }
 
-    // Determine payment methods based on currency
-    const currency = invoice.currency.toLowerCase();
-    let paymentMethodTypes: string[] = ["card", "link"];
-
-    // Add region-specific bank payment methods
-    if (currency === "usd") {
-      paymentMethodTypes.push("us_bank_account");
-    } else if (currency === "gbp") {
-      paymentMethodTypes.push("bacs_debit");
-    } else if (currency === "eur") {
-      paymentMethodTypes.push("sepa_debit");
+    // Keep the public invoice view and offline bank details available, but do
+    // not create a platform-held card/bank charge before the sender has a payout
+    // destination. The page already treats a null clientSecret as unavailable.
+    if (!connectedAccountId) {
+      return NextResponse.json({
+        ...buildPaymentResponse(invoice),
+        code: "CONNECT_ACCOUNT_REQUIRED",
+        paymentUnavailableReason:
+          "The invoice sender must finish Stripe payout setup before accepting online payment.",
+      });
     }
 
-    // Create new payment intent
+    const subscriptionTier: SubscriptionTier =
+      (invoiceOwner?.subscription_tier as SubscriptionTier) || "free";
+    const { paymentMethodTypes, paymentMethodOptions } =
+      getPaymentMethodConfiguration(currency);
+
     const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
-      amount: invoice.total || invoice.amount,
+      amount,
       currency,
       metadata: {
         invoice_id: invoice.id,
         invoice_number: invoice.invoice_number,
         type: "standalone_invoice",
+        ...(invoice.contract_id ? { contract_id: invoice.contract_id } : {}),
+        ...(invoice.payment_id ? { payment_id: invoice.payment_id } : {}),
       },
       description: `Invoice ${invoice.invoice_number}`,
       receipt_email: invoice.recipient_email || undefined,
-      // Explicitly specify payment methods by currency
-      payment_method_types: paymentMethodTypes as Stripe.PaymentIntentCreateParams["payment_method_types"],
-      // Bank payment options
-      payment_method_options: {
-        // US: ACH Direct Debit
-        us_bank_account: {
-          financial_connections: {
-            permissions: ["payment_method", "balances"],
-          },
-          verification_method: "automatic",
-        },
-        // UK: Bacs Direct Debit
-        bacs_debit: {
-          mandate_options: {
-            reference_prefix: "LEX",
-          },
-        },
-        // EU: SEPA Direct Debit
-        sepa_debit: {
-          mandate_options: {
-            reference_prefix: "LEX",
-          },
-        },
-      },
+      payment_method_types: paymentMethodTypes,
+      ...(paymentMethodOptions
+        ? { payment_method_options: paymentMethodOptions }
+        : {}),
     };
 
-    // Add application fee and connected account if user has Stripe Connect
-    if (invoiceSettings?.stripe_account_id) {
-      const invoiceAmount = invoice.total || invoice.amount;
-      const platformFee = calculatePlatformFee(invoiceAmount, subscriptionTier);
-
+    const platformFee = calculatePlatformFee(amount, subscriptionTier);
+    if (platformFee > 0) {
       paymentIntentParams.application_fee_amount = platformFee;
-      paymentIntentParams.transfer_data = {
-        destination: invoiceSettings.stripe_account_id,
-      };
-      paymentIntentParams.metadata = {
-        ...paymentIntentParams.metadata,
-        platform_fee: platformFee.toString(),
-        platform_fee_percent: getPlatformFeePercent(subscriptionTier).toString(),
-        subscription_tier: subscriptionTier,
-      };
     }
+    paymentIntentParams.transfer_data = { destination: connectedAccountId };
+    paymentIntentParams.metadata = {
+      ...paymentIntentParams.metadata,
+      connected_account_id: connectedAccountId,
+      platform_fee: platformFee.toString(),
+      platform_fee_percent: getPlatformFeePercent(subscriptionTier).toString(),
+      subscription_tier: subscriptionTier,
+    };
 
-    const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
-    const senderSnapshot = readInvoiceSenderSnapshot(invoice);
+    const idempotencyVersion = invoice.updated_at || invoice.created_at;
+    const paymentIntent = await stripe.paymentIntents.create(
+      paymentIntentParams,
+      { idempotencyKey: `invoice:${invoice.id}:${amount}:${currency}:${idempotencyVersion}` }
+    );
+    const updatedAt = new Date().toISOString();
 
-    // Store payment intent ID on invoice
-    await supabase
+    const { error: updateError } = await supabase
       .from("invoices")
       .update({
         stripe_payment_intent_id: paymentIntent.id,
-        updated_at: new Date().toISOString(),
+        updated_at: updatedAt,
       })
       .eq("id", id);
 
-    return NextResponse.json({
-      clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id,
-      amount: invoice.total || invoice.amount,
-      currency: invoice.currency.toLowerCase(),
-      invoiceNumber: invoice.invoice_number,
-      recipientName: invoice.recipient_name,
-      recipientEmail: invoice.recipient_email,
-      recipientAddress: invoice.recipient_address,
-      senderName: invoice.sender_name,
-      senderCompany: senderSnapshot.company,
-      senderEmail: invoice.sender_email,
-      senderAddress: invoice.sender_address,
-      bankDetails: senderSnapshot.bankDetails,
-      lineItems: invoice.line_items,
-      subtotal: invoice.subtotal,
-      taxAmount: invoice.tax_amount,
-      total: invoice.total || invoice.amount,
-      dueDate: invoice.due_date,
-      notes: invoice.notes,
-      createdAt: invoice.created_at,
-    });
+    if (updateError) {
+      throw new Error(`Failed to store invoice PaymentIntent: ${updateError.message}`);
+    }
+
+    await linkInvoicePayment(supabase, invoice as InvoiceRecord, paymentIntent);
+
+    return NextResponse.json(
+      buildPaymentResponse(
+        { ...invoice, stripe_payment_intent_id: paymentIntent.id },
+        paymentIntent
+      )
+    );
   } catch (error) {
     console.error("Error creating invoice payment:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Failed to initialize invoice payment" },
       { status: 500 }
     );
   }
 }
 
-// GET - Get payment status
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -215,7 +291,7 @@ export async function GET(
 
     const { data: invoice, error } = await supabase
       .from("invoices")
-      .select("id, invoice_number, status, total, amount, currency, recipient_name, due_date")
+      .select("id, invoice_number, status, total, amount, currency, recipient_name, due_date, stripe_payment_intent_id")
       .eq("id", id)
       .single();
 
@@ -223,7 +299,30 @@ export async function GET(
       return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ invoice });
+    if (invoice.status === "draft") {
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+    }
+
+    if (invoice.status === "void" || invoice.status === "cancelled") {
+      return NextResponse.json(
+        { error: "Invoice has been cancelled" },
+        { status: 400 }
+      );
+    }
+
+    let paymentStatus = invoice.status === "paid" ? "succeeded" : "unpaid";
+    if (invoice.stripe_payment_intent_id && invoice.status !== "paid") {
+      try {
+        const paymentIntent = await getStripe().paymentIntents.retrieve(
+          invoice.stripe_payment_intent_id
+        );
+        paymentStatus = paymentIntent.status;
+      } catch (paymentError) {
+        console.warn("Could not retrieve invoice payment status:", paymentError);
+      }
+    }
+
+    return NextResponse.json({ invoice, paymentStatus });
   } catch (error) {
     console.error("Error fetching invoice:", error);
     return NextResponse.json(

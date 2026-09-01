@@ -8,8 +8,7 @@ import {
   XCircle,
   Mail,
   MoreHorizontal,
-  ArrowRight,
-  RefreshCw
+  ArrowRight
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
@@ -446,12 +445,13 @@ export default async function SignaturesPage() {
                     {getStatusBadge(req.status, req.viewed_at)}
 
                     <div className="flex items-center gap-1">
-                      <button
-                        className="p-2 text-slate-400 hover:text-[#202e46] hover:bg-slate-100 rounded-lg transition-colors"
-                        title="Resend Request"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                      </button>
+                      {req.status === "expired" && (
+                        <SendReminderButton
+                          contractId={req.contracts?.id || ""}
+                          signatureRequestId={req.id}
+                          signerName={req.signer_name}
+                        />
+                      )}
                       <Link
                         href={`/contracts/${req.contracts?.id}/edit`}
                         className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"

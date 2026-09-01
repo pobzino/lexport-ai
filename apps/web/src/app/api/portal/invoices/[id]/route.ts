@@ -4,6 +4,7 @@ import { getPortalSession } from "@/lib/portal-auth";
 import { PDFDocument, rgb, StandardFonts, degrees } from "pdf-lib";
 import type { Invoice, InvoiceLineItem } from "@/db/types";
 import QRCode from "qrcode";
+import { getInvoicePaymentUrl } from "@/lib/invoices/payment-link";
 
 // Format currency
 function formatCurrency(amount: number, currency: string): string {
@@ -255,8 +256,7 @@ async function generateInvoicePDF(
   // QR code for unpaid invoices
   if (invoice.status !== "paid" && invoice.status !== "void") {
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
-      const paymentUrl = `${baseUrl}/portal/contracts/${invoice.contract_id}?action=pay`;
+      const paymentUrl = getInvoicePaymentUrl(invoice.id);
       const qrDataUrl = await QRCode.toDataURL(paymentUrl, { width: 100, margin: 1 });
       const qrBase64 = qrDataUrl.split(",")[1];
       const qrBytes = Buffer.from(qrBase64, "base64");

@@ -318,6 +318,13 @@ const ContractRow = memo(function ContractRow({
     const typeDisplay = getTypeDisplay(contract.type);
     const jurisdictionDisplay = getJurisdictionDisplay(contract.jurisdiction);
     const TypeIcon = typeDisplay.icon;
+    const isOpen = openDropdown === contract.id;
+    const [showFolderMenu, setShowFolderMenu] = useState(false);
+
+    // Reset the Move-to-Folder submenu whenever this row's dropdown closes
+    useEffect(() => {
+        if (!isOpen) setShowFolderMenu(false);
+    }, [isOpen]);
 
     return (
         <div className="p-3 sm:p-4 hover:bg-slate-50 transition-colors group">
@@ -401,36 +408,41 @@ const ContractRow = memo(function ContractRow({
                                     <Download className="w-4 h-4" />
                                     Download PDF
                                 </a>
-                                <div className="relative group">
-                                    <button className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left">
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowFolderMenu((prev) => !prev)}
+                                        className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
+                                    >
                                         <Folder className="w-4 h-4" />
                                         Move to Folder
-                                        <ChevronRight className="w-3 h-3 ml-auto" />
+                                        <ChevronRight className={cn("w-3 h-3 ml-auto transition-transform", showFolderMenu && "rotate-90")} />
                                     </button>
-                                    <div className="absolute right-full top-0 mr-1 w-44 bg-white rounded-lg shadow-lg border border-slate-200 py-1 hidden group-hover:block">
-                                        <button
-                                            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
-                                            onClick={() => onMoveToFolder(contract.id, null)}
-                                        >
-                                            <X className="w-4 h-4" />
-                                            No Folder
-                                        </button>
-                                        {folders.length > 0 && <div className="border-t border-slate-100 my-1" />}
-                                        {folders.map((folder) => (
+                                    {showFolderMenu && (
+                                        <div className="absolute right-full top-0 mr-1 w-44 bg-white rounded-lg shadow-lg border border-slate-200 py-1">
                                             <button
-                                                key={folder.id}
-                                                className={cn(
-                                                    "flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 w-full text-left",
-                                                    contract.folder_id === folder.id ? "text-[#529ec6] bg-[#529ec6]/5" : "text-slate-700"
-                                                )}
-                                                onClick={() => onMoveToFolder(contract.id, folder.id)}
+                                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left"
+                                                onClick={() => onMoveToFolder(contract.id, null)}
                                             >
-                                                <Folder className="w-4 h-4" style={{ color: folder.color }} />
-                                                <span className="truncate">{folder.name}</span>
-                                                {contract.folder_id === folder.id && <CheckCircle2 className="w-3 h-3 ml-auto flex-shrink-0" />}
+                                                <X className="w-4 h-4" />
+                                                No Folder
                                             </button>
-                                        ))}
-                                    </div>
+                                            {folders.length > 0 && <div className="border-t border-slate-100 my-1" />}
+                                            {folders.map((folder) => (
+                                                <button
+                                                    key={folder.id}
+                                                    className={cn(
+                                                        "flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 w-full text-left",
+                                                        contract.folder_id === folder.id ? "text-[#529ec6] bg-[#529ec6]/5" : "text-slate-700"
+                                                    )}
+                                                    onClick={() => onMoveToFolder(contract.id, folder.id)}
+                                                >
+                                                    <Folder className="w-4 h-4" style={{ color: folder.color }} />
+                                                    <span className="truncate">{folder.name}</span>
+                                                    {contract.folder_id === folder.id && <CheckCircle2 className="w-3 h-3 ml-auto flex-shrink-0" />}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                                 {["draft", "cancelled"].includes(contract.status) && (
                                     <>
@@ -628,19 +640,21 @@ export function ContractsList({ contracts }: ContractsListProps) {
                 .update({ folder_id: folderId })
                 .eq("id", contractId);
 
-            if (!error) {
-                setLocalContracts(prev =>
-                    prev.map(c => c.id === contractId ? { ...c, folder_id: folderId } : c)
-                );
-                // Refresh folder counts
-                const foldersRes = await supabase.from("folders").select("*, contracts!folder_id(count)").order("name");
-                if (foldersRes.data) setFolders(foldersRes.data);
-            }
+            if (error) throw error;
+
+            setLocalContracts(prev =>
+                prev.map(c => c.id === contractId ? { ...c, folder_id: folderId } : c)
+            );
+            // Refresh folder counts
+            const foldersRes = await supabase.from("folders").select("*, contracts!folder_id(count)").order("name");
+            if (foldersRes.data) setFolders(foldersRes.data);
+            toast.success(folderId ? "Moved to folder" : "Removed from folder");
         } catch (error) {
             console.error("Error moving contract:", error);
+            toast.error("Failed to move contract");
         }
         setOpenDropdown(null);
-    }, [supabase]);
+    }, [supabase, toast]);
 
     // Delete contract (memoized)
     const deleteContract = useCallback(async function deleteContract(contractId: string) {
@@ -652,28 +666,32 @@ export function ContractsList({ contracts }: ContractsListProps) {
                 .delete()
                 .eq("id", contractId);
 
-            if (!error) {
-                setLocalContracts(prev => prev.filter(c => c.id !== contractId));
-            }
+            if (error) throw error;
+
+            setLocalContracts(prev => prev.filter(c => c.id !== contractId));
+            toast.success("Contract deleted");
         } catch (error) {
             console.error("Error deleting contract:", error);
+            toast.error("Failed to delete contract");
         }
         setOpenDropdown(null);
-    }, [supabase, confirm]);
+    }, [supabase, confirm, toast]);
 
     // Duplicate contract (memoized)
     const duplicateContract = useCallback(async function duplicateContract(contractId: string) {
         try {
             const res = await fetch(`/api/contracts/${contractId}/duplicate`, { method: "POST" });
-            if (res.ok) {
-                const { contract } = await res.json();
-                setLocalContracts(prev => [contract, ...prev]);
-            }
+            if (!res.ok) throw new Error("Request failed");
+
+            const { contract } = await res.json();
+            setLocalContracts(prev => [contract, ...prev]);
+            toast.success("Contract duplicated");
         } catch (error) {
             console.error("Error duplicating contract:", error);
+            toast.error("Failed to duplicate contract");
         }
         setOpenDropdown(null);
-    }, []);
+    }, [toast]);
 
     // Filter and sort contracts
     const filteredContracts = useMemo(() => {

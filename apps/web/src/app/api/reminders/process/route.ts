@@ -246,7 +246,7 @@ export async function POST(request: NextRequest) {
           const balanceAmount = totalAmount - depositAmount;
 
           // Build payment URL
-          const paymentUrl = `${baseUrl}/portal/contracts/${contract.id}?action=pay`;
+          const paymentUrl = `${baseUrl}/pay/${contract.id}`;
 
           // Send the reminder
           const emailResult = await sendBalanceReminderEmail({

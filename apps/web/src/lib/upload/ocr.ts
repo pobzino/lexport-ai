@@ -1,8 +1,18 @@
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const OCR_TIMEOUT_MS = 20_000;
+
+function createOpenAIClient(): OpenAI {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OCR is not configured");
+  }
+
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    timeout: OCR_TIMEOUT_MS,
+    maxRetries: 0,
+  });
+}
 
 export interface OCRResult {
   text: string;
@@ -24,7 +34,7 @@ export async function performOCR(
 
   const prompt = buildOCRPrompt(preserveFormatting, extractTables);
 
-  const response = await openai.chat.completions.create({
+  const response = await createOpenAIClient().chat.completions.create({
     model: "gpt-4o",
     messages: [
       {
@@ -49,6 +59,55 @@ export async function performOCR(
 
   const extractedText = response.choices[0]?.message?.content || "";
 
+  if (response.choices[0]?.finish_reason === "length") {
+    throw new Error("OCR output was incomplete");
+  }
+
+  return {
+    text: extractedText.trim(),
+    confidence: determineConfidence(extractedText),
+  };
+}
+
+/**
+ * Extract text from scanned PDFs through Responses file input. The API reads
+ * both the PDF text layer and rendered page images, so no server-side PDF to
+ * image conversion is required.
+ */
+export async function performPdfOCR(
+  fileUrl: string,
+  options?: {
+    preserveFormatting?: boolean;
+    extractTables?: boolean;
+  }
+): Promise<OCRResult> {
+  const { preserveFormatting = true, extractTables = true } = options || {};
+  const prompt = buildOCRPrompt(preserveFormatting, extractTables);
+  const response = await createOpenAIClient().responses.create({
+    model: "gpt-4o",
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_file",
+            file_url: fileUrl,
+          },
+          {
+            type: "input_text",
+            text: prompt,
+          },
+        ],
+      },
+    ],
+    max_output_tokens: 12_000,
+  });
+
+  if (response.status === "incomplete") {
+    throw new Error("OCR output was incomplete");
+  }
+
+  const extractedText = response.output_text || "";
   return {
     text: extractedText.trim(),
     confidence: determineConfidence(extractedText),

@@ -1,6 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import type { ContractContent } from "@/db/types";
+import {
+  isOwnedUploadPath,
+  type UploadFileType,
+} from "@/lib/upload/file-validation";
 
 type ProcessingMode = "sign_only" | "edit_and_sign";
 
@@ -11,7 +15,7 @@ interface CreateUploadedContractRequest {
   processingMode: ProcessingMode;
   extractedText?: string;
   sourceFileUrl: string;
-  sourceFileType: "pdf" | "docx" | "jpg" | "png";
+  sourceFileType: UploadFileType;
   content?: ContractContent | null; // Required for edit_and_sign, null for sign_only
 }
 
@@ -34,6 +38,23 @@ export async function POST(request: Request) {
         { error: "Missing required fields: title, sourceFileUrl, and processingMode are required" },
         { status: 400 }
       );
+    }
+
+    if (!isOwnedUploadPath(body.sourceFileUrl, user.id)) {
+      return NextResponse.json({ error: "Invalid upload path" }, { status: 400 });
+    }
+
+    if (!(["sign_only", "edit_and_sign"] as const).includes(body.processingMode)) {
+      return NextResponse.json({ error: "Invalid processing mode" }, { status: 400 });
+    }
+
+    if (!(["pdf", "docx", "jpg", "png"] as const).includes(body.sourceFileType)) {
+      return NextResponse.json({ error: "Invalid source file type" }, { status: 400 });
+    }
+
+    const title = body.title.trim().slice(0, 160);
+    if (!title) {
+      return NextResponse.json({ error: "Contract title is required" }, { status: 400 });
     }
 
     // Validate mode-specific requirements
@@ -64,7 +85,7 @@ export async function POST(request: Request) {
     const { data: contract, error: insertError } = await supabase
       .from("contracts")
       .insert({
-        title: body.title,
+        title,
         type: body.type || "service_agreement",
         jurisdiction: body.jurisdiction || "other",
         status: "draft",

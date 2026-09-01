@@ -167,12 +167,14 @@ export async function POST(
       );
     }
 
-    // Check if signer has already signed
-    if (signatureRequest.status !== "pending") {
+    // Allow reminders for pending requests and renew-and-resend for expired
+    // ones (the renew-and-extend logic below resets the expiry and status).
+    // Block terminal states (signed / declined / cancelled).
+    if (!["pending", "expired"].includes(signatureRequest.status)) {
       return NextResponse.json(
         {
           error: "Cannot send reminder",
-          message: `Signer status is "${signatureRequest.status}", not pending`
+          message: `Signer status is "${signatureRequest.status}", not pending or expired`
         },
         { status: 400 }
       );
@@ -218,7 +220,7 @@ export async function POST(
         last_reminder_sent_at: now.toISOString(),
         reminder_count: currentCount + 1,
         next_reminder_at: nextReminderAt.toISOString(),
-        ...(wasExpired ? { expires_at: effectiveExpiresAt } : {}),
+        ...(wasExpired ? { expires_at: effectiveExpiresAt, status: "pending" } : {}),
         updated_at: now.toISOString(),
       })
       .eq("id", requestId);

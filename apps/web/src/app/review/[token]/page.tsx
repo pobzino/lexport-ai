@@ -347,7 +347,7 @@ export default function ReviewPage({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Link href="/" className="flex-shrink-0">
-                <Image src="/light-logo.png" alt="Lexport" width={100} height={30} className="h-7 w-auto" />
+                <Image src="/light-main-logo.png" alt="Lexport" width={100} height={30} className="h-7 w-auto" />
               </Link>
               <div className="w-px h-8 bg-white/20" />
               <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">

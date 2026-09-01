@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { GenerateContractRequestSchema } from "@/lib/contracts/generation-request";
 import { processContractGenerationJob } from "@/lib/contracts/generation-jobs";
 import { createBackgroundContractGeneration } from "@/lib/contracts/generator-streaming";
-import { checkContractLimit } from "@/lib/usage-tracking";
+import { checkContractLimit, getUserTier } from "@/lib/usage-tracking";
 import { TIER_LIMITS } from "@/lib/rate-limits";
 import { sendContractLimitEmail } from "@/lib/email";
 
@@ -21,35 +21,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const limitCheck = await checkContractLimit(user.id);
-    if (!limitCheck.allowed) {
-      // Send upgrade email (fire-and-forget, don't block the response)
-      if (user.email && limitCheck.tier === "free") {
-        sendContractLimitEmail({
-          to: user.email,
-          name: user.user_metadata?.name || "",
-          used: limitCheck.current,
-          limit: limitCheck.limit,
-        }).catch(() => {}); // Swallow errors — email is best-effort
-      }
-
-      const tierLimits = TIER_LIMITS[limitCheck.tier];
-      return NextResponse.json(
-        {
-          error: "Contract limit reached",
-          message:
-            limitCheck.tier === "free"
-              ? `You've used your ${tierLimits.contractsPerMonth} free contract${tierLimits.contractsPerMonth > 1 ? "s" : ""} this month. Upgrade to Pro for 50 contracts/month.`
-              : `You've reached your ${tierLimits.contractsPerMonth} contract limit for this month. Your limit resets at the start of next month.`,
-          upgradeUrl: "/settings/billing",
-          current: limitCheck.current,
-          limit: limitCheck.limit,
-          tier: limitCheck.tier,
-        },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const parseResult = GenerateContractRequestSchema.safeParse(body);
     if (!parseResult.success) {
@@ -60,30 +31,68 @@ export async function POST(request: NextRequest) {
     }
 
     const { contractType, metadata, paymentConfig } = parseResult.data;
-    const { data: job, error: insertError } = await supabase
-      .from("contract_generation_jobs")
-      .insert({
-        user_id: user.id,
-        contract_type: contractType,
-        metadata,
-        payment_config: paymentConfig ?? null,
-        status: "queued",
-        progress_percent: 5,
-        progress_status: "Queued for generation",
-      })
-      .select("id")
-      .single();
 
-    if (insertError || !job) {
-      console.error("Failed to create contract generation job:", insertError);
+    // GEN-1 / BILLING-5: atomically check-and-reserve the monthly quota. The RPC
+    // counts committed contracts PLUS in-flight jobs in one transaction
+    // serialized per user, then inserts the queued job, so concurrent/rapid
+    // requests can never exceed the tier limit. Returns NULL when over limit.
+    const tier = await getUserTier(user.id);
+    const monthlyLimit = TIER_LIMITS[tier].contractsPerMonth;
+
+    const { data: reservedJobId, error: reserveError } = await supabase.rpc(
+      "reserve_contract_generation_job",
+      {
+        p_user_id: user.id,
+        p_contract_type: contractType,
+        p_metadata: metadata,
+        p_payment_config: paymentConfig ?? null,
+        p_monthly_limit: monthlyLimit,
+      }
+    );
+
+    if (reserveError) {
+      console.error("Failed to reserve contract generation job:", reserveError);
       return NextResponse.json(
         { error: "Failed to queue contract generation" },
         { status: 500 }
       );
     }
 
+    if (!reservedJobId) {
+      // Over the monthly limit — recompute the user-facing usage numbers.
+      const limitCheck = await checkContractLimit(user.id);
+
+      // Send upgrade email (fire-and-forget, don't block the response)
+      if (user.email && tier === "free") {
+        sendContractLimitEmail({
+          to: user.email,
+          name: user.user_metadata?.name || "",
+          used: limitCheck.current,
+          limit: limitCheck.limit,
+        }).catch(() => {}); // Swallow errors — email is best-effort
+      }
+
+      const tierLimits = TIER_LIMITS[tier];
+      return NextResponse.json(
+        {
+          error: "Contract limit reached",
+          message:
+            tier === "free"
+              ? `You've used your ${tierLimits.contractsPerMonth} free contract${tierLimits.contractsPerMonth > 1 ? "s" : ""} this month. Upgrade to Pro for 50 contracts/month.`
+              : `You've reached your ${tierLimits.contractsPerMonth} contract limit for this month. Your limit resets at the start of next month.`,
+          upgradeUrl: "/settings/billing",
+          current: limitCheck.current,
+          limit: limitCheck.limit,
+          tier,
+        },
+        { status: 403 }
+      );
+    }
+
+    const jobId = reservedJobId as string;
+
     if (process.env.NODE_ENV !== "production") {
-      void processContractGenerationJob(job.id).catch((error) => {
+      void processContractGenerationJob(jobId).catch((error) => {
         console.error("Background contract generation failed:", error);
       });
     } else {
@@ -107,7 +116,7 @@ export async function POST(request: NextRequest) {
             error_message: null,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", job.id);
+          .eq("id", jobId);
 
         if (updateError) {
           throw updateError;
@@ -124,7 +133,7 @@ export async function POST(request: NextRequest) {
             completed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
-          .eq("id", job.id);
+          .eq("id", jobId);
 
         return NextResponse.json(
           { error: "Failed to start background contract generation" },
@@ -135,7 +144,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      jobId: job.id,
+      jobId,
       status: "queued",
       progressPercent: 5,
       progressStatus: "Queued for generation",

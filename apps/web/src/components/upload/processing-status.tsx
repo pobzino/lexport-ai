@@ -23,6 +23,7 @@ interface ProcessingStatusProps {
   currentStep: ProcessingStep;
   ocrRequired?: boolean;
   error?: string;
+  steps?: ProcessingStep[];
 }
 
 const STEPS = {
@@ -37,13 +38,13 @@ const STEPS = {
     icon: FileSearch,
   },
   ocr: {
-    label: "Processing with AI Vision",
-    description: "Using GPT-4 to read your scanned document...",
+    label: "Reading scanned pages",
+    description: "Recovering text while preserving the document order...",
     icon: Sparkles,
   },
   parsing: {
-    label: "Parsing contract structure",
-    description: "AI is organizing your contract into clauses...",
+    label: "Building editable clauses",
+    description: "Structuring the original legal text for review...",
     icon: Brain,
   },
   creating: {
@@ -62,9 +63,9 @@ export function ProcessingStatus({
   currentStep,
   ocrRequired = false,
   error,
+  steps,
 }: ProcessingStatusProps) {
-  // Determine which steps to show based on OCR requirement
-  const stepsToShow = getStepsForProcessing(ocrRequired);
+  const stepsToShow = steps || getStepsForProcessing(ocrRequired);
   const currentIndex = stepsToShow.indexOf(currentStep);
 
   return (
@@ -79,7 +80,7 @@ export function ProcessingStatus({
           className="absolute top-5 left-0 h-0.5 bg-[#529ec6]"
           initial={{ width: "0%" }}
           animate={{
-            width: `${(currentIndex / (stepsToShow.length - 1)) * 100}%`,
+            width: `${(Math.max(currentIndex, 0) / Math.max(stepsToShow.length - 1, 1)) * 100}%`,
           }}
           transition={{ duration: 0.5, ease: "easeInOut" }}
         />
