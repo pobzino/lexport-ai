@@ -3,8 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { sendSigningInvitation, sendSignatureLimitEmail } from "@/lib/email";
-import { generateContentHash } from "@/lib/document-integrity";
+import { SIGNING_HASH_ALGORITHM } from "@/lib/document-integrity";
+import { fingerprintSigningDocument } from "@/lib/signing-document";
 import { auditLogger, getRequestContextFromRequest } from "@/lib/audit";
+import { isMissingColumnError } from "@/lib/supabase/schema-compat";
 
 // Request schema
 const SendRequestSchema = z.object({
@@ -110,6 +112,23 @@ export async function POST(
       return NextResponse.json({ error: "Contract not found" }, { status: 404 });
     }
 
+    // Freeze the document identity before creating any invitations. For an
+    // uploaded sign-only contract this covers the exact source bytes and the
+    // full signing-field manifest; generated contracts cover every clause.
+    let contentHash: string;
+    try {
+      ({ hash: contentHash } = await fingerprintSigningDocument(
+        supabase,
+        contract,
+      ));
+    } catch (fingerprintError) {
+      console.error("Failed to fingerprint signing document:", fingerprintError);
+      return NextResponse.json(
+        { error: "The signing document could not be finalised" },
+        { status: 409 },
+      );
+    }
+
     // Calculate expiration date
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + expiresInDays);
@@ -135,12 +154,27 @@ export async function POST(
       next_reminder_at: firstReminderAt?.toISOString(),
       reminder_count: 0,
       max_reminders: 5,
+      document_hash: contentHash,
     }));
 
-    const { data: createdRequests, error: insertError } = await supabase
+    let { data: createdRequests, error: insertError } = await supabase
       .from("signature_requests")
       .insert(signatureRequestsData)
       .select();
+
+    // The contract-level V2 hash and server-side RPC check protect signatures
+    // on the current production schema. Once the additive migration lands, the
+    // same hash is also copied onto every request for stronger evidence.
+    if (isMissingColumnError(insertError, "document_hash")) {
+      const legacyRequestsData = signatureRequestsData.map(
+        ({ document_hash: _documentHash, ...signatureRequest }) =>
+          signatureRequest,
+      );
+      ({ data: createdRequests, error: insertError } = await supabase
+        .from("signature_requests")
+        .insert(legacyRequestsData)
+        .select());
+    }
 
     if (insertError) {
       console.error("Error creating signature requests:", insertError);
@@ -150,25 +184,13 @@ export async function POST(
       );
     }
 
-    // Increment signatures used counter (by the number of signers)
-    for (let i = 0; i < signers.length; i++) {
-      try {
-        await supabase.rpc("increment_signatures_used", { user_uuid: user.id });
-      } catch (err) {
-        console.error("Failed to increment signature usage:", err);
-      }
-    }
-
     // Calculate next reminder time
     const nextReminderAt = reminderEnabled
       ? new Date(Date.now() + reminderIntervalDays * 24 * 60 * 60 * 1000).toISOString()
       : null;
 
-    // Generate content hash for tamper-proof verification
-    const contentHash = generateContentHash(contract.content);
-
     // Update contract status, settings, and content hash
-    await supabase
+    const { error: contractUpdateError } = await supabase
       .from("contracts")
       .update({
         status: "pending_signature",
@@ -177,11 +199,33 @@ export async function POST(
         reminder_interval_days: reminderIntervalDays,
         next_reminder_at: nextReminderAt,
         content_hash: contentHash,
-        content_hash_algorithm: "SHA-256",
+        content_hash_algorithm: SIGNING_HASH_ALGORITHM,
         content_hash_generated_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
+
+    if (contractUpdateError) {
+      console.error("Failed to freeze signing document:", contractUpdateError);
+      await supabase
+        .from("signature_requests")
+        .delete()
+        .in("id", (createdRequests || []).map((created) => created.id));
+      return NextResponse.json(
+        { error: "Failed to finalise the signing document" },
+        { status: 500 },
+      );
+    }
+
+    // Increment usage only after both the invitations and immutable document
+    // fingerprint have been persisted successfully.
+    for (let i = 0; i < signers.length; i++) {
+      try {
+        await supabase.rpc("increment_signatures_used", { user_uuid: user.id });
+      } catch (err) {
+        console.error("Failed to increment signature usage:", err);
+      }
+    }
 
     // Build signing URLs and send emails
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -233,7 +277,8 @@ export async function POST(
       user.email || "",
       user.user_metadata?.name || user.user_metadata?.full_name || null,
       signers.map(s => s.email),
-      context
+      context,
+      { hash: contentHash, algorithm: SIGNING_HASH_ALGORITHM },
     );
 
     // Auto-save signers as contacts (fire-and-forget)

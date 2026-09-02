@@ -40,6 +40,7 @@ export type AuditEventType =
   | "signature_request_sent"
   | "signature_request_viewed"
   | "signature_request_resent"
+  | "signer_email_verified"
   | "signature_completed"
   | "signature_declined"
   // Document events
@@ -206,6 +207,13 @@ export interface Contract {
   completed_at: string | null;
   expires_at: string | null;
   version: number;
+  content_hash: string | null;
+  content_hash_algorithm: string | null;
+  content_hash_generated_at: string | null;
+  sealed_at: string | null;
+  sealed_pdf_url: string | null;
+  sealed_pdf_path: string | null;
+  sealed_document_hash: string | null;
   // Sequential signing
   require_sequential_signing: boolean;
   // Reminders
@@ -289,6 +297,9 @@ export interface SignatureRequest {
   declined_at: string | null;
   decline_reason: string | null;
   viewed_at: string | null;
+  document_hash: string | null;
+  document_hash_verified: boolean;
+  document_hash_verified_at: string | null;
   last_reminder_sent_at: string | null;
   expires_at: string;
   created_at: string;
@@ -304,6 +315,7 @@ export interface Signature {
   signature_type: string | null;
   image_url: string;
   image_hash: string;
+  document_hash: string | null;
   ip_address: string | null;
   user_agent: string | null;
   signed_at: string | null;

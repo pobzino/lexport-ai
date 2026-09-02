@@ -4,6 +4,11 @@ import {
   generateUploadedContractPdf,
   type UploadedSourceFileType,
 } from "@/lib/pdf/uploaded-contract";
+import {
+  documentHashesEqual,
+  SIGNING_HASH_ALGORITHM,
+} from "@/lib/document-integrity";
+import { fingerprintSigningDocument } from "@/lib/signing-document";
 
 export const dynamic = "force-dynamic";
 
@@ -48,8 +53,7 @@ export async function GET(
       );
     }
 
-    const [sourceBytes, fieldsResult, signaturesResult, requestsResult] = await Promise.all([
-      downloadSource(supabase, contract.source_file_url),
+    const [fieldsResult, signaturesResult, requestsResult] = await Promise.all([
       supabase.from("signature_fields").select("*").eq("contract_id", contract.id),
       supabase.from("signatures").select("*").eq("contract_id", contract.id),
       supabase.from("signature_requests").select("*").eq("contract_id", contract.id),
@@ -58,6 +62,26 @@ export async function GET(
     if (signaturesResult.error) throw signaturesResult.error;
     if (requestsResult.error) throw requestsResult.error;
     const signatureFields = fieldsResult.data || [];
+    const fingerprint = await fingerprintSigningDocument(
+      supabase,
+      contract,
+      signatureFields,
+    );
+    if (
+      contract.content_hash_algorithm === SIGNING_HASH_ALGORITHM &&
+      !documentHashesEqual(contract.content_hash, fingerprint.hash)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "This document changed after it was sent. Ask the sender to issue a new signing request.",
+        },
+        { status: 409 },
+      );
+    }
+    if (!fingerprint.sourceBytes) {
+      throw new Error("Uploaded source document is unavailable");
+    }
     const fieldIds = signatureFields.map((field) => field.id);
     const fieldValuesResult = fieldIds.length
       ? await supabase.from("field_values").select("*").in("field_id", fieldIds)
@@ -65,7 +89,7 @@ export async function GET(
     if (fieldValuesResult.error) throw fieldValuesResult.error;
 
     const pdfBytes = await generateUploadedContractPdf({
-      sourceBytes,
+      sourceBytes: fingerprint.sourceBytes,
       sourceFileType: contract.source_file_type as UploadedSourceFileType,
       contract: {
         id: contract.id,
@@ -96,25 +120,6 @@ export async function GET(
       { status: 500 },
     );
   }
-}
-
-type AdminClient = ReturnType<typeof createAdminClient>;
-
-async function downloadSource(
-  supabase: AdminClient,
-  sourceFileUrl: string,
-): Promise<Uint8Array> {
-  if (sourceFileUrl.startsWith("http")) {
-    const response = await fetch(sourceFileUrl, { cache: "no-store" });
-    if (!response.ok) throw new Error(`Source download failed (${response.status})`);
-    return new Uint8Array(await response.arrayBuffer());
-  }
-
-  const { data, error } = await supabase.storage
-    .from("contract-uploads")
-    .download(sourceFileUrl);
-  if (error || !data) throw new Error(error?.message || "Source download failed");
-  return new Uint8Array(await data.arrayBuffer());
 }
 
 function sanitizeFilename(value: string): string {

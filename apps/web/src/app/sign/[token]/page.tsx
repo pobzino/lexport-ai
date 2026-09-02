@@ -950,7 +950,6 @@ export default function SignContractPage() {
           agreedToTerms: true,
           identityConfirmed: true,
           identityConfirmationText,
-          documentHash: contract?.contentHash,
           fieldValues: fieldValuesArray,
         }),
       });
@@ -1273,7 +1272,7 @@ export default function SignContractPage() {
                 {/* Security note */}
                 <div className="flex items-start gap-3 text-sm text-slate-500">
                   <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <p>Your signature is legally binding and protected with bank-level encryption.</p>
+                  <p>Your identity confirmation and signing activity will be recorded in the document audit trail.</p>
                 </div>
               </div>
 

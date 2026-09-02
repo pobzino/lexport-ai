@@ -2,9 +2,12 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
 import {
+  documentHashesEqual,
   generateContentHash,
   generateIdentityConfirmationText,
+  SIGNING_HASH_ALGORITHM,
 } from "@/lib/document-integrity";
+import { fingerprintSigningDocument } from "@/lib/signing-document";
 import {
   getRequestContextFromRequest,
   logAuditEventWithClient,
@@ -25,6 +28,7 @@ import {
   normalizePaymentSchedule,
 } from "@/lib/payments/config";
 import { isPayingSignerRole } from "@/lib/payments/payer-role";
+import { sealCompletedContract } from "@/lib/sealed-contract";
 
 // GET - Fetch signature request details
 export async function GET(
@@ -65,6 +69,33 @@ export async function GET(
     }
 
     const contract = signatureRequest.contracts;
+
+    if (contract.content_hash_algorithm === SIGNING_HASH_ALGORITHM) {
+      const isUploadedSignOnly =
+        contract.source_type === "uploaded" &&
+        contract.processing_mode === "sign_only" &&
+        contract.source_file_url;
+      const requestMatchesContract = documentHashesEqual(
+        signatureRequest.document_hash || contract.content_hash,
+        contract.content_hash,
+      );
+      const generatedContentMatches = isUploadedSignOnly
+        ? true
+        : documentHashesEqual(
+            contract.content_hash,
+            generateContentHash(contract.content),
+          );
+
+      if (!requestMatchesContract || !generatedContentMatches) {
+        return NextResponse.json(
+          {
+            error:
+              "This document changed after it was sent. Ask the sender to issue a new signing request.",
+          },
+          { status: 409 },
+        );
+      }
+    }
 
     // Check if already signed
     if (signatureRequest.status === "signed") {
@@ -354,7 +385,6 @@ const SignatureSchema = z.object({
   identityConfirmationText: z
     .string()
     .min(1, "Identity confirmation text required"),
-  documentHash: z.string().optional(), // For tamper verification
   ipAddress: z.string().optional(),
   userAgent: z.string().optional(),
   fieldValues: z.array(FieldValueSchema).optional(),
@@ -386,7 +416,6 @@ export async function POST(
       userAgent,
       identityConfirmed,
       identityConfirmationText,
-      documentHash,
       fieldValues,
     } = parseResult.data;
 
@@ -394,7 +423,7 @@ export async function POST(
       await supabase
         .from("signature_requests")
         .select(
-          "id, contract_id, signer_email, signer_name, signer_role, status, expires_at, email_verified_at, order, contracts(id, require_sequential_signing)",
+          "*, contracts(id, content, content_hash, content_hash_algorithm, source_type, source_file_url, source_file_type, processing_mode, require_sequential_signing)",
         )
         .eq("token", token)
         .single();
@@ -453,7 +482,9 @@ export async function POST(
 
     const { data: contractFields, error: contractFieldsError } = await supabase
       .from("signature_fields")
-      .select("id, signer_role, required, type")
+      .select(
+        "id, type, label, signer_role, required, position_x, position_y, width, height, page, order, options, placeholder, validation",
+      )
       .eq("contract_id", signatureRequest.contract_id);
 
     if (contractFieldsError) {
@@ -465,6 +496,47 @@ export async function POST(
         { error: "Failed to validate signature fields" },
         { status: 500 },
       );
+    }
+
+    if (!contractRelation?.content_hash) {
+      return NextResponse.json(
+        { error: "This signing request has no document fingerprint" },
+        { status: 409 },
+      );
+    }
+
+    const serverDocumentHash = contractRelation.content_hash;
+    if (contractRelation.content_hash_algorithm === SIGNING_HASH_ALGORITHM) {
+      let currentDocumentHash: string;
+      try {
+        ({ hash: currentDocumentHash } = await fingerprintSigningDocument(
+          supabase,
+          contractRelation,
+          contractFields || [],
+        ));
+      } catch (fingerprintError) {
+        console.error("Failed to verify signing document:", fingerprintError);
+        return NextResponse.json(
+          { error: "The signing document could not be verified" },
+          { status: 409 },
+        );
+      }
+
+      if (
+        !documentHashesEqual(serverDocumentHash, currentDocumentHash) ||
+        !documentHashesEqual(
+          signatureRequest.document_hash || serverDocumentHash,
+          serverDocumentHash,
+        )
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "This document changed after it was sent. Ask the sender to issue a new signing request.",
+          },
+          { status: 409 },
+        );
+      }
     }
 
     const assignedFields = (contractFields || []).filter((field) =>
@@ -529,7 +601,7 @@ export async function POST(
         p_user_agent: clientUserAgent,
         p_identity_confirmed: identityConfirmed,
         p_identity_confirmation_text: identityConfirmationText,
-        p_document_hash: documentHash || null,
+        p_document_hash: serverDocumentHash,
       },
     );
 
@@ -601,6 +673,11 @@ export async function POST(
         actorEmail: sigRequest.signer_email,
         actorName: sigRequest.signer_name,
         context: auditContext,
+        metadata: {
+          document_hash: serverDocumentHash,
+          document_hash_algorithm:
+            contractRelation?.content_hash_algorithm || "SHA-256",
+        },
         includeGeoLocation: false,
       });
 
@@ -624,7 +701,7 @@ export async function POST(
         const geoLocationPromise = lookupGeoLocation(clientIp);
         const signatureHash = hashSignatureData(
           signatureData,
-          documentHash || "",
+          serverDocumentHash,
           "",
           clientIp,
         );
@@ -650,9 +727,19 @@ export async function POST(
 
         if (sigRequest && result.allSigned) {
           try {
-            await generateAndSendCertificate(sigRequest.contract_id);
+            const sealed = await sealCompletedContract(
+              supabase,
+              sigRequest.contract_id,
+            );
+            await generateAndSendCertificate(
+              sigRequest.contract_id,
+              Buffer.from(sealed.pdfBytes),
+            );
           } catch (certError) {
-            console.error("Error sending certificate emails:", certError);
+            console.error(
+              "Error sealing contract or sending completion documents:",
+              certError,
+            );
           }
         }
 
@@ -893,7 +980,10 @@ export async function POST(
 /**
  * Generate certificate PDF and send to all parties (owner + signers)
  */
-async function generateAndSendCertificate(contractId: string) {
+async function generateAndSendCertificate(
+  contractId: string,
+  executedContractPdf: Buffer,
+) {
   const supabase = createAdminClient();
 
   // Fetch contract with all related data
@@ -909,15 +999,11 @@ async function generateAndSendCertificate(contractId: string) {
         signer_role,
         status,
         signed_at,
-        viewed_at
+        viewed_at,
+        email_verified_at
       ),
       signatures (
-        id,
-        signature_request_id,
-        ip_address,
-        user_agent,
-        signed_at,
-        image_hash
+        *
       ),
       audit_logs (
         id,
@@ -950,6 +1036,7 @@ async function generateAndSendCertificate(contractId: string) {
     status: string;
     signed_at: string | null;
     viewed_at: string | null;
+    email_verified_at: string | null;
   }[];
 
   const signatures = contract.signatures as {
@@ -959,6 +1046,7 @@ async function generateAndSendCertificate(contractId: string) {
     user_agent: string;
     signed_at: string;
     image_hash: string;
+    document_hash: string | null;
   }[];
 
   const auditLogs = contract.audit_logs as {
@@ -988,8 +1076,12 @@ async function generateAndSendCertificate(contractId: string) {
       contract_id: contract.id,
       completed_at:
         contract.completed_at || contract.signed_at || new Date().toISOString(),
-      document_hash: contract.content_hash || null,
-      document_hash_algorithm: contract.content_hash_algorithm || "SHA-256",
+      document_hash:
+        contract.sealed_document_hash || contract.content_hash || null,
+      document_hash_algorithm: "SHA-256",
+      signing_document_hash: contract.content_hash || null,
+      signing_document_hash_algorithm:
+        contract.content_hash_algorithm || "SHA-256",
       signers: signatureRequests.map((sr) => {
         const sig = signatures.find((s) => s.signature_request_id === sr.id);
         return {
@@ -999,6 +1091,9 @@ async function generateAndSendCertificate(contractId: string) {
           signed_at: sr.signed_at,
           ip_address: sig?.ip_address || "Unknown",
           signature_hash: sig?.image_hash?.substring(0, 16) || "N/A",
+          document_hash: sig?.document_hash || contract.content_hash || null,
+          email_verified_at: sr.email_verified_at,
+          verification_method: sr.email_verified_at ? "email_code" : null,
         };
       }),
       audit_events: auditLogs
@@ -1061,6 +1156,7 @@ async function generateAndSendCertificate(contractId: string) {
         contractTitle: contract.title,
         contractUrl,
         certificatePdf: pdfBuffer,
+        executedContractPdf,
         certificateNumber: certificate.certificate_number,
         isOwner: true,
         signers,
@@ -1077,6 +1173,7 @@ async function generateAndSendCertificate(contractId: string) {
         contractTitle: contract.title,
         contractUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com"}/portal`,
         certificatePdf: pdfBuffer,
+        executedContractPdf,
         certificateNumber: certificate.certificate_number,
         isOwner: false,
         signers,
@@ -1108,11 +1205,13 @@ async function generateCertificatePdf(
     title: string;
     content_hash?: string;
     content_hash_algorithm?: string;
+    sealed_document_hash?: string;
   },
   certificate: {
     certificate_number: string;
     summary: {
       completed_at?: string;
+      document_hash?: string | null;
       signers: Array<{
         name: string;
         email: string;
@@ -1225,7 +1324,11 @@ async function generateCertificatePdf(
   y -= 25;
 
   // Document Hash
-  if (contract.content_hash) {
+  const executedDocumentHash =
+    certificate.summary.document_hash ||
+    contract.sealed_document_hash ||
+    contract.content_hash;
+  if (executedDocumentHash) {
     page.drawText("Document Fingerprint (SHA-256):", {
       x: margin,
       y,
@@ -1234,8 +1337,16 @@ async function generateCertificatePdf(
       color: rgb(0.4, 0.4, 0.4),
     });
     y -= 12;
-    const shortHash = contract.content_hash.substring(0, 32).toUpperCase();
-    page.drawText(shortHash, {
+    const fullHash = executedDocumentHash.toUpperCase();
+    page.drawText(fullHash.substring(0, 32), {
+      x: margin,
+      y,
+      size: 9,
+      font: helvetica,
+      color: rgb(0.3, 0.3, 0.3),
+    });
+    y -= 12;
+    page.drawText(fullHash.substring(32), {
       x: margin,
       y,
       size: 9,

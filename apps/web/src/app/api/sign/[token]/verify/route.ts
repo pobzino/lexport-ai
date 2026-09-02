@@ -279,7 +279,7 @@ async function handleVerifyCode(
   await logAuditEventWithClient(supabase, {
     contractId: signatureRequest.contract_id,
     signatureRequestId: signatureRequest.id,
-    eventType: "signature_request_viewed",
+    eventType: "signer_email_verified",
     actorEmail: signatureRequest.signer_email,
     actorName: signatureRequest.signer_name,
     metadata: {

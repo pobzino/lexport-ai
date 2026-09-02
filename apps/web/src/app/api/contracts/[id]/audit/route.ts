@@ -18,6 +18,7 @@ const EVENT_DESCRIPTIONS: Record<AuditEventType, string> = {
   signature_request_sent: "Signature request sent",
   signature_request_viewed: "Signature request viewed",
   signature_request_resent: "Signature request resent",
+  signer_email_verified: "Signer email verified",
   signature_completed: "Document signed",
   signature_declined: "Signature declined",
   // Document events

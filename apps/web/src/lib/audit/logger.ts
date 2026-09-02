@@ -335,7 +335,8 @@ export const auditLogger = {
     actorEmail: string,
     actorName: string | null,
     recipientEmails: string[],
-    context?: RequestContext
+    context?: RequestContext,
+    document?: { hash: string; algorithm: string },
   ) {
     return logAuditEvent({
       contractId,
@@ -343,7 +344,11 @@ export const auditLogger = {
       userId,
       actorEmail,
       actorName,
-      metadata: { recipients: recipientEmails },
+      metadata: {
+        recipients: recipientEmails,
+        document_hash: document?.hash,
+        document_hash_algorithm: document?.algorithm,
+      },
       context,
     });
   },

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
-import { createHash } from "crypto";
 import type { ContractContent, GeoLocation } from "@/db/types";
+import { documentHashesEqual, hashBytes } from "@/lib/document-integrity";
 import {
   generateUploadedContractPdf,
   type UploadedSourceFileType,
@@ -12,6 +12,7 @@ import {
   renderLegalContractPdf,
   type LegalDocumentIdentity,
 } from "@/lib/pdf/legal-contract";
+import { sealCompletedContract } from "@/lib/sealed-contract";
 
 export const dynamic = "force-dynamic";
 
@@ -80,100 +81,27 @@ export async function POST(
       });
     }
 
-    // Check if contract is fully signed
-    const signatureRequests = contract.signature_requests as {
-      id: string;
-      signer_name: string;
-      signer_email: string;
-      signer_role: string;
+    const signatureRequests = contract.signature_requests as Array<{
       status: string;
-      signed_at: string | null;
-      email_verified_at: string | null;
-    }[];
-
-    const allSigned = signatureRequests.every((r) => r.status === "signed");
-    if (!allSigned) {
+    }>;
+    if (
+      !signatureRequests.length ||
+      signatureRequests.some((signatureRequest) => signatureRequest.status !== "signed")
+    ) {
       return NextResponse.json(
         { error: "Contract must be fully signed before sealing" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Generate the sealed PDF
-    const content = contract.content as ContractContent;
-    const signatures = contract.signatures as {
-      id: string;
-      signature_request_id: string;
-      signature_data: string;
-      ip_address: string;
-      user_agent: string;
-      signed_at: string;
-      image_hash: string;
-      identity_confirmed: boolean;
-      identity_confirmation_text: string | null;
-      geo_location: GeoLocation | null;
-      rfc3161_timestamp_token: string | null;
-      rfc3161_timestamp_authority: string | null;
-    }[];
-
-    const pdfBytes = await generateArtifactPdf(
-      supabase,
-      contract,
-      content,
-      signatureRequests,
-      signatures
-    );
-
-    // Calculate document hash
-    const documentHash = createHash("sha256")
-      .update(Buffer.from(pdfBytes))
-      .digest("hex");
-
-    // Upload to Supabase Storage
-    const fileName = `sealed-${contractId}-${Date.now()}.pdf`;
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("sealed-documents")
-      .upload(fileName, pdfBytes, {
-        contentType: "application/pdf",
-        upsert: false,
-      });
-
-    let sealedPdfUrl: string | null = null;
-    if (uploadError) {
-      console.error("Error uploading sealed PDF:", uploadError);
-      // Continue without storage - we'll still mark as sealed
-    } else {
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from("sealed-documents")
-        .getPublicUrl(fileName);
-      sealedPdfUrl = urlData.publicUrl;
-    }
-
-    // Update contract with sealed info
-    const { error: updateError } = await supabase
-      .from("contracts")
-      .update({
-        sealed_at: new Date().toISOString(),
-        sealed_pdf_url: sealedPdfUrl,
-        sealed_document_hash: documentHash,
-      })
-      .eq("id", contractId);
-
-    if (updateError) {
-      console.error("Error updating contract seal status:", updateError);
-      return NextResponse.json(
-        { error: "Failed to update contract seal status" },
-        { status: 500 }
-      );
-    }
+    const sealed = await sealCompletedContract(supabase, contractId);
 
     return NextResponse.json({
       success: true,
       message: "Contract sealed successfully",
-      sealedAt: new Date().toISOString(),
-      sealedPdfUrl,
-      documentHash,
+      sealedAt: sealed.sealedAt,
+      sealedPdfUrl: sealed.sealedPdfUrl,
+      documentHash: sealed.documentHash,
     });
   } catch (error) {
     console.error("Error sealing contract:", error);
@@ -186,20 +114,24 @@ export async function POST(
 
 // GET - Download sealed PDF
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: contractId } = await params;
     const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    // Allow access for both authenticated users and signers
     const { data: contract, error: contractError } = await supabase
       .from("contracts")
       .select(`
-        id, title, status, jurisdiction, signed_at, completed_at, sealed_at, sealed_pdf_url,
-        sealed_document_hash, user_id, content, content_hash,
-        source_type, source_file_url, source_file_type, processing_mode,
+        *,
         signature_requests (
           id, signer_name, signer_email, signer_role, status, signed_at, email_verified_at
         ),
@@ -210,6 +142,7 @@ export async function GET(
         )
       `)
       .eq("id", contractId)
+      .eq("user_id", user.id)
       .single();
 
     if (contractError || !contract) {
@@ -224,38 +157,23 @@ export async function GET(
       );
     }
 
-    // Generate the sealed PDF on-the-fly
-    const content = contract.content as ContractContent;
-    const signatureRequests = contract.signature_requests as {
-      id: string;
-      signer_name: string;
-      signer_email: string;
-      signer_role: string;
-      status: string;
-      signed_at: string | null;
-      email_verified_at: string | null;
-    }[];
-    const signatures = contract.signatures as {
-      id: string;
-      signature_request_id: string;
-      signature_data: string;
-      ip_address: string;
-      signed_at: string;
-      image_hash: string;
-      identity_confirmed: boolean;
-      identity_confirmation_text: string | null;
-      geo_location: GeoLocation | null;
-      rfc3161_timestamp_token: string | null;
-      rfc3161_timestamp_authority: string | null;
-    }[];
-
-    const pdfBytes = await generateArtifactPdf(
+    const pdfBytes = await loadStoredSealedPdf(
       supabase,
-      contract,
-      content,
-      signatureRequests,
-      signatures
+      contract.sealed_pdf_path,
+      contract.sealed_pdf_url,
     );
+    const actualHash = hashBytes(pdfBytes);
+    if (!documentHashesEqual(contract.sealed_document_hash, actualHash)) {
+      console.error("Stored sealed PDF failed integrity verification", {
+        contractId,
+        expected: contract.sealed_document_hash,
+        actual: actualHash,
+      });
+      return NextResponse.json(
+        { error: "The stored signed PDF failed its integrity check" },
+        { status: 409 },
+      );
+    }
 
     const safeTitle = contract.title.replace(/[^a-z0-9]/gi, "-").toLowerCase();
 
@@ -263,6 +181,9 @@ export async function GET(
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="sealed-${safeTitle}.pdf"`,
+        "Cache-Control": "private, no-store, max-age=0",
+        "X-Document-SHA256": actualHash,
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch (error) {
@@ -272,6 +193,32 @@ export async function GET(
       { status: 500 }
     );
   }
+}
+
+async function loadStoredSealedPdf(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  storagePath: string | null,
+  publicUrl: string | null,
+): Promise<Uint8Array> {
+  if (storagePath) {
+    const { data, error } = await supabase.storage
+      .from("sealed-documents")
+      .download(storagePath);
+    if (!error && data) {
+      return new Uint8Array(await data.arrayBuffer());
+    }
+    console.error("Failed to download sealed PDF by storage path:", error);
+  }
+
+  // Compatibility path for documents sealed before sealed_pdf_path existed.
+  if (publicUrl) {
+    const response = await fetch(publicUrl, { cache: "no-store" });
+    if (response.ok) {
+      return new Uint8Array(await response.arrayBuffer());
+    }
+  }
+
+  throw new Error("The stored sealed PDF is unavailable");
 }
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;

@@ -107,8 +107,12 @@ export async function GET(
         contract_title: contract.title,
         contract_id: contract.id,
         completed_at: contract.completed_at || contract.signed_at,
-        document_hash: contract.content_hash || null,
-        document_hash_algorithm: contract.content_hash_algorithm || "SHA-256",
+        document_hash:
+          contract.sealed_document_hash || contract.content_hash || null,
+        document_hash_algorithm: contract.sealed_document_hash
+          ? "SHA-256"
+          : contract.content_hash_algorithm || "SHA-256",
+        signing_document_hash: contract.content_hash || null,
         signers: signatureRequests.map((sr) => {
           const sig = signatures.find((s) => s.signature_request_id === sr.id);
           return {

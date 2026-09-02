@@ -920,6 +920,7 @@ export interface CompletedContractWithCertificateParams {
   contractTitle: string;
   contractUrl: string;
   certificatePdf: Buffer;
+  executedContractPdf: Buffer;
   certificateNumber: string;
   isOwner: boolean;
   signers: { name: string; email: string; signedAt: string }[];
@@ -934,6 +935,7 @@ export async function sendCompletedContractWithCertificate({
   contractTitle,
   contractUrl,
   certificatePdf,
+  executedContractPdf,
   certificateNumber,
   isOwner,
   signers,
@@ -987,7 +989,7 @@ export async function sendCompletedContractWithCertificate({
     <div style="background-color: ${BRAND.blue}08; border: 1px solid ${BRAND.blue}30; border-radius: 10px; padding: 16px; margin: 24px 0;">
       <p style="margin: 0; font-size: 14px; color: ${BRAND.navy};">
         <strong>📜 Certificate of Completion</strong><br>
-        <span style="color: ${BRAND.slate};">Certificate #${certificateNumber} is attached to this email.</span>
+        <span style="color: ${BRAND.slate};">The executed agreement and Certificate #${certificateNumber} are attached to this email.</span>
       </p>
     </div>
 
@@ -996,7 +998,7 @@ export async function sendCompletedContractWithCertificate({
     <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0;">
 
     <p style="margin: 0; font-size: 12px; color: #94a3b8; text-align: center;">
-      This certificate provides a complete audit trail and legally verifiable record of all signatures. Keep it for your records.
+      This certificate records the signing audit trail. Keep it with the executed agreement for your records.
     </p>
   `;
 
@@ -1016,11 +1018,11 @@ ${contractTitle}
 Signature Summary:
 ${signersText}
 
-Certificate of Completion #${certificateNumber} is attached to this email.
+The executed agreement and Certificate of Completion #${certificateNumber} are attached to this email.
 
 View Contract: ${contractUrl}
 
-This certificate provides a complete audit trail and legally verifiable record of all signatures. Keep it for your records.
+This certificate records the signing audit trail. Keep it with the executed agreement for your records.
 
 ---
 Powered by Lexport
@@ -1034,6 +1036,10 @@ Powered by Lexport
       html,
       text,
       attachments: [
+        {
+          filename: `${contractTitle.replace(/[^a-zA-Z0-9-_\s]/g, "").replace(/\s+/g, "-") || "Executed-Agreement"}-Executed.pdf`,
+          content: executedContractPdf,
+        },
         {
           filename: `Certificate-${certificateNumber}.pdf`,
           content: certificatePdf,

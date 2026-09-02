@@ -44,6 +44,7 @@ const EVENT_ICONS: Record<AuditEventType, React.ElementType> = {
   signature_request_sent: Send,
   signature_request_viewed: Eye,
   signature_request_resent: RefreshCw,
+  signer_email_verified: Mail,
   signature_completed: CheckCircle2,
   signature_declined: XCircle,
   // Document events
@@ -87,6 +88,7 @@ const EVENT_COLORS: Record<string, { bg: string; text: string; border: string }>
   signature_request_sent: { bg: "bg-[#529ec6]/10", text: "text-[#529ec6]", border: "border-[#529ec6]/20" },
   signature_request_viewed: { bg: "bg-slate-100", text: "text-slate-600", border: "border-slate-200" },
   signature_request_resent: { bg: "bg-amber-100", text: "text-amber-600", border: "border-amber-200" },
+  signer_email_verified: { bg: "bg-emerald-100", text: "text-emerald-600", border: "border-emerald-200" },
   signature_completed: { bg: "bg-emerald-100", text: "text-emerald-600", border: "border-emerald-200" },
   signature_declined: { bg: "bg-red-100", text: "text-red-600", border: "border-red-200" },
   // Document events
