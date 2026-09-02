@@ -595,7 +595,9 @@ export default function InvoicePaymentPage() {
                     <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
                     <p className="text-sm text-amber-800">
                       {paymentInfo.paymentUnavailableReason ||
-                        "Online payment is temporarily unavailable. Use the bank details shown or contact the sender."}
+                        (bankDetailRows.length > 0
+                          ? "Online payment is temporarily unavailable. Use the bank details shown or contact the sender."
+                          : "Online payment is temporarily unavailable. Contact the sender for payment instructions.")}
                     </p>
                   </div>
                 )}

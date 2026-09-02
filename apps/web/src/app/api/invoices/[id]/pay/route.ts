@@ -174,7 +174,7 @@ export async function POST(
         ...buildPaymentResponse(invoice),
         code: "ONLINE_PAYMENT_UNAVAILABLE",
         paymentUnavailableReason:
-          "Online payment is temporarily unavailable. Use the bank details shown or contact the sender.",
+          "Online payment is temporarily unavailable. Contact the sender for payment instructions.",
       });
     }
 
@@ -276,7 +276,7 @@ export async function POST(
         ...buildPaymentResponse(invoice),
         code: "ONLINE_PAYMENT_UNAVAILABLE",
         paymentUnavailableReason:
-          "Online payment is temporarily unavailable. Use the bank details shown or contact the sender.",
+          "Online payment is temporarily unavailable. Contact the sender for payment instructions.",
       });
     }
     const updatedAt = new Date().toISOString();
