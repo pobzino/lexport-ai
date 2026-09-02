@@ -2336,7 +2336,7 @@ export default function ContractEditorPage() {
                     </div>
                   </div>
                   <EmbeddedPDFViewer
-                    pdfUrl={contract.source_file_url}
+                    pdfUrl={`/api/contracts/${contractId}/pdf`}
                   />
                 </div>
               ) : (
@@ -3155,9 +3155,8 @@ export default function ContractEditorPage() {
       {showVisualEditor && contract && (
         <SignatureFieldEditorVisual
           contractId={contractId}
-          pdfUrl={contract.processing_mode === "sign_only" && contract.source_file_url
-            ? contract.source_file_url
-            : `/api/contracts/${contractId}/pdf`}
+          contractTitle={contract.title}
+          pdfUrl={`/api/contracts/${contractId}/pdf`}
           signers={definedSigners.length > 0
             ? definedSigners.map(s => ({ id: s.id, role: s.role, name: s.name, email: s.email }))
             : getSignerRoles().map((role, idx) => ({

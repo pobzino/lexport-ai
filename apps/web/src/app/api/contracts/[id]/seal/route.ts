@@ -3,6 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { createHash } from "crypto";
 import type { ContractContent, GeoLocation } from "@/db/types";
+import {
+  generateUploadedContractPdf,
+  type UploadedSourceFileType,
+} from "@/lib/pdf/uploaded-contract";
 
 export const dynamic = "force-dynamic";
 
@@ -107,7 +111,8 @@ export async function POST(
       rfc3161_timestamp_authority: string | null;
     }[];
 
-    const pdfBytes = await generateSealedPdf(
+    const pdfBytes = await generateArtifactPdf(
+      supabase,
       contract,
       content,
       signatureRequests,
@@ -187,8 +192,9 @@ export async function GET(
     const { data: contract, error: contractError } = await supabase
       .from("contracts")
       .select(`
-        id, title, sealed_at, sealed_pdf_url, sealed_document_hash, user_id,
-        content, content_hash,
+        id, title, status, signed_at, completed_at, sealed_at, sealed_pdf_url,
+        sealed_document_hash, user_id, content, content_hash,
+        source_type, source_file_url, source_file_type, processing_mode,
         signature_requests (
           id, signer_name, signer_email, signer_role, status, signed_at, email_verified_at
         ),
@@ -238,7 +244,8 @@ export async function GET(
       rfc3161_timestamp_authority: string | null;
     }[];
 
-    const pdfBytes = await generateSealedPdf(
+    const pdfBytes = await generateArtifactPdf(
+      supabase,
       contract,
       content,
       signatureRequests,
@@ -260,6 +267,107 @@ export async function GET(
       { status: 500 }
     );
   }
+}
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+async function generateArtifactPdf(
+  supabase: SupabaseServerClient,
+  contract: {
+    id: string;
+    title: string;
+    status?: string | null;
+    source_type?: string | null;
+    source_file_url?: string | null;
+    source_file_type?: string | null;
+    processing_mode?: string | null;
+    content_hash?: string | null;
+    completed_at?: string | null;
+    signed_at?: string | null;
+    sealed_at?: string | null;
+  },
+  content: ContractContent,
+  signatureRequests: {
+    id: string;
+    signer_name: string;
+    signer_email: string;
+    signer_role: string;
+    status: string;
+    signed_at: string | null;
+    email_verified_at: string | null;
+  }[],
+  signatures: {
+    id: string;
+    signature_request_id: string;
+    signature_data: string;
+    ip_address: string;
+    signed_at: string;
+    image_hash: string;
+    identity_confirmed: boolean;
+    identity_confirmation_text: string | null;
+    geo_location: GeoLocation | null;
+    rfc3161_timestamp_token: string | null;
+    rfc3161_timestamp_authority: string | null;
+  }[],
+): Promise<Uint8Array> {
+  const sourceFileUrl = contract.source_file_url;
+  const preserveUploadedOriginal =
+    contract.source_type === "uploaded" &&
+    contract.processing_mode === "sign_only" &&
+    sourceFileUrl;
+
+  if (!preserveUploadedOriginal) {
+    return generateSealedPdf(contract, content, signatureRequests, signatures);
+  }
+  if (!["pdf", "jpg", "png"].includes(String(contract.source_file_type))) {
+    throw new Error("This uploaded file must be converted before it can be sealed");
+  }
+
+  let sourceBytes: Uint8Array;
+  if (sourceFileUrl.startsWith("http")) {
+    const response = await fetch(sourceFileUrl, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Failed to download uploaded source (${response.status})`);
+    }
+    sourceBytes = new Uint8Array(await response.arrayBuffer());
+  } else {
+    const { data: sourceBlob, error: sourceError } = await supabase.storage
+      .from("contract-uploads")
+      .download(sourceFileUrl);
+    if (sourceError || !sourceBlob) {
+      throw new Error(sourceError?.message || "Failed to download uploaded source");
+    }
+    sourceBytes = new Uint8Array(await sourceBlob.arrayBuffer());
+  }
+
+  const { data: signatureFields, error: fieldsError } = await supabase
+    .from("signature_fields")
+    .select("*")
+    .eq("contract_id", contract.id);
+  if (fieldsError) throw fieldsError;
+  const fieldIds = (signatureFields || []).map((field) => field.id);
+  const fieldValuesResult = fieldIds.length
+    ? await supabase.from("field_values").select("*").in("field_id", fieldIds)
+    : { data: [], error: null };
+  if (fieldValuesResult.error) throw fieldValuesResult.error;
+
+  return generateUploadedContractPdf({
+    sourceBytes,
+    sourceFileType: contract.source_file_type as UploadedSourceFileType,
+    contract: {
+      id: contract.id,
+      title: contract.title,
+      status: "sealed",
+      contentHash: contract.content_hash,
+      completedAt:
+        contract.completed_at || contract.signed_at || contract.sealed_at,
+    },
+    signatureFields: signatureFields || [],
+    fieldValues: fieldValuesResult.data || [],
+    signatures,
+    signatureRequests,
+    appendCompletionPage: true,
+  });
 }
 
 async function generateSealedPdf(

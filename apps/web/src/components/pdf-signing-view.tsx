@@ -138,31 +138,6 @@ export function PDFSigningView({
     (f) => (f.page || 1) === currentPage
   );
 
-  // Debug logging - always log to help diagnose rendering issues
-  if (typeof window !== 'undefined') {
-    console.log("[PDFSigningView] RENDER STATE:", {
-      pageWidth,
-      pdfAspectRatio,
-      scale,
-      renderedWidth,
-      renderedHeight,
-      willRenderFields: renderedWidth > 0 && currentPageFields.length > 0,
-      signatureFieldsCount: signatureFields.length,
-      currentPageFieldsCount: currentPageFields.length,
-      currentPage,
-      currentSignerRole,
-      containerRefExists: !!containerRef.current,
-      fields: signatureFields.slice(0, 5).map(f => ({
-        id: f.id?.substring(0, 8),
-        type: f.type,
-        signer_role: f.signer_role,
-        position_x: f.position_x,
-        position_y: f.position_y,
-        page: f.page
-      }))
-    });
-  }
-
   // Check if a field is filled
   const isFieldFilled = (field: SignatureField): boolean => {
     const value = fieldValues.get(field.id);
@@ -277,6 +252,7 @@ export function PDFSigningView({
                 // Convert percentage to pixels using actual rendered dimensions
                 const pixelX = (field.position_x / 100) * renderedWidth;
                 const pixelY = (field.position_y / 100) * renderedHeight;
+                const fieldScale = renderedWidth / 800;
 
                 return (
                   <div
@@ -291,8 +267,8 @@ export function PDFSigningView({
                     style={{
                       left: pixelX,
                       top: pixelY,
-                      width: field.width || 150,
-                      height: field.height || 40,
+                      width: (field.width || 150) * fieldScale,
+                      height: (field.height || 40) * fieldScale,
                     }}
                     onClick={() => isClickable && onFieldClick(field)}
                   >

@@ -9,12 +9,14 @@ interface ModeSelectorProps {
   selectedMode: ProcessingMode | null;
   onModeSelect: (mode: ProcessingMode) => void;
   disabled?: boolean;
+  signOnlySupported?: boolean;
 }
 
 export function ModeSelector({
   selectedMode,
   onModeSelect,
   disabled = false,
+  signOnlySupported = true,
 }: ModeSelectorProps) {
   const modes = [
     {
@@ -27,7 +29,7 @@ export function ModeSelector({
       features: [
         "No reformatting",
         "Best for ready-to-sign documents",
-        "PDF, DOCX, or scanned files",
+        "PDF or scanned image",
       ],
     },
     {
@@ -49,12 +51,14 @@ export function ModeSelector({
       {modes.map((mode) => {
         const Icon = mode.icon;
         const isSelected = selectedMode === mode.id;
+        const isUnavailable = mode.id === "sign_only" && !signOnlySupported;
 
         return (
           <button
             key={mode.id}
             onClick={() => onModeSelect(mode.id)}
-            disabled={disabled}
+            disabled={disabled || isUnavailable}
+            aria-disabled={disabled || isUnavailable}
             className={`
               relative flex flex-col items-start p-6 rounded-2xl border-2 text-left
               transition-all duration-200
@@ -63,7 +67,7 @@ export function ModeSelector({
                   ? "border-[#529ec6] bg-[#529ec6]/5"
                   : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
               }
-              ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+              ${disabled || isUnavailable ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
             `}
           >
             {isSelected && (
@@ -98,6 +102,12 @@ export function ModeSelector({
               </span>
             )}
             <p className="text-sm text-slate-500 mb-4">{mode.description}</p>
+
+            {isUnavailable && (
+              <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                Word files must be converted to editable clauses before signing.
+              </p>
+            )}
 
             <div className="space-y-2">
               {mode.features.map((feature, index) => (

@@ -41,10 +41,15 @@ export function PlacedField({
 
   const config = getFieldConfig(field.type);
   const Icon = FIELD_ICONS[field.type];
+  const fieldScale = pageDimensions.width > 0
+    ? pageDimensions.width / 800
+    : 1;
 
   // Convert percentage position to pixels
   const pixelX = (field.x / 100) * pageDimensions.width;
   const pixelY = (field.y / 100) * pageDimensions.height;
+  const displayWidth = field.width * fieldScale;
+  const displayHeight = field.height * fieldScale;
 
   const style: React.CSSProperties = {
     position: "absolute",
@@ -70,15 +75,18 @@ export function PlacedField({
       }}
     >
       <Resizable
-        size={{ width: field.width, height: field.height }}
-        minWidth={40}
-        minHeight={24}
-        maxWidth={400}
-        maxHeight={200}
+        size={{ width: displayWidth, height: displayHeight }}
+        minWidth={40 * fieldScale}
+        minHeight={24 * fieldScale}
+        maxWidth={400 * fieldScale}
+        maxHeight={200 * fieldScale}
         onResizeStart={() => setIsResizing(true)}
         onResizeStop={(e, direction, ref, d) => {
           setIsResizing(false);
-          onResize(field.width + d.width, field.height + d.height);
+          onResize(
+            (displayWidth + d.width) / fieldScale,
+            (displayHeight + d.height) / fieldScale,
+          );
         }}
         enable={isSelected ? {
           top: false,
@@ -96,9 +104,9 @@ export function PlacedField({
           bottomRight: { cursor: "nwse-resize", width: 12, height: 12 },
         }}
         handleClasses={{
-          right: "bg-[#529ec6]/50/0 hover:bg-[#529ec6]/50/50 transition-colors",
-          bottom: "bg-[#529ec6]/50/0 hover:bg-[#529ec6]/50/50 transition-colors",
-          bottomRight: "bg-[#529ec6]/50 rounded-full",
+          right: "bg-transparent hover:bg-[#529ec6]/30 transition-colors",
+          bottom: "bg-transparent hover:bg-[#529ec6]/30 transition-colors",
+          bottomRight: "bg-[#529ec6] rounded-full",
         }}
       >
         <div
@@ -120,7 +128,7 @@ export function PlacedField({
           {/* Drag indicator */}
           <div
             className={`absolute top-1 left-1 p-0.5 rounded ${
-              isSelected ? "bg-[#529ec6]/50/20" : "bg-slate-200/50"
+              isSelected ? "bg-[#529ec6]/20" : "bg-slate-200/50"
             }`}
           >
             <Move className="w-3 h-3" style={{ color: config.color }} />

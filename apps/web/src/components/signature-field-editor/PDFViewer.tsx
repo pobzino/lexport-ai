@@ -103,24 +103,26 @@ export function PDFViewer({
   const zoomOut = () => setScale((s) => Math.max(s - 0.25, 0.5));
 
   return (
-    <div className="flex flex-col h-full bg-slate-100 rounded-lg overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden bg-[#dfe6ee]">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white border-b">
+      <div className="flex min-h-14 items-center justify-between border-b border-slate-200 bg-white px-4 py-2 shadow-sm">
         <div className="flex items-center gap-2">
           <button
             onClick={goToPreviousPage}
             disabled={currentPage <= 1}
-            className="p-1.5 rounded hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-lg border border-slate-200 p-1.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Previous page"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <span className="text-sm font-medium min-w-[80px] text-center">
-            Page {currentPage} of {numPages || "..."}
+          <span className="min-w-[92px] text-center text-sm font-medium text-slate-700">
+            Page {currentPage} / {numPages || "..."}
           </span>
           <button
             onClick={goToNextPage}
             disabled={currentPage >= numPages}
-            className="p-1.5 rounded hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-lg border border-slate-200 p-1.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Next page"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -130,17 +132,19 @@ export function PDFViewer({
           <button
             onClick={zoomOut}
             disabled={scale <= 0.5}
-            className="p-1.5 rounded hover:bg-slate-100 disabled:opacity-50"
+            className="rounded-lg p-1.5 hover:bg-slate-100 disabled:opacity-40"
+            aria-label="Zoom out"
           >
             <ZoomOut className="w-5 h-5" />
           </button>
-          <span className="text-sm font-medium min-w-[50px] text-center">
+          <span className="min-w-[50px] text-center text-xs font-semibold text-slate-600">
             {Math.round(scale * 100)}%
           </span>
           <button
             onClick={zoomIn}
             disabled={scale >= 2}
-            className="p-1.5 rounded hover:bg-slate-100 disabled:opacity-50"
+            className="rounded-lg p-1.5 hover:bg-slate-100 disabled:opacity-40"
+            aria-label="Zoom in"
           >
             <ZoomIn className="w-5 h-5" />
           </button>
@@ -150,14 +154,17 @@ export function PDFViewer({
       {/* PDF Container */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-auto p-6 flex justify-center"
+        className="flex flex-1 justify-center overflow-auto p-6 sm:p-10"
       >
         {!isClient ? (
           <div className="flex items-center justify-center p-12">
             <Loader2 className="w-8 h-8 animate-spin text-[#529ec6]" />
           </div>
         ) : (
-          <div className="relative shadow-xl bg-white">
+          <div
+            data-signature-page
+            className="relative bg-white shadow-[0_18px_55px_rgba(32,46,70,0.22)] ring-1 ring-slate-300"
+          >
             <Document
               file={pdfUrl}
               onLoadSuccess={onDocumentLoadSuccess}
@@ -194,6 +201,30 @@ export function PDFViewer({
           </div>
         )}
       </div>
+
+      {numPages > 1 && (
+        <div className="flex items-center gap-2 overflow-x-auto border-t border-slate-200 bg-white px-4 py-2">
+          <span className="mr-1 flex-none text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            Pages
+          </span>
+          {Array.from({ length: numPages }, (_, index) => index + 1).map((pageNumber) => (
+            <button
+              key={pageNumber}
+              type="button"
+              onClick={() => onPageChange(pageNumber)}
+              aria-label={`Go to page ${pageNumber}`}
+              aria-current={currentPage === pageNumber ? "page" : undefined}
+              className={`h-8 min-w-8 flex-none rounded-md px-2 text-xs font-semibold transition ${
+                currentPage === pageNumber
+                  ? "bg-[#202e46] text-white"
+                  : "border border-slate-200 bg-white text-slate-600 hover:border-[#529ec6] hover:text-[#356e8e]"
+              }`}
+            >
+              {pageNumber}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

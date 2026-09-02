@@ -186,38 +186,6 @@ export async function GET(
       .eq("contract_id", contract.id)
       .order("order", { ascending: true });
 
-    // For sign_only contracts, generate signed URL for the source file
-    let sourceFileSignedUrl = null;
-    if (contract.processing_mode === "sign_only" && contract.source_file_url) {
-      const isFullUrl = contract.source_file_url.startsWith("http");
-      if (!isFullUrl) {
-        const { data: signedUrlData, error: signedUrlError } =
-          await supabase.storage
-            .from("contract-uploads")
-            .createSignedUrl(contract.source_file_url, 3600); // 1 hour
-
-        if (signedUrlError) {
-          console.error(
-            "[Sign API] Failed to create signed URL for source file:",
-            {
-              error: signedUrlError,
-              path: contract.source_file_url,
-              contractId: contract.id,
-            },
-          );
-        }
-        sourceFileSignedUrl = signedUrlData?.signedUrl || null;
-        console.log(
-          "[Sign API] Source file signed URL:",
-          sourceFileSignedUrl
-            ? "Generated successfully"
-            : "FAILED - returning raw path",
-        );
-      } else {
-        sourceFileSignedUrl = contract.source_file_url;
-      }
-    }
-
     // Check payment status for deposit/balance structures
     let depositPaid = false;
     let paymentSufficientForSigning = false;
@@ -332,7 +300,10 @@ export async function GET(
         paymentSufficientForSigning,
         // Sign-only contract fields
         processingMode: contract.processing_mode,
-        sourceFileUrl: sourceFileSignedUrl || contract.source_file_url,
+        sourceFileUrl:
+          contract.processing_mode === "sign_only" && contract.source_file_url
+            ? `/api/sign/${token}/document`
+            : null,
       },
       signatureFields: signatureFields || [],
       signingProgress,
@@ -603,7 +574,12 @@ export async function POST(
           fieldValue.value ||
           (fieldValue.attachmentData
             ? JSON.stringify(fieldValue.attachmentData)
-            : null),
+            : fieldValue.signatureData
+              ? JSON.stringify({
+                  kind: "signature",
+                  dataUrl: fieldValue.signatureData,
+                })
+              : null),
         signature_id: fieldValue.signatureData ? signatureId : null,
         completed_at: new Date().toISOString(),
       }));

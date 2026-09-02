@@ -23,6 +23,7 @@ import {
 import { ContentPreview } from "@/components/upload/content-preview";
 import { createClient } from "@/lib/supabase/client";
 import {
+  getUploadFileType,
   getUploadMimeType,
   type UploadFileType,
 } from "@/lib/upload/file-validation";
@@ -161,11 +162,14 @@ export default function UploadContractPage() {
   const handleFileSelect = useCallback(
     (file: File | null) => {
       if (state.filePath) void discardUpload(state.filePath);
+      const fileType = file ? getUploadFileType(file.name, file.type) : null;
       setError(null);
       setState((previous) => ({
         ...INITIAL_STATE,
-        processingMode: previous.processingMode,
+        processingMode:
+          fileType === "docx" ? "edit_and_sign" : previous.processingMode,
         file,
+        fileType,
         title: file ? getFileTitle(file) : "",
       }));
     },
@@ -509,6 +513,7 @@ export default function UploadContractPage() {
                   selectedMode={state.processingMode}
                   onModeSelect={handleModeSelect}
                   disabled={isProcessing}
+                  signOnlySupported={state.fileType !== "docx"}
                 />
 
                 <div className="mt-7 flex flex-col gap-4 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">

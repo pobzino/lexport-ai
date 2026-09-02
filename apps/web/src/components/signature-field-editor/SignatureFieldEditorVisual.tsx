@@ -17,6 +17,7 @@ interface Signer {
 
 interface SignatureFieldEditorVisualProps {
   contractId: string;
+  contractTitle?: string;
   pdfUrl: string;
   signers: Signer[];
   initialFields?: PlacedFieldData[];
@@ -26,6 +27,7 @@ interface SignatureFieldEditorVisualProps {
 
 export function SignatureFieldEditorVisual({
   contractId,
+  contractTitle = "Uploaded contract",
   pdfUrl,
   signers,
   initialFields = [],
@@ -69,16 +71,35 @@ export function SignatureFieldEditorVisual({
       if (!active.data.current) return;
 
       const { fromPalette, field, type } = active.data.current;
+      const pageElement = document.querySelector<HTMLElement>("[data-signature-page]");
+      const pageRect = pageElement?.getBoundingClientRect();
 
       if (fromPalette && type) {
         // New field from palette
         const config = getFieldConfig(type as FieldType);
         const selectedSigner = signers.find((s) => s.id === selectedSignerId);
-
-        // Calculate drop position (center of where the ghost was dropped)
-        // Convert pixel position to percentage of page
-        const dropX = Math.max(0, Math.min(100, (delta.x / pageDimensions.width) * 100 + 10));
-        const dropY = Math.max(0, Math.min(100, (delta.y / pageDimensions.height) * 100 + 10));
+        const pointerEvent = event.activatorEvent as PointerEvent;
+        const displayScale = pageRect ? pageRect.width / 800 : 1;
+        const displayWidth = config.defaultWidth * displayScale;
+        const displayHeight = config.defaultHeight * displayScale;
+        const pointerX = typeof pointerEvent.clientX === "number"
+          ? pointerEvent.clientX + delta.x
+          : (pageRect?.left || 0) + (pageRect?.width || pageDimensions.width) / 2;
+        const pointerY = typeof pointerEvent.clientY === "number"
+          ? pointerEvent.clientY + delta.y
+          : (pageRect?.top || 0) + (pageRect?.height || pageDimensions.height) / 2;
+        const widthPercent = pageRect
+          ? (displayWidth / pageRect.width) * 100
+          : 25;
+        const heightPercent = pageRect
+          ? (displayHeight / pageRect.height) * 100
+          : 8;
+        const dropX = pageRect
+          ? Math.max(0, Math.min(100 - widthPercent, ((pointerX - pageRect.left - displayWidth / 2) / pageRect.width) * 100))
+          : 10;
+        const dropY = pageRect
+          ? Math.max(0, Math.min(100 - heightPercent, ((pointerY - pageRect.top - displayHeight / 2) / pageRect.height) * 100))
+          : 10;
 
         const newField: PlacedFieldData = {
           id: `field-${Date.now()}`,
@@ -102,12 +123,16 @@ export function SignatureFieldEditorVisual({
         setFields((prev) =>
           prev.map((f) => {
             if (f.id === field.id) {
-              const newX = f.x + (delta.x / pageDimensions.width) * 100;
-              const newY = f.y + (delta.y / pageDimensions.height) * 100;
+              const renderedWidth = pageRect?.width || pageDimensions.width;
+              const renderedHeight = pageRect?.height || pageDimensions.height;
+              const fieldWidthPercent = ((f.width * (renderedWidth / 800)) / renderedWidth) * 100;
+              const fieldHeightPercent = ((f.height * (renderedWidth / 800)) / renderedHeight) * 100;
+              const newX = f.x + (delta.x / renderedWidth) * 100;
+              const newY = f.y + (delta.y / renderedHeight) * 100;
               return {
                 ...f,
-                x: Math.max(0, Math.min(100 - (f.width / pageDimensions.width) * 100, newX)),
-                y: Math.max(0, Math.min(100 - (f.height / pageDimensions.height) * 100, newY)),
+                x: Math.max(0, Math.min(100 - fieldWidthPercent, newX)),
+                y: Math.max(0, Math.min(100 - fieldHeightPercent, newY)),
               };
             }
             return f;
@@ -128,6 +153,28 @@ export function SignatureFieldEditorVisual({
     setFields((prev) => prev.filter((f) => f.id !== fieldId));
     setSelectedFieldId(null);
   }, []);
+
+  const handleAddField = useCallback((type: FieldType) => {
+    const config = getFieldConfig(type);
+    const selectedSigner = signers.find((signer) => signer.id === selectedSignerId);
+    const fieldsOnPage = fields.filter((field) => field.page === currentPage).length;
+    const offset = fieldsOnPage % 6;
+    const newField: PlacedFieldData = {
+      id: `field-${Date.now()}`,
+      type,
+      signerId: selectedSignerId,
+      signerRole: selectedSigner?.role || "Signer",
+      page: currentPage,
+      x: Math.min(68, 14 + offset * 5),
+      y: Math.min(76, 16 + offset * 8),
+      width: config.defaultWidth,
+      height: config.defaultHeight,
+      required: type === "signature",
+      label: config.label,
+    };
+    setFields((previous) => [...previous, newField]);
+    setSelectedFieldId(newField.id);
+  }, [currentPage, fields, selectedSignerId, signers]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -155,28 +202,32 @@ export function SignatureFieldEditorVisual({
     : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-900/90">
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#e8edf3]">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 bg-white border-b">
+      <div className="flex items-center justify-between gap-4 border-b border-white/10 bg-[#141d2e] px-4 py-3 text-white sm:px-6">
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            className="rounded-lg p-2 text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="Close field editor"
           >
             <X className="w-5 h-5" />
           </button>
-          <div>
-            <h2 className="font-semibold text-lg">Place Signature Fields</h2>
-            <p className="text-sm text-slate-500">
-              {totalFields} field{totalFields !== 1 ? "s" : ""} placed
-              {currentPageFields.length > 0 && ` (${currentPageFields.length} on this page)`}
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8dc2df]">
+              Prepare document - fields
             </p>
+            <h2 className="truncate text-base font-semibold sm:text-lg">{contractTitle}</h2>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span className="hidden rounded-full bg-white/10 px-3 py-1.5 text-xs text-slate-200 md:inline-flex">
+            {totalFields} field{totalFields !== 1 ? "s" : ""}
+            {currentPageFields.length > 0 && ` - ${currentPageFields.length} on page`}
+          </span>
           {error && (
-            <div className="flex items-center gap-2 text-red-600 text-sm">
+            <div className="hidden items-center gap-2 text-sm text-red-300 lg:flex">
               <AlertCircle className="w-4 h-4" />
               {error}
             </div>
@@ -184,14 +235,14 @@ export function SignatureFieldEditorVisual({
           <button
             onClick={onClose}
             disabled={isSaving}
-            className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            className="hidden rounded-lg px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white sm:block"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={isSaving || !hasChanges}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#202e46] hover:bg-[#1a2539] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 rounded-lg bg-[#529ec6] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4189b1] disabled:cursor-not-allowed disabled:opacity-45"
           >
             {isSaving ? (
               <>
@@ -212,7 +263,7 @@ export function SignatureFieldEditorVisual({
       <div className="flex-1 flex overflow-hidden">
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           {/* PDF Viewer */}
-          <div className="flex-1" onClick={() => setSelectedFieldId(null)}>
+          <div className="flex-1 bg-[#dfe6ee]" onClick={() => setSelectedFieldId(null)}>
             <PDFViewer
               pdfUrl={pdfUrl}
               currentPage={currentPage}
@@ -238,6 +289,7 @@ export function SignatureFieldEditorVisual({
             signers={signers}
             selectedSignerId={selectedSignerId}
             onSignerChange={setSelectedSignerId}
+            onAddField={handleAddField}
           />
 
           {/* Drag Overlay */}

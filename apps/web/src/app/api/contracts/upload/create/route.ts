@@ -52,6 +52,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid source file type" }, { status: 400 });
     }
 
+    if (body.processingMode === "sign_only" && body.sourceFileType === "docx") {
+      return NextResponse.json(
+        {
+          error:
+            "Word files must be converted to editable clauses before signing so the final PDF is deterministic.",
+        },
+        { status: 400 },
+      );
+    }
+
     const title = body.title.trim().slice(0, 160);
     if (!title) {
       return NextResponse.json({ error: "Contract title is required" }, { status: 400 });

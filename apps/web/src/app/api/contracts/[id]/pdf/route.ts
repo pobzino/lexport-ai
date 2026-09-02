@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { PDFDocument, rgb, StandardFonts, degrees } from "pdf-lib";
 import { auditLogger, getRequestContextFromRequest } from "@/lib/audit";
+import {
+  generateUploadedContractPdf,
+  type UploadedSourceFileType,
+} from "@/lib/pdf/uploaded-contract";
 
 interface Clause {
   id: string;
@@ -37,13 +41,17 @@ interface SignatureField {
   width: number;
   height: number;
   order: number;
+  page?: number;
 }
 
 interface SignatureRequestData {
+  id?: string;
   signer_name: string;
   signer_email: string;
   signer_role: string;
   status: string;
+  signed_at?: string | null;
+  email_verified_at?: string | null;
 }
 
 interface FieldValue {
@@ -57,6 +65,7 @@ interface FieldValue {
 
 interface SignatureRecord {
   id: string;
+  signature_request_id?: string;
   signature_data: string;
   image_hash?: string;
 }
@@ -133,50 +142,83 @@ export async function GET(
       .order("order", { ascending: true });
 
     // Fetch field values
-    const { data: fieldValues } = await supabase
-      .from("field_values")
-      .select("*")
-      .in(
-        "field_id",
-        (signatureFields || []).map((f: SignatureField) => f.id)
-      );
+    const fieldIds = (signatureFields || []).map((field: SignatureField) => field.id);
+    const fieldValuesResult = fieldIds.length
+      ? await supabase.from("field_values").select("*").in("field_id", fieldIds)
+      : { data: [], error: null };
+    if (fieldValuesResult.error) throw fieldValuesResult.error;
+    const fieldValues = fieldValuesResult.data;
 
     // Fetch all signatures for field values
     const { data: allSignatures } = await supabase
       .from("signatures")
-      .select("id, signature_data, image_hash")
+      .select("id, signature_request_id, signature_data, image_hash")
       .eq("contract_id", id);
 
     // Fetch all signature requests (for signer names by role)
     const { data: allSignatureRequests } = await supabase
       .from("signature_requests")
-      .select("signer_name, signer_email, signer_role, status")
+      .select("id, signer_name, signer_email, signer_role, status, signed_at, email_verified_at")
       .eq("contract_id", id);
-
-    // For all contracts (generated or uploaded), generate PDF from content with signatures
-    const content = contract.content as ContractContent;
-    if (!content || !content.clauses) {
-      return NextResponse.json(
-        { error: "Contract has no content to generate PDF from" },
-        { status: 400 }
-      );
-    }
 
     // Check if contract is signed (status can be 'signed' or 'completed')
     const isSigned = contract.status === "signed" || contract.status === "completed";
 
-    // Generate PDF
-    const pdfBytes = await generateContractPDF(
-      contract.title,
-      content,
-      contract.jurisdiction,
-      signatures,
-      isSigned,
-      (signatureFields || []) as SignatureField[],
-      (fieldValues || []) as FieldValue[],
-      (allSignatures || []) as SignatureRecord[],
-      (allSignatureRequests || []) as SignatureRequestData[]
-    );
+    let pdfBytes: Uint8Array;
+    const preserveUploadedOriginal =
+      contract.source_type === "uploaded" &&
+      contract.processing_mode === "sign_only" &&
+      contract.source_file_url;
+
+    if (preserveUploadedOriginal) {
+      if (!(["pdf", "jpg", "png"] as const).includes(contract.source_file_type)) {
+        return NextResponse.json(
+          { error: "This original file must be converted before it can be downloaded as a signed PDF" },
+          { status: 409 },
+        );
+      }
+
+      const sourceBytes = await downloadUploadedSource(
+        supabase,
+        contract.source_file_url,
+      );
+      pdfBytes = await generateUploadedContractPdf({
+        sourceBytes,
+        sourceFileType: contract.source_file_type as UploadedSourceFileType,
+        contract: {
+          id: contract.id,
+          title: contract.title,
+          status: contract.status,
+          contentHash: contract.content_hash,
+          completedAt: contract.completed_at || contract.signed_at,
+        },
+        signatureFields: (signatureFields || []) as SignatureField[],
+        fieldValues: (fieldValues || []) as FieldValue[],
+        signatures: (allSignatures || []) as SignatureRecord[],
+        signatureRequests: (allSignatureRequests || []) as SignatureRequestData[],
+        appendCompletionPage: isSigned,
+      });
+    } else {
+      const content = contract.content as ContractContent;
+      if (!content || !content.clauses) {
+        return NextResponse.json(
+          { error: "Contract has no content to generate PDF from" },
+          { status: 400 }
+        );
+      }
+
+      pdfBytes = await generateContractPDF(
+        contract.title,
+        content,
+        contract.jurisdiction,
+        signatures,
+        isSigned,
+        (signatureFields || []) as SignatureField[],
+        (fieldValues || []) as FieldValue[],
+        (allSignatures || []) as SignatureRecord[],
+        (allSignatureRequests || []) as SignatureRequestData[]
+      );
+    }
 
     // Log audit event for PDF download
     const context = getRequestContextFromRequest(request);
@@ -201,6 +243,29 @@ export async function GET(
       { status: 500 }
     );
   }
+}
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+async function downloadUploadedSource(
+  supabase: SupabaseServerClient,
+  sourceFileUrl: string,
+): Promise<Uint8Array> {
+  if (sourceFileUrl.startsWith("http")) {
+    const response = await fetch(sourceFileUrl, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Failed to download uploaded source (${response.status})`);
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
+  const { data, error } = await supabase.storage
+    .from("contract-uploads")
+    .download(sourceFileUrl);
+  if (error || !data) {
+    throw new Error(error?.message || "Failed to download uploaded source");
+  }
+  return new Uint8Array(await data.arrayBuffer());
 }
 
 function sanitizeFilename(name: string): string {

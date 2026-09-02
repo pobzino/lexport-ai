@@ -2,7 +2,14 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { PenTool, Type, Calendar, FileText, CheckSquare } from "lucide-react";
+import {
+  PenTool,
+  Type,
+  Calendar,
+  FileText,
+  CheckSquare,
+  GripVertical,
+} from "lucide-react";
 import { FieldType, FIELD_CONFIGS } from "./types";
 
 const FIELD_ICONS: Record<FieldType, typeof PenTool> = {
@@ -18,9 +25,10 @@ interface DraggableFieldProps {
   label: string;
   description: string;
   color: string;
+  onAdd: (type: FieldType) => void;
 }
 
-function DraggableField({ type, label, description, color }: DraggableFieldProps) {
+function DraggableField({ type, label, description, color, onAdd }: DraggableFieldProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `palette-${type}`,
     data: { type, fromPalette: true },
@@ -37,23 +45,35 @@ function DraggableField({ type, label, description, color }: DraggableFieldProps
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
-      className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-grab active:cursor-grabbing transition-all hover:shadow-md ${isDragging ? "shadow-lg ring-2 ring-[#529ec6]" : "hover:border-slate-300"
+      className={`flex w-full items-center rounded-xl border bg-white text-left transition-all ${isDragging ? "shadow-lg ring-2 ring-[#529ec6]" : "border-slate-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
         }`}
-      role="button"
-      tabIndex={0}
     >
-      <div
-        className="p-2 rounded-lg"
-        style={{ backgroundColor: `${color}20` }}
+      <button
+        type="button"
+        onClick={() => onAdd(type)}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-l-xl p-3 text-left"
       >
-        <Icon className="w-5 h-5" style={{ color }} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm text-slate-900">{label}</p>
-        <p className="text-xs text-slate-500 truncate">{description}</p>
-      </div>
+        <span
+          className="rounded-lg p-2"
+          style={{ backgroundColor: `${color}20` }}
+        >
+          <Icon className="h-5 w-5" style={{ color }} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium text-slate-900">{label}</span>
+          <span className="block truncate text-xs text-slate-500">{description}</span>
+        </span>
+        <span className="text-lg leading-none text-[#4189b1]" aria-hidden="true">+</span>
+      </button>
+      <button
+        type="button"
+        {...listeners}
+        {...attributes}
+        aria-label={`Drag ${label} field`}
+        className="mr-2 cursor-grab rounded-lg p-2 text-slate-300 hover:bg-slate-100 hover:text-slate-500 active:cursor-grabbing"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
     </div>
   );
 }
@@ -62,34 +82,39 @@ interface FieldPaletteProps {
   signers: Array<{ id: string; role: string; name?: string; email?: string }>;
   selectedSignerId: string;
   onSignerChange: (signerId: string) => void;
+  onAddField: (type: FieldType) => void;
 }
 
 export function FieldPalette({
   signers,
   selectedSignerId,
   onSignerChange,
+  onAddField,
 }: FieldPaletteProps) {
   const selectedSigner = signers.find((s) => s.id === selectedSignerId);
 
   return (
-    <div className="w-72 bg-white border-l flex flex-col">
+    <aside className="flex w-80 flex-col border-l border-slate-200 bg-white shadow-[-8px_0_24px_rgba(15,23,42,0.05)]">
       {/* Header */}
-      <div className="px-4 py-3 border-b bg-slate-50">
-        <h3 className="font-semibold text-slate-900">Signature Fields</h3>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Drag fields onto the document
+      <div className="border-b border-slate-200 px-5 py-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#4189b1]">
+          Recipients and fields
+        </p>
+        <h3 className="mt-1 font-semibold text-slate-950">Prepare for signature</h3>
+        <p className="mt-1 text-xs leading-5 text-slate-500">
+          Select a recipient, then click or drag fields onto the document.
         </p>
       </div>
 
       {/* Signer Selector */}
-      <div className="px-4 py-3 border-b">
-        <label className="block text-xs font-medium text-slate-600 mb-1.5">
-          Assign to Signer
+      <div className="border-b border-slate-200 bg-slate-50/70 px-5 py-4">
+        <label className="mb-2 block text-xs font-semibold text-slate-700">
+          Assign fields to
         </label>
         <select
           value={selectedSignerId}
           onChange={(e) => onSignerChange(e.target.value)}
-          className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#529ec6]"
+          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-[#529ec6] focus:ring-4 focus:ring-[#529ec6]/10"
         >
           {signers.map((signer) => (
             <option key={signer.id} value={signer.id}>
@@ -98,16 +123,16 @@ export function FieldPalette({
           ))}
         </select>
         {selectedSigner?.email && (
-          <p className="text-xs text-slate-400 mt-1 truncate">
+          <p className="mt-2 truncate text-xs text-slate-500">
             {selectedSigner.email}
           </p>
         )}
       </div>
 
       {/* Field Types */}
-      <div className="flex-1 overflow-auto p-4">
-        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
-          Available Fields
+      <div className="flex-1 overflow-auto p-5">
+        <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+          Fields
         </p>
         <div className="space-y-2">
           {FIELD_CONFIGS.map((config) => (
@@ -117,18 +142,18 @@ export function FieldPalette({
               label={config.label}
               description={config.description}
               color={config.color}
+              onAdd={onAddField}
             />
           ))}
         </div>
       </div>
 
       {/* Instructions */}
-      <div className="px-4 py-3 border-t bg-slate-50">
-        <p className="text-xs text-slate-500">
-          <strong>Tip:</strong> Drag a field to the document, then resize and
-          position it. Each signer will see only their assigned fields.
+      <div className="border-t border-slate-200 bg-[#f0f7fb] px-5 py-4">
+        <p className="text-xs leading-5 text-slate-600">
+          <strong className="text-slate-800">Tip:</strong> Place required signatures first. Dates can auto-fill when a recipient signs.
         </p>
       </div>
-    </div>
+    </aside>
   );
 }
