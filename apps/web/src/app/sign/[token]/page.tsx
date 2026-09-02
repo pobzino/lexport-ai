@@ -2290,8 +2290,9 @@ export default function SignContractPage() {
                     className="mt-0.5 w-5 h-5 text-[#202e46] border-slate-300 rounded focus:ring-[#202e46]"
                   />
                   <span className="text-sm text-slate-700">
-                    I agree that my electronic signature is legally binding and has
-                    the same effect as a handwritten signature.
+                    I intend to sign this document electronically and agree that my
+                    electronic signature may be used as evidence of my acceptance,
+                    to the extent permitted by applicable law.
                   </span>
                 </label>
               </div>
@@ -2299,7 +2300,10 @@ export default function SignContractPage() {
               {/* Security note */}
               <div className="flex items-start gap-3 text-sm text-slate-500 mb-4">
                 <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <p>By clicking &quot;Sign Document&quot;, you are entering into a legally binding agreement.</p>
+                <p>
+                  By clicking &quot;Sign Document&quot;, you confirm your intent to sign
+                  and be bound by this document.
+                </p>
               </div>
 
               {/* Recoverable action error (upload validation / submit failure).
@@ -2368,7 +2372,7 @@ export default function SignContractPage() {
           <p className="text-sm text-slate-500">
             Powered by <span className="font-semibold text-slate-700">Lexport</span>
             {" • "}
-            Secure e-signatures compliant with ESIGN, UETA, and UK eIDAS
+            Electronic signing with identity confirmation and a recorded audit trail
           </p>
         </div>
       </footer>

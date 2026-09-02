@@ -101,8 +101,11 @@ export default function TermsPage() {
                 3. Legal Validity of Electronic Signatures
               </h2>
               <p className="text-slate-600 leading-relaxed mb-4">
-                Electronic signatures executed through Lexport are intended to be
-                legally binding and enforceable. Our platform complies with:
+                Lexport is designed to record the parties&apos; intent, identity
+                confirmation, document fingerprint, and signing audit trail. Whether
+                an electronic signature is legally effective depends on the parties,
+                the document, applicable law, and any required formalities. The
+                platform is designed to support electronic-signature workflows under:
               </p>
               <ul className="list-disc pl-6 text-slate-600 space-y-2 mb-4">
                 <li>
