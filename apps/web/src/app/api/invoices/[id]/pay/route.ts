@@ -255,11 +255,16 @@ export async function POST(
     };
 
     const idempotencyVersion = invoice.updated_at || invoice.created_at;
+    // Bump the request-shape version whenever PaymentIntent parameters change.
+    // Stripe requires an idempotency key to be reused with identical params,
+    // including for invoices whose earlier initialization attempt failed.
+    const idempotencyKey =
+      `invoice:v2:${invoice.id}:${amount}:${currency}:${idempotencyVersion}`;
     let paymentIntent: Stripe.PaymentIntent;
     try {
       paymentIntent = await stripe.paymentIntents.create(
         paymentIntentParams,
-        { idempotencyKey: `invoice:${invoice.id}:${amount}:${currency}:${idempotencyVersion}` }
+        { idempotencyKey }
       );
     } catch (paymentError) {
       // A stale/restricted Connect account or a temporary Stripe failure must
