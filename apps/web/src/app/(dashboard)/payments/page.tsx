@@ -43,6 +43,8 @@ interface ConnectStatus {
     pending: { amount: number; currency: string }[];
   } | null;
   dashboardUrl: string | null;
+  reconnectRequired?: boolean;
+  connectionError?: string;
 }
 
 interface PaymentStats {
@@ -219,16 +221,18 @@ export default function PaymentsPage() {
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-slate-900">
-                Connect Your Bank Account
+                {connectStatus?.reconnectRequired
+                  ? "Reconnect Your Bank Account"
+                  : "Connect Your Bank Account"}
               </h3>
               <p className="text-slate-600 mt-1">
-                Set up Stripe Connect to receive payments from your contracts
-                directly to your bank account.
+                {connectStatus?.connectionError ||
+                  "Set up Stripe Connect to receive payments from your contracts directly to your bank account."}
               </p>
               <Link href="/settings/payments">
                 <Button className="mt-4">
                   <CreditCard className="w-4 h-4 mr-2" />
-                  Connect Now
+                  {connectStatus?.reconnectRequired ? "Reconnect Now" : "Connect Now"}
                 </Button>
               </Link>
             </div>
@@ -251,6 +255,23 @@ export default function PaymentsPage() {
             <Link href="/settings/payments">
               <Button variant="outline" size="sm" className="mt-2">
                 Continue Setup
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {connectStatus?.connected && connectStatus.connectionError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-red-800 font-medium">Payment setup needs attention</p>
+            <p className="text-sm text-red-700 mt-1">
+              {connectStatus.connectionError}
+            </p>
+            <Link href="/settings/payments">
+              <Button variant="outline" size="sm" className="mt-2">
+                Review Payment Setup
               </Button>
             </Link>
           </div>

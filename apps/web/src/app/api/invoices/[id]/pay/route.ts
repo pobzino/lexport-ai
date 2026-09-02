@@ -103,7 +103,6 @@ export async function POST(
   try {
     const { id } = await params;
     const supabase = createAdminClient();
-    const stripe = getStripe();
 
     const { data: invoice, error: invoiceError } = await supabase
       .from("invoices")
@@ -154,6 +153,31 @@ export async function POST(
         ? invoiceOwner.stripe_connect_account_id
         : null;
 
+    // Keep the public invoice view and offline bank details available, but do
+    // not create a platform-held card/bank charge before the sender has a payout
+    // destination. The page already treats a null clientSecret as unavailable.
+    if (!connectedAccountId) {
+      return NextResponse.json({
+        ...buildPaymentResponse(invoice),
+        code: "CONNECT_ACCOUNT_REQUIRED",
+        paymentUnavailableReason:
+          "The invoice sender must finish Stripe payout setup before accepting online payment.",
+      });
+    }
+
+    let stripe: ReturnType<typeof getStripe>;
+    try {
+      stripe = getStripe();
+    } catch (paymentError) {
+      console.error("Stripe is unavailable for invoice payment:", paymentError);
+      return NextResponse.json({
+        ...buildPaymentResponse(invoice),
+        code: "ONLINE_PAYMENT_UNAVAILABLE",
+        paymentUnavailableReason:
+          "Online payment is temporarily unavailable. Use the bank details shown or contact the sender.",
+      });
+    }
+
     if (invoice.stripe_payment_intent_id) {
       try {
         const existingIntent = await stripe.paymentIntents.retrieve(
@@ -197,18 +221,6 @@ export async function POST(
       }
     }
 
-    // Keep the public invoice view and offline bank details available, but do
-    // not create a platform-held card/bank charge before the sender has a payout
-    // destination. The page already treats a null clientSecret as unavailable.
-    if (!connectedAccountId) {
-      return NextResponse.json({
-        ...buildPaymentResponse(invoice),
-        code: "CONNECT_ACCOUNT_REQUIRED",
-        paymentUnavailableReason:
-          "The invoice sender must finish Stripe payout setup before accepting online payment.",
-      });
-    }
-
     const subscriptionTier: SubscriptionTier =
       (invoiceOwner?.subscription_tier as SubscriptionTier) || "free";
     const { paymentMethodTypes, paymentMethodOptions } =
@@ -246,10 +258,27 @@ export async function POST(
     };
 
     const idempotencyVersion = invoice.updated_at || invoice.created_at;
-    const paymentIntent = await stripe.paymentIntents.create(
-      paymentIntentParams,
-      { idempotencyKey: `invoice:${invoice.id}:${amount}:${currency}:${idempotencyVersion}` }
-    );
+    let paymentIntent: Stripe.PaymentIntent;
+    try {
+      paymentIntent = await stripe.paymentIntents.create(
+        paymentIntentParams,
+        { idempotencyKey: `invoice:${invoice.id}:${amount}:${currency}:${idempotencyVersion}` }
+      );
+    } catch (paymentError) {
+      // A stale/restricted Connect account or a temporary Stripe failure must
+      // not hide the invoice or its bank-transfer details from the customer.
+      // Fail closed for online collection and leave the invoice payable offline.
+      console.error(
+        `Could not initialize online payment for invoice ${invoice.id}:`,
+        paymentError
+      );
+      return NextResponse.json({
+        ...buildPaymentResponse(invoice),
+        code: "ONLINE_PAYMENT_UNAVAILABLE",
+        paymentUnavailableReason:
+          "Online payment is temporarily unavailable. Use the bank details shown or contact the sender.",
+      });
+    }
     const updatedAt = new Date().toISOString();
 
     const { error: updateError } = await supabase

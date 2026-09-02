@@ -11,6 +11,14 @@ import {
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
+function isStripeResourceMissing(error: unknown): boolean {
+  const stripeError = error as { type?: string; code?: string };
+  return (
+    stripeError.type === "StripeInvalidRequestError" &&
+    stripeError.code === "resource_missing"
+  );
+}
+
 // POST - Create or retrieve Connect account and get onboarding link
 export async function POST(request: NextRequest) {
   try {
@@ -66,6 +74,18 @@ export async function POST(request: NextRequest) {
     }
 
     let accountId = userData!.stripe_connect_account_id;
+
+    // A Connect account ID belongs to the Stripe mode/platform that created it.
+    // If credentials change (for example test -> live), let an explicit user
+    // reconnect action replace the stale reference instead of failing forever.
+    if (accountId) {
+      try {
+        await getConnectAccount(accountId);
+      } catch (error) {
+        if (!isStripeResourceMissing(error)) throw error;
+        accountId = null;
+      }
+    }
 
     // If no account exists, create one
     if (!accountId) {
@@ -158,7 +178,31 @@ export async function GET(request: NextRequest) {
     }
 
     // Get account details from Stripe
-    const account = await getConnectAccount(userData.stripe_connect_account_id);
+    let account: Awaited<ReturnType<typeof getConnectAccount>>;
+    try {
+      account = await getConnectAccount(userData.stripe_connect_account_id);
+    } catch (error) {
+      const reconnectRequired = isStripeResourceMissing(error);
+      console.error("Could not load Connect account:", error);
+
+      return NextResponse.json({
+        connected: !reconnectRequired,
+        status: reconnectRequired ? "not_connected" : "restricted",
+        accountId: reconnectRequired
+          ? null
+          : userData.stripe_connect_account_id,
+        chargesEnabled: false,
+        payoutsEnabled: false,
+        detailsSubmitted: false,
+        requirements: null,
+        balance: null,
+        dashboardUrl: null,
+        reconnectRequired,
+        connectionError: reconnectRequired
+          ? "Your previous Stripe connection is no longer available. Reconnect to accept online payments."
+          : "We could not verify your Stripe account. Try again before accepting online payments.",
+      });
+    }
     const status = getAccountStatus(account);
 
     // Update status in database if changed

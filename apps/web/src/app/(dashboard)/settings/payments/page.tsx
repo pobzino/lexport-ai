@@ -49,6 +49,8 @@ interface ConnectStatus {
     pending: { amount: number; currency: string }[];
   } | null;
   dashboardUrl: string | null;
+  reconnectRequired?: boolean;
+  connectionError?: string;
   payoutSchedule?: {
     interval: string;
     delay_days?: number;
@@ -188,7 +190,12 @@ export default function PaymentSettingsPage() {
 
   // Initialize Stripe Connect when account exists
   useEffect(() => {
-    if (status?.connected && status.accountId && !stripeConnectInstance) {
+    if (
+      status?.connected &&
+      status.accountId &&
+      !status.connectionError &&
+      !stripeConnectInstance
+    ) {
       initializeStripeConnect();
     }
   }, [status, stripeConnectInstance, initializeStripeConnect]);
@@ -256,6 +263,15 @@ export default function PaymentSettingsPage() {
   // Get status badge
   const getStatusBadge = () => {
     if (!status) return null;
+
+    if (status.connectionError) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+          <XCircle className="w-4 h-4" />
+          Needs attention
+        </span>
+      );
+    }
 
     switch (status.status) {
       case "active":
@@ -440,11 +456,13 @@ export default function PaymentSettingsPage() {
                     <CreditCard className="w-8 h-8 text-slate-400" />
                   </div>
                   <h3 className="text-lg font-medium text-slate-900 mb-2">
-                    Start Accepting Payments
+                    {status?.reconnectRequired
+                      ? "Reconnect Payments"
+                      : "Start Accepting Payments"}
                   </h3>
                   <p className="text-slate-500 max-w-md mx-auto mb-6">
-                    Connect your bank account to receive payments from signed contracts.
-                    We use Stripe for secure payment processing.
+                    {status?.connectionError ||
+                      "Connect your bank account to receive payments from signed contracts. We use Stripe for secure payment processing."}
                   </p>
                   <Button onClick={() => setShowCountrySelect(true)} disabled={connecting}>
                     {connecting ? (
@@ -455,7 +473,9 @@ export default function PaymentSettingsPage() {
                     ) : (
                       <>
                         <CreditCard className="w-4 h-4 mr-2" />
-                        Connect Bank Account
+                        {status?.reconnectRequired
+                          ? "Reconnect Bank Account"
+                          : "Connect Bank Account"}
                       </>
                     )}
                   </Button>
@@ -516,6 +536,35 @@ export default function PaymentSettingsPage() {
                   </div>
                 </div>
               )}
+            </div>
+          ) : status.connectionError ? (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-8 h-8 text-red-500" />
+              </div>
+              <h3 className="text-lg font-medium text-slate-900 mb-2">
+                Payment account needs attention
+              </h3>
+              <p className="text-slate-500 max-w-md mx-auto mb-6">
+                {status.connectionError}
+              </p>
+              <div className="flex gap-3 justify-center">
+                <Button variant="outline" onClick={fetchStatus}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Try Again
+                </Button>
+                <Button
+                  onClick={handleDisconnect}
+                  disabled={disconnecting}
+                >
+                  {disconnecting ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <XCircle className="w-4 h-4 mr-2" />
+                  )}
+                  Disconnect & Reconnect
+                </Button>
+              </div>
             </div>
           ) : status.status === "pending" && stripeConnectInstance ? (
             /* Embedded Onboarding State */
