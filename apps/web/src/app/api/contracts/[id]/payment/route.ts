@@ -276,8 +276,7 @@ export async function POST(
     const subscriptionTier: SubscriptionTier =
       (contractOwner?.subscription_tier as SubscriptionTier) || "free";
 
-    const { paymentMethodTypes, paymentMethodOptions } =
-      getPaymentMethodConfiguration(currency);
+    const paymentMethodConfiguration = getPaymentMethodConfiguration();
 
     // Build payment intent options
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -299,10 +298,7 @@ export async function POST(
           : {}),
       },
       description: paymentDescription,
-      payment_method_types: paymentMethodTypes,
-      ...(paymentMethodOptions
-        ? { payment_method_options: paymentMethodOptions }
-        : {}),
+      ...paymentMethodConfiguration,
     };
 
     // Every new charge is a destination charge. A zero-fee tier still carries
@@ -312,6 +308,7 @@ export async function POST(
       paymentIntentOptions.application_fee_amount = platformFee;
     }
     paymentIntentOptions.transfer_data = { destination: connectedAccountId };
+    paymentIntentOptions.on_behalf_of = connectedAccountId;
     paymentIntentOptions.metadata.connected_account_id = connectedAccountId;
     paymentIntentOptions.metadata.platform_fee = platformFee.toString();
     paymentIntentOptions.metadata.platform_fee_percent = getPlatformFeePercent(subscriptionTier).toString();

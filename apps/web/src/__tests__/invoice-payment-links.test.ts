@@ -26,26 +26,9 @@ describe("invoice payment links", () => {
 });
 
 describe("Stripe payment method configuration", () => {
-  it("only sends ACH options for USD", () => {
-    const config = getPaymentMethodConfiguration("USD");
-
-    expect(config.paymentMethodTypes).toEqual(["card", "link", "us_bank_account"]);
-    expect(config.paymentMethodOptions).toHaveProperty("us_bank_account");
-    expect(config.paymentMethodOptions).not.toHaveProperty("bacs_debit");
-    expect(config.paymentMethodOptions).not.toHaveProperty("sepa_debit");
-  });
-
-  it("only sends Bacs options for GBP", () => {
-    const config = getPaymentMethodConfiguration("gbp");
-
-    expect(config.paymentMethodTypes).toEqual(["card", "link", "bacs_debit"]);
-    expect(config.paymentMethodOptions).toHaveProperty("bacs_debit");
-    expect(config.paymentMethodOptions).not.toHaveProperty("us_bank_account");
-  });
-
-  it("falls back to card and Link for other currencies", () => {
-    expect(getPaymentMethodConfiguration("cad")).toEqual({
-      paymentMethodTypes: ["card", "link"],
+  it("lets Stripe select eligible methods for the payment context", () => {
+    expect(getPaymentMethodConfiguration()).toEqual({
+      automatic_payment_methods: { enabled: true },
     });
   });
 

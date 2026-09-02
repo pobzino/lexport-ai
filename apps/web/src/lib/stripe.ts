@@ -57,60 +57,17 @@ export function getPlatformFeePercent(subscriptionTier: SubscriptionTier = "free
   return PLATFORM_FEES[subscriptionTier] ?? PLATFORM_FEES.free;
 }
 
-type StripePaymentMethodType = NonNullable<
-  Stripe.PaymentIntentCreateParams["payment_method_types"]
->[number];
-
-export function getPaymentMethodConfiguration(currency: string): {
-  paymentMethodTypes: StripePaymentMethodType[];
-  paymentMethodOptions?: Stripe.PaymentIntentCreateParams.PaymentMethodOptions;
-} {
-  const normalizedCurrency = currency.toLowerCase();
-  const paymentMethodTypes: StripePaymentMethodType[] = [
-    "card",
-    "link",
-  ];
-
-  if (normalizedCurrency === "usd") {
-    paymentMethodTypes.push("us_bank_account");
-    return {
-      paymentMethodTypes,
-      paymentMethodOptions: {
-        us_bank_account: {
-          financial_connections: {
-            permissions: ["payment_method", "balances"],
-          },
-          verification_method: "automatic",
-        },
-      },
-    };
-  }
-
-  if (normalizedCurrency === "gbp") {
-    paymentMethodTypes.push("bacs_debit");
-    return {
-      paymentMethodTypes,
-      paymentMethodOptions: {
-        bacs_debit: {
-          mandate_options: { reference_prefix: "LEX" },
-        },
-      },
-    };
-  }
-
-  if (normalizedCurrency === "eur") {
-    paymentMethodTypes.push("sepa_debit");
-    return {
-      paymentMethodTypes,
-      paymentMethodOptions: {
-        sepa_debit: {
-          mandate_options: { reference_prefix: "LEX" },
-        },
-      },
-    };
-  }
-
-  return { paymentMethodTypes };
+export function getPaymentMethodConfiguration(): Pick<
+  Stripe.PaymentIntentCreateParams,
+  "automatic_payment_methods"
+> {
+  // Destination charges can involve sellers in several countries. Let Stripe
+  // evaluate the currency, seller location, capabilities, and Dashboard
+  // settings instead of forcing a local bank rail that may be ineligible for
+  // a particular platform/connected-account combination.
+  return {
+    automatic_payment_methods: { enabled: true },
+  };
 }
 
 // Stripe Connect helpers

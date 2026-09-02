@@ -223,8 +223,7 @@ export async function POST(
 
     const subscriptionTier: SubscriptionTier =
       (invoiceOwner?.subscription_tier as SubscriptionTier) || "free";
-    const { paymentMethodTypes, paymentMethodOptions } =
-      getPaymentMethodConfiguration(currency);
+    const paymentMethodConfiguration = getPaymentMethodConfiguration();
 
     const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
       amount,
@@ -238,10 +237,7 @@ export async function POST(
       },
       description: `Invoice ${invoice.invoice_number}`,
       receipt_email: invoice.recipient_email || undefined,
-      payment_method_types: paymentMethodTypes,
-      ...(paymentMethodOptions
-        ? { payment_method_options: paymentMethodOptions }
-        : {}),
+      ...paymentMethodConfiguration,
     };
 
     const platformFee = calculatePlatformFee(amount, subscriptionTier);
@@ -249,6 +245,7 @@ export async function POST(
       paymentIntentParams.application_fee_amount = platformFee;
     }
     paymentIntentParams.transfer_data = { destination: connectedAccountId };
+    paymentIntentParams.on_behalf_of = connectedAccountId;
     paymentIntentParams.metadata = {
       ...paymentIntentParams.metadata,
       connected_account_id: connectedAccountId,
