@@ -70,7 +70,7 @@ export default async function SettingsPage() {
         </div>
       </Link>
 
-      {/* Invoice Settings Section */}
+      {/* Document and Invoice Settings Section */}
       <Link
         href="/settings/invoices"
         className="block bg-white rounded-xl border border-slate-200 p-6 hover:border-[#529ec6]/20 hover:shadow-sm transition-all group"
@@ -82,10 +82,10 @@ export default async function SettingsPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-slate-900 group-hover:text-[#529ec6] transition-colors">
-                Invoice Settings
+                Document & Invoice Settings
               </h2>
               <p className="text-sm text-slate-500">
-                Configure invoice numbering, branding, and default terms
+                Set your company identity, document branding, numbering, and terms
               </p>
             </div>
           </div>
@@ -161,4 +161,3 @@ export default async function SettingsPage() {
     </div>
   );
 }
-

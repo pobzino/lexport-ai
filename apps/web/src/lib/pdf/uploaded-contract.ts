@@ -447,11 +447,5 @@ export async function generateUploadedContractPdf({
     appendCompletionSummary(pdfDoc, contract, signatureRequests, regular, bold);
   }
 
-  pdfDoc.setTitle(safeText(contract.title));
-  pdfDoc.setAuthor("Lexport");
-  pdfDoc.setCreator("Lexport");
-  pdfDoc.setProducer("Lexport document engine");
-  pdfDoc.setSubject("Electronically signed contract");
-
   return pdfDoc.save({ useObjectStreams: true });
 }

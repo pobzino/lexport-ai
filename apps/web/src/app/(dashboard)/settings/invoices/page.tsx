@@ -173,10 +173,10 @@ export default function InvoiceSettingsPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-slate-900">
-              Invoice Settings
+              Document & Invoice Settings
             </h1>
             <p className="text-slate-500 mt-1">
-              Configure invoice numbering and defaults
+              Configure company identity, legal documents, and invoice defaults
             </p>
           </div>
         </div>
@@ -200,10 +200,10 @@ export default function InvoiceSettingsPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-slate-900">
-              Invoice Settings
+              Document & Invoice Settings
             </h1>
             <p className="text-slate-500 mt-1">
-              Configure invoice numbering and defaults
+              Configure company identity, legal documents, and invoice defaults
             </p>
           </div>
         </div>
@@ -319,10 +319,10 @@ export default function InvoiceSettingsPage() {
           </div>
           <div>
             <h2 className="text-lg font-semibold text-slate-900">
-              Company Information
+              Company Identity
             </h2>
             <p className="text-sm text-slate-500">
-              Details shown on your invoices
+              Used on generated contracts and invoices. Uploaded documents keep their original branding.
             </p>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { createHash } from "crypto";
 import type { ContractContent, GeoLocation } from "@/db/types";
@@ -7,6 +8,10 @@ import {
   generateUploadedContractPdf,
   type UploadedSourceFileType,
 } from "@/lib/pdf/uploaded-contract";
+import {
+  renderLegalContractPdf,
+  type LegalDocumentIdentity,
+} from "@/lib/pdf/legal-contract";
 
 export const dynamic = "force-dynamic";
 
@@ -192,7 +197,7 @@ export async function GET(
     const { data: contract, error: contractError } = await supabase
       .from("contracts")
       .select(`
-        id, title, status, signed_at, completed_at, sealed_at, sealed_pdf_url,
+        id, title, status, jurisdiction, signed_at, completed_at, sealed_at, sealed_pdf_url,
         sealed_document_hash, user_id, content, content_hash,
         source_type, source_file_url, source_file_type, processing_mode,
         signature_requests (
@@ -276,7 +281,9 @@ async function generateArtifactPdf(
   contract: {
     id: string;
     title: string;
+    user_id: string;
     status?: string | null;
+    jurisdiction?: string | null;
     source_type?: string | null;
     source_file_url?: string | null;
     source_file_type?: string | null;
@@ -317,7 +324,14 @@ async function generateArtifactPdf(
     sourceFileUrl;
 
   if (!preserveUploadedOriginal) {
-    return generateSealedPdf(contract, content, signatureRequests, signatures);
+    const documentIdentity = await loadDocumentIdentity(contract.user_id);
+    return generateSealedPdf(
+      contract,
+      content,
+      signatureRequests,
+      signatures,
+      documentIdentity,
+    );
   }
   if (!["pdf", "jpg", "png"].includes(String(contract.source_file_type))) {
     throw new Error("This uploaded file must be converted before it can be sealed");
@@ -366,14 +380,38 @@ async function generateArtifactPdf(
     fieldValues: fieldValuesResult.data || [],
     signatures,
     signatureRequests,
-    appendCompletionPage: true,
   });
+}
+
+async function loadDocumentIdentity(
+  userId: string,
+): Promise<LegalDocumentIdentity> {
+  const admin = createAdminClient();
+  const [{ data: invoiceSettings }, { data: profile }] = await Promise.all([
+    admin
+      .from("invoice_settings")
+      .select("company_name, company_address, company_logo_url")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    admin
+      .from("users")
+      .select("name, company_name, address")
+      .eq("id", userId)
+      .maybeSingle(),
+  ]);
+  return {
+    companyName:
+      invoiceSettings?.company_name || profile?.company_name || profile?.name,
+    companyAddress: invoiceSettings?.company_address || profile?.address,
+    companyLogoUrl: invoiceSettings?.company_logo_url,
+  };
 }
 
 async function generateSealedPdf(
   contract: {
     id: string;
     title: string;
+    jurisdiction?: string | null;
     content_hash?: string | null;
     sealed_at?: string | null;
   },
@@ -399,8 +437,35 @@ async function generateSealedPdf(
     geo_location: GeoLocation | null;
     rfc3161_timestamp_token: string | null;
     rfc3161_timestamp_authority: string | null;
-  }[]
+  }[],
+  documentIdentity: LegalDocumentIdentity = {},
 ): Promise<Uint8Array> {
+  try {
+    return await renderLegalContractPdf({
+      title: contract.title,
+      jurisdiction: contract.jurisdiction,
+      content,
+      identity: documentIdentity,
+      signatureRequests,
+      signatures: signatures.map((signature) => {
+        const request = signatureRequests.find(
+          (candidate) => candidate.id === signature.signature_request_id,
+        );
+        return {
+          signatureRequestId: signature.signature_request_id,
+          signerName: request?.signer_name || "Signer",
+          signerEmail: request?.signer_email || "",
+          signerRole: request?.signer_role || "Signer",
+          signatureData: signature.signature_data,
+          signedAt: signature.signed_at,
+        };
+      }),
+      isSigned: true,
+    });
+  } catch (error) {
+    console.error("Falling back to the legacy sealed PDF renderer:", error);
+  }
+
   const pdfDoc = await PDFDocument.create();
   const timesRoman = await pdfDoc.embedFont(StandardFonts.TimesRoman);
   const timesRomanBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);

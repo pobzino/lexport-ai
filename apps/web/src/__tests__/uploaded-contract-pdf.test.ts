@@ -4,6 +4,8 @@ import { generateUploadedContractPdf } from "@/lib/pdf/uploaded-contract";
 
 async function createSourcePdf() {
   const pdf = await PDFDocument.create();
+  pdf.setTitle("Original Consulting Agreement");
+  pdf.setAuthor("Example Agency");
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const first = pdf.addPage([612, 792]);
   first.drawText("ORIGINAL CONTRACT PAGE ONE", {
@@ -25,7 +27,7 @@ async function createSourcePdf() {
 }
 
 describe("uploaded contract PDF preservation", () => {
-  it("preserves source page sizes and appends one branded completion page", async () => {
+  it("preserves completed source pages and source identity", async () => {
     const sourceBytes = await createSourcePdf();
     const output = await generateUploadedContractPdf({
       sourceBytes,
@@ -37,27 +39,15 @@ describe("uploaded contract PDF preservation", () => {
         contentHash: "abc123",
         completedAt: "2026-09-02T12:00:00.000Z",
       },
-      signatureRequests: [
-        {
-          id: "request-1",
-          signer_name: "Alex Client",
-          signer_email: "alex@example.com",
-          signer_role: "Client",
-          status: "signed",
-          signed_at: "2026-09-02T12:00:00.000Z",
-          email_verified_at: "2026-09-02T11:58:00.000Z",
-        },
-      ],
-      appendCompletionPage: true,
     });
 
     const result = await PDFDocument.load(output);
-    expect(result.getPageCount()).toBe(3);
+    expect(result.getPageCount()).toBe(2);
     expect(result.getPage(0).getSize()).toEqual({ width: 612, height: 792 });
     expect(result.getPage(1).getSize().width).toBeCloseTo(595.28, 1);
     expect(result.getPage(1).getSize().height).toBeCloseTo(841.89, 1);
     expect(result.getTitle()).toBe("Original Consulting Agreement");
-    expect(result.getCreator()).toBe("Lexport");
+    expect(result.getAuthor()).toBe("Example Agency");
   });
 
   it("does not append a completion page to a draft", async () => {
@@ -70,7 +60,6 @@ describe("uploaded contract PDF preservation", () => {
         title: "Draft Agreement",
         status: "draft",
       },
-      appendCompletionPage: true,
     });
 
     const result = await PDFDocument.load(output);

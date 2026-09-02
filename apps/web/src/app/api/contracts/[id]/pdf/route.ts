@@ -6,6 +6,10 @@ import {
   generateUploadedContractPdf,
   type UploadedSourceFileType,
 } from "@/lib/pdf/uploaded-contract";
+import {
+  renderLegalContractPdf,
+  type LegalDocumentIdentity,
+} from "@/lib/pdf/legal-contract";
 
 interface Clause {
   id: string;
@@ -161,6 +165,25 @@ export async function GET(
       .select("id, signer_name, signer_email, signer_role, status, signed_at, email_verified_at")
       .eq("contract_id", id);
 
+    const [{ data: invoiceSettings }, { data: profile }] = await Promise.all([
+      supabase
+        .from("invoice_settings")
+        .select("company_name, company_address, company_logo_url")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("users")
+        .select("name, company_name, address")
+        .eq("id", user.id)
+        .maybeSingle(),
+    ]);
+    const documentIdentity: LegalDocumentIdentity = {
+      companyName:
+        invoiceSettings?.company_name || profile?.company_name || profile?.name,
+      companyAddress: invoiceSettings?.company_address || profile?.address,
+      companyLogoUrl: invoiceSettings?.company_logo_url,
+    };
+
     // Check if contract is signed (status can be 'signed' or 'completed')
     const isSigned = contract.status === "signed" || contract.status === "completed";
 
@@ -196,7 +219,6 @@ export async function GET(
         fieldValues: (fieldValues || []) as FieldValue[],
         signatures: (allSignatures || []) as SignatureRecord[],
         signatureRequests: (allSignatureRequests || []) as SignatureRequestData[],
-        appendCompletionPage: isSigned,
       });
     } else {
       const content = contract.content as ContractContent;
@@ -216,7 +238,8 @@ export async function GET(
         (signatureFields || []) as SignatureField[],
         (fieldValues || []) as FieldValue[],
         (allSignatures || []) as SignatureRecord[],
-        (allSignatureRequests || []) as SignatureRequestData[]
+        (allSignatureRequests || []) as SignatureRequestData[],
+        documentIdentity,
       );
     }
 
@@ -281,8 +304,23 @@ async function generateContractPDF(
   signatureFields: SignatureField[] = [],
   fieldValues: FieldValue[] = [],
   allSignatures: SignatureRecord[] = [],
-  signatureRequests: SignatureRequestData[] = []
+  signatureRequests: SignatureRequestData[] = [],
+  documentIdentity: LegalDocumentIdentity = {},
 ): Promise<Uint8Array> {
+  try {
+    return await renderLegalContractPdf({
+      title,
+      jurisdiction,
+      content,
+      identity: documentIdentity,
+      signatureRequests,
+      signatures,
+      isSigned,
+    });
+  } catch (error) {
+    console.error("Falling back to the legacy contract PDF renderer:", error);
+  }
+
   const pdfDoc = await PDFDocument.create();
   const timesRomanFont = await pdfDoc.embedFont(StandardFonts.TimesRoman);
   const timesRomanBoldFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
