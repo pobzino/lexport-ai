@@ -216,14 +216,23 @@ export default function PaymentSettingsPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create Connect account");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.details ||
+          errorData.error ||
+          "Failed to create Connect account"
+        );
       }
 
       // Refresh status to get the new account
       // The useEffect will handle initializing the Connect instance
       await fetchStatus();
     } catch (err) {
-      setError("Failed to start account setup. Please try again.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to start account setup. Please try again."
+      );
       console.error(err);
     } finally {
       setConnecting(false);

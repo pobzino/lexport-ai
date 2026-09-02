@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
   createConnectAccount,
-  createAccountLink,
   getConnectAccount,
   getAccountStatus,
   createLoginLink,
   getAccountBalance,
 } from "@/lib/stripe";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const SUPPORTED_CONNECT_COUNTRIES = new Set(["US", "GB", "CA", "AU", "DE", "FR"]);
 
 function isStripeResourceMissing(error: unknown): boolean {
   const stripeError = error as { type?: string; code?: string };
@@ -19,7 +18,19 @@ function isStripeResourceMissing(error: unknown): boolean {
   );
 }
 
-// POST - Create or retrieve Connect account and get onboarding link
+function getStripeSetupMessage(error: unknown): string | null {
+  const stripeError = error as {
+    message?: unknown;
+    raw?: { message?: unknown };
+  };
+  const message = stripeError.raw?.message ?? stripeError.message;
+
+  return typeof message === "string" && message.length <= 500
+    ? message
+    : null;
+}
+
+// POST - Create or retrieve the Connect account used by embedded onboarding
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -31,7 +42,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const country = body.country || "US";
+    const country = typeof body.country === "string"
+      ? body.country.toUpperCase()
+      : "US";
+
+    if (!SUPPORTED_CONNECT_COUNTRIES.has(country)) {
+      return NextResponse.json(
+        { error: "This country is not supported for payment setup." },
+        { status: 400 }
+      );
+    }
 
     // Check if user already has a Connect account
     let { data: userData, error: userError } = await supabase
@@ -89,14 +109,26 @@ export async function POST(request: NextRequest) {
 
     // If no account exists, create one
     if (!accountId) {
-      const account = await createConnectAccount(
-        userData!.email || user.email || "",
-        country
-      );
+      let account: Awaited<ReturnType<typeof createConnectAccount>>;
+      try {
+        account = await createConnectAccount(
+          userData!.email || user.email || "",
+          country
+        );
+      } catch (error) {
+        console.error("Stripe rejected Connect account creation:", error);
+        return NextResponse.json(
+          {
+            error: "Stripe could not create the payment account.",
+            details: getStripeSetupMessage(error),
+          },
+          { status: 502 }
+        );
+      }
       accountId = account.id;
 
       // Save account ID to database
-      await supabase
+      const { error: updateError } = await supabase
         .from("users")
         .update({
           stripe_connect_account_id: accountId,
@@ -104,19 +136,17 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq("id", user.id);
+
+      if (updateError) {
+        console.error("Error saving Connect account:", updateError);
+        return NextResponse.json(
+          { error: "The payment account was created but could not be saved. Please contact support." },
+          { status: 500 }
+        );
+      }
     }
 
-    // Create account link for onboarding
-    const accountLink = await createAccountLink(
-      accountId,
-      `${APP_URL}/settings/payments?refresh=true`,
-      `${APP_URL}/settings/payments?success=true`
-    );
-
-    return NextResponse.json({
-      accountId,
-      onboardingUrl: accountLink.url,
-    });
+    return NextResponse.json({ accountId });
   } catch (error) {
     console.error("Error creating Connect account:", error);
     return NextResponse.json(
