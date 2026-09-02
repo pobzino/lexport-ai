@@ -8,6 +8,7 @@ import {
   type SubscriptionTier,
 } from "@/lib/stripe";
 import type { PaymentType } from "@/db/types";
+import { normalizeInvoiceBankDetails } from "@/lib/invoices/bank-details";
 import {
   getMilestoneAmount,
   getScheduleTotal,
@@ -27,6 +28,7 @@ export async function POST(
     // Parse request body for payment type (deposit, balance, or full)
     let requestedPaymentType: PaymentType = "full";
     let requestedMilestoneId: string | undefined;
+    let requestedInvoiceId: string | undefined;
     try {
       const body = await request.json();
       if (body.paymentType && ["deposit", "balance", "full", "installment"].includes(body.paymentType)) {
@@ -34,6 +36,9 @@ export async function POST(
       }
       if (typeof body.milestoneId === "string") {
         requestedMilestoneId = body.milestoneId;
+      }
+      if (typeof body.invoiceId === "string") {
+        requestedInvoiceId = body.invoiceId;
       }
     } catch {
       // No body or invalid JSON, use default
@@ -186,6 +191,49 @@ export async function POST(
       );
     }
 
+    let invoiceNumber: string | null = null;
+    let bankDetails: ReturnType<typeof normalizeInvoiceBankDetails> = null;
+    if (requestedInvoiceId) {
+      const { data: invoice } = await supabase
+        .from("invoices")
+        .select("invoice_number, bank_details, sender_address")
+        .eq("id", requestedInvoiceId)
+        .eq("contract_id", id)
+        .in("status", ["sent", "overdue", "paid"])
+        .maybeSingle();
+
+      if (invoice) {
+        invoiceNumber = invoice.invoice_number;
+        const senderAddress =
+          invoice.sender_address &&
+          typeof invoice.sender_address === "object" &&
+          !Array.isArray(invoice.sender_address)
+            ? (invoice.sender_address as Record<string, unknown>)
+            : null;
+        bankDetails = normalizeInvoiceBankDetails(
+          invoice.bank_details ?? senderAddress?.bank_details
+        );
+      }
+    }
+
+    if (!bankDetails) {
+      const { data: invoiceSettings } = await supabase
+        .from("invoice_settings")
+        .select("bank_details")
+        .eq("user_id", contract.user_id)
+        .maybeSingle();
+      bankDetails = normalizeInvoiceBankDetails(invoiceSettings?.bank_details);
+    }
+
+    const bankTransferContext = {
+      bankDetails,
+      bankTransferReference:
+        bankDetails?.reference ||
+        invoiceNumber ||
+        `LEX-${id.slice(0, 8).toUpperCase()}`,
+      invoiceNumber,
+    };
+
     // Destination charges must always have a real payout destination. Creating
     // a PaymentIntent without transfer_data would collect the customer's money
     // into Lexport's platform balance with no automated way to pay the contract
@@ -201,6 +249,36 @@ export async function POST(
       !contractOwner?.stripe_connect_account_id ||
       contractOwner.stripe_connect_status !== "active"
     ) {
+      if (bankDetails) {
+        return NextResponse.json({
+          clientSecret: null,
+          paymentIntentId: null,
+          amount: paymentAmount,
+          currency,
+          contractTitle: contract.title,
+          paymentType,
+          totalAmount,
+          depositPaid,
+          milestone: activeMilestone,
+          balanceRemaining:
+            contract.payment_structure === "deposit_balance" && !depositPaid
+              ? totalAmount - paymentAmount
+              : contract.payment_structure === "custom"
+                ? Math.max(
+                    0,
+                    totalAmount -
+                      (existingPayments || []).reduce(
+                        (sum, payment) => sum + payment.amount,
+                        0
+                      ) -
+                      paymentAmount
+                  )
+                : 0,
+          onlinePaymentUnavailableReason:
+            "Online payment is unavailable, but you can pay by bank transfer.",
+          ...bankTransferContext,
+        });
+      }
       return NextResponse.json(
         {
           error:
@@ -263,6 +341,7 @@ export async function POST(
               : contract.payment_structure === "deposit_balance" && !depositPaid
                 ? totalAmount - existingIntent.amount
                 : 0,
+            ...bankTransferContext,
           });
         }
       } catch {
@@ -382,6 +461,7 @@ export async function POST(
         contractOwner?.stripe_connect_account_id &&
         contractOwner.stripe_connect_status === "active"
       ),
+      ...bankTransferContext,
     });
   } catch (error) {
     console.error("Error creating payment intent:", error);

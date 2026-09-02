@@ -8,6 +8,7 @@ import {
   calculatePlatformFee,
   getPaymentMethodConfiguration,
 } from "@/lib/stripe";
+import { getPreferredPaymentMethodOrder } from "@/lib/payments/payment-methods";
 
 describe("invoice payment links", () => {
   it("always sends recipients to the public invoice checkout", () => {
@@ -34,5 +35,14 @@ describe("Stripe payment method configuration", () => {
 
   it("keeps the team platform fee at zero", () => {
     expect(calculatePlatformFee(100_00, "team")).toBe(0);
+  });
+
+  it("prefers UK Pay by Bank for eligible GBP payments", () => {
+    expect(getPreferredPaymentMethodOrder("GBP")).toEqual([
+      "pay_by_bank",
+      "bacs_debit",
+      "card",
+      "link",
+    ]);
   });
 });

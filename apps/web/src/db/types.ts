@@ -574,6 +574,7 @@ export interface InvoiceSettings {
   default_due_days: number;
   default_notes: string | null;
   default_payment_terms: string | null;
+  bank_details: InvoiceBankDetails | null;
   // Timestamps
   created_at: string;
   updated_at: string;

@@ -20,9 +20,16 @@ import {
   FileText,
   Calendar,
   Clock,
+  Landmark,
+  Copy,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import {
+  getBankDetailRows,
+  type InvoiceBankDetails,
+} from "@/lib/invoices/bank-details";
+import { getPreferredPaymentMethodOrder } from "@/lib/payments/payment-methods";
 
 // Initialize Stripe - make sure to set NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY in .env
 const stripePromise = loadStripe(
@@ -30,8 +37,8 @@ const stripePromise = loadStripe(
 );
 
 interface PaymentInfo {
-  clientSecret: string;
-  paymentIntentId: string;
+  clientSecret: string | null;
+  paymentIntentId: string | null;
   amount: number;
   currency: string;
   contractTitle?: string;
@@ -46,6 +53,10 @@ interface PaymentInfo {
   totalAmount?: number;
   depositPaid?: boolean;
   balanceRemaining?: number;
+  bankDetails: InvoiceBankDetails | null;
+  bankTransferReference: string;
+  invoiceNumber?: string | null;
+  onlinePaymentUnavailableReason?: string;
 }
 
 interface InvoiceInfo {
@@ -71,18 +82,6 @@ function CheckoutForm({
   returnUrl: string;
   alreadySigned: boolean;
 }) {
-  // Determine payment method order based on currency - bank payments first
-  const getPaymentMethodOrder = () => {
-    const currency = paymentInfo.currency.toLowerCase();
-    if (currency === "usd") {
-      return ["us_bank_account", "card", "link"];
-    } else if (currency === "gbp") {
-      return ["bacs_debit", "card", "link"];
-    } else if (currency === "eur") {
-      return ["sepa_debit", "card", "link"];
-    }
-    return ["card", "link"]; // Default for other currencies
-  };
   const stripe = useStripe();
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
@@ -210,7 +209,7 @@ function CheckoutForm({
       <PaymentElement
         options={{
           layout: "tabs",
-          paymentMethodOrder: getPaymentMethodOrder(),
+          paymentMethodOrder: getPreferredPaymentMethodOrder(paymentInfo.currency),
           fields: {
             billingDetails: {
               name: "auto",
@@ -271,6 +270,8 @@ export default function PaymentPage() {
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
   const [invoiceInfo, setInvoiceInfo] = useState<InvoiceInfo | null>(null);
   const [contractTitle, setContractTitle] = useState<string>("");
+  const [paymentOption, setPaymentOption] = useState<"online" | "bank_transfer">("online");
+  const [bankDetailsCopied, setBankDetailsCopied] = useState(false);
 
   useEffect(() => {
     async function initializePayment() {
@@ -287,6 +288,8 @@ export default function PaymentPage() {
         // Create or retrieve payment intent
         const response = await fetch(`/api/contracts/${contractId}/payment`, {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ invoiceId: invoiceId || undefined }),
         });
 
         if (!response.ok) {
@@ -312,7 +315,14 @@ export default function PaymentPage() {
           depositPaid: data.depositPaid,
           balanceRemaining: data.balanceRemaining,
           milestone: data.milestone,
+          bankDetails: data.bankDetails || null,
+          bankTransferReference: data.bankTransferReference,
+          invoiceNumber: data.invoiceNumber,
+          onlinePaymentUnavailableReason: data.onlinePaymentUnavailableReason,
         });
+        if (!data.clientSecret && data.bankDetails) {
+          setPaymentOption("bank_transfer");
+        }
         if (data.contractTitle) {
           setContractTitle(data.contractTitle);
         }
@@ -369,6 +379,19 @@ export default function PaymentPage() {
   const returnUrl = returnToken
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/sign/${returnToken}`
     : `${typeof window !== "undefined" ? window.location.origin : ""}/`;
+  const bankDetailRows = getBankDetailRows(
+    paymentInfo.bankDetails,
+    paymentInfo.bankTransferReference
+  );
+
+  async function copyBankDetails() {
+    const text = bankDetailRows
+      .map((row) => `${row.label}: ${row.value}`)
+      .join("\n");
+    await navigator.clipboard.writeText(text);
+    setBankDetailsCopied(true);
+    window.setTimeout(() => setBankDetailsCopied(false), 2000);
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -591,21 +614,97 @@ export default function PaymentPage() {
 
           {/* Stripe Elements */}
           <div className="px-6 py-6">
-            <Elements
-              stripe={stripePromise}
-              options={{
-                clientSecret: paymentInfo.clientSecret,
-                appearance: {
-                  theme: "stripe",
-                  variables: {
-                    colorPrimary: "#529ec6",
-                    borderRadius: "8px",
+            {bankDetailRows.length > 0 && (
+              <div className="grid grid-cols-2 gap-1 p-1 mb-6 bg-slate-100 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setPaymentOption("online")}
+                  disabled={!paymentInfo.clientSecret}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    paymentOption === "online"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  } disabled:opacity-40 disabled:cursor-not-allowed`}
+                >
+                  Pay online
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentOption("bank_transfer")}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    paymentOption === "bank_transfer"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Bank transfer
+                </button>
+              </div>
+            )}
+
+            {paymentOption === "bank_transfer" && bankDetailRows.length > 0 ? (
+              <div>
+                <div className="flex items-start justify-between gap-4 mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center">
+                      <Landmark className="w-5 h-5 text-sky-700" />
+                    </div>
+                    <div>
+                      <h2 className="font-semibold text-slate-900">Pay by bank transfer</h2>
+                      <p className="text-sm text-slate-500">Use the exact reference below</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={copyBankDetails}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50"
+                  >
+                    {bankDetailsCopied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                    {bankDetailsCopied ? "Copied" : "Copy"}
+                  </button>
+                </div>
+
+                <dl className="divide-y divide-slate-100 border-y border-slate-100">
+                  {bankDetailRows.map((row) => (
+                    <div key={row.label} className="flex justify-between gap-4 py-3 text-sm">
+                      <dt className="text-slate-500">{row.label}</dt>
+                      <dd className="font-medium text-slate-900 text-right break-all whitespace-pre-line">
+                        {row.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+
+                <div className="mt-5 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-900">
+                    Your payment remains due until the sender confirms that the transfer has arrived.
+                  </p>
+                </div>
+              </div>
+            ) : paymentInfo.clientSecret ? (
+              <Elements
+                stripe={stripePromise}
+                options={{
+                  clientSecret: paymentInfo.clientSecret,
+                  appearance: {
+                    theme: "stripe",
+                    variables: {
+                      colorPrimary: "#529ec6",
+                      borderRadius: "8px",
+                    },
                   },
-                },
-              }}
-            >
-              <CheckoutForm paymentInfo={paymentInfo} returnUrl={returnUrl} alreadySigned={alreadySigned} />
-            </Elements>
+                }}
+              >
+                <CheckoutForm paymentInfo={paymentInfo} returnUrl={returnUrl} alreadySigned={alreadySigned} />
+              </Elements>
+            ) : (
+              <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                <p className="text-sm text-amber-800">
+                  {paymentInfo.onlinePaymentUnavailableReason || "Online payment is currently unavailable."}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

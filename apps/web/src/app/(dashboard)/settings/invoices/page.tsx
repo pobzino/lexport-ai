@@ -15,9 +15,11 @@ import {
   AlertCircle,
   Image,
   X,
+  Landmark,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import type { InvoiceBankDetails } from "@/lib/invoices/bank-details";
 
 interface InvoiceSettings {
   user_id: string;
@@ -29,6 +31,7 @@ interface InvoiceSettings {
   default_due_days: number;
   default_notes: string | null;
   default_payment_terms: string | null;
+  bank_details: InvoiceBankDetails | null;
 }
 
 const PAYMENT_TERM_OPTIONS = [
@@ -58,6 +61,7 @@ export default function InvoiceSettingsPage() {
     default_due_days: 30,
     default_notes: null,
     default_payment_terms: "Net 30",
+    bank_details: null,
   });
 
   // Fetch current settings
@@ -100,6 +104,7 @@ export default function InvoiceSettingsPage() {
           default_due_days: settings.default_due_days,
           default_notes: settings.default_notes,
           default_payment_terms: settings.default_payment_terms,
+          bank_details: settings.bank_details,
         }),
       });
 
@@ -120,6 +125,19 @@ export default function InvoiceSettingsPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function updateBankDetail(
+    field: keyof InvoiceBankDetails,
+    value: string
+  ) {
+    setSettings((current) => ({
+      ...current,
+      bank_details: {
+        ...(current.bank_details || {}),
+        [field]: value,
+      },
+    }));
   }
 
   // Update due days when payment terms change
@@ -383,6 +401,67 @@ export default function InvoiceSettingsPage() {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Bank Transfer Details */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center">
+            <Landmark className="w-5 h-5 text-sky-700" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Bank Transfer
+            </h2>
+            <p className="text-sm text-slate-500">
+              Offer bank transfer on invoices and contract payment stages
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {([
+            ["account_name", "Account Holder", "Name on the account"],
+            ["bank_name", "Bank Name", "Bank name"],
+            ["account_number", "Account Number", "12345678"],
+            ["sort_code", "Sort Code", "00-00-00"],
+            ["routing_number", "Routing Number", "For US transfers"],
+            ["iban", "IBAN", "International bank account number"],
+            ["swift_bic", "SWIFT / BIC", "International bank identifier"],
+            ["reference", "Default Reference", "Optional; invoice number used if blank"],
+          ] as Array<[keyof InvoiceBankDetails, string, string]>).map(
+            ([field, label, placeholder]) => (
+              <div key={field}>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  {label}
+                </label>
+                <input
+                  type="text"
+                  value={settings.bank_details?.[field] || ""}
+                  onChange={(event) => updateBankDetail(field, event.target.value)}
+                  placeholder={placeholder}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                />
+              </div>
+            )
+          )}
+        </div>
+
+        <div className="mt-5">
+          <label className="block text-sm font-medium text-slate-700 mb-2">
+            Transfer Instructions
+          </label>
+          <textarea
+            value={settings.bank_details?.instructions || ""}
+            onChange={(event) => updateBankDetail("instructions", event.target.value)}
+            placeholder="Optional instructions shown to the payer"
+            rows={3}
+            className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent resize-none"
+          />
+          <p className="text-xs text-slate-500 mt-2">
+            Bank transfer is shown only after at least one detail is saved. Transfers stay unpaid until you confirm receipt.
+          </p>
         </div>
       </div>
 

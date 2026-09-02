@@ -32,6 +32,7 @@ interface InvoiceSettings {
   company_logo_url: string | null;
   default_due_days: number;
   default_notes: string | null;
+  bank_details: InvoiceBankDetails | null;
 }
 
 const EMPTY_BANK_DETAILS: InvoiceBankDetails = {
@@ -201,6 +202,10 @@ export default function NewInvoicePage() {
           if (settings.company_address) setSenderAddress(settings.company_address);
           if (settings.company_logo_url) setSenderLogoUrl(settings.company_logo_url);
           if (settings.default_notes) setNotes(settings.default_notes);
+          if (settings.bank_details) {
+            setBankDetails({ ...EMPTY_BANK_DETAILS, ...settings.bank_details });
+            setIncludeBankDetails(true);
+          }
           if (settings.default_due_days) {
             const date = new Date();
             date.setDate(date.getDate() + settings.default_due_days);

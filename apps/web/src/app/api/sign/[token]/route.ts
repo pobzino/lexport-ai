@@ -16,6 +16,8 @@ import {
   sendInvoiceEmail,
 } from "@/lib/email";
 import { insertInvoiceWithRetry } from "@/lib/invoices/create-invoice";
+import { normalizeInvoiceBankDetails } from "@/lib/invoices/bank-details";
+import { getInvoicePaymentUrl } from "@/lib/invoices/payment-link";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { randomBytes } from "crypto";
 import {
@@ -762,8 +764,23 @@ export async function POST(
                   paymentLabel = milestone.label;
                 }
 
+                const { data: invoiceSettings } = await supabase
+                  .from("invoice_settings")
+                  .select(
+                    "company_name, company_address, default_due_days, default_notes, bank_details",
+                  )
+                  .eq("user_id", contractData.user_id)
+                  .maybeSingle();
+                const bankDetails = normalizeInvoiceBankDetails(
+                  invoiceSettings?.bank_details,
+                );
                 const dueDate = new Date(
-                  Date.now() + 30 * 24 * 60 * 60 * 1000,
+                  Date.now() +
+                    (invoiceSettings?.default_due_days ?? 30) *
+                      24 *
+                      60 *
+                      60 *
+                      1000,
                 ).toISOString();
 
                 // Create line items
@@ -802,14 +819,27 @@ export async function POST(
                     recipient_name: sigRequest.signer_name,
                     recipient_email: sigRequest.signer_email,
                     sender_name: owner?.name || null,
+                    sender_company: invoiceSettings?.company_name || null,
                     sender_email: owner?.email || null,
+                    sender_address:
+                      invoiceSettings?.company_address ||
+                      invoiceSettings?.company_name ||
+                      bankDetails
+                        ? {
+                            address: invoiceSettings?.company_address || null,
+                            company: invoiceSettings?.company_name || null,
+                            bank_details: bankDetails,
+                          }
+                        : null,
+                    bank_details: bankDetails,
+                    notes: invoiceSettings?.default_notes || null,
                   });
 
                 if (!invoiceError && invoice) {
                   // Send invoice email
                   const baseUrl =
                     process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
-                  const paymentUrl = `${baseUrl}/pay/${sigRequest.contract_id}?invoice=${invoice.id}`;
+                  const paymentUrl = getInvoicePaymentUrl(invoice.id, baseUrl);
 
                   try {
                     await sendInvoiceEmail({

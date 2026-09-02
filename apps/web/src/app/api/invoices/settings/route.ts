@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { InvoiceSettings } from "@/db/types";
+import { normalizeInvoiceBankDetails } from "@/lib/invoices/bank-details";
 
 // GET invoice settings for the current user
 export async function GET() {
@@ -44,6 +45,7 @@ export async function GET() {
           default_due_days: 30,
           default_notes: null,
           default_payment_terms: "Net 30",
+          bank_details: null,
         } as InvoiceSettings,
       });
     }
@@ -80,6 +82,7 @@ export async function PUT(request: NextRequest) {
       default_due_days,
       default_notes,
       default_payment_terms,
+      bank_details,
     } = body;
 
     // Validate prefix format
@@ -114,6 +117,7 @@ export async function PUT(request: NextRequest) {
           default_due_days: default_due_days || 30,
           default_notes: default_notes || null,
           default_payment_terms: default_payment_terms || "Net 30",
+          bank_details: normalizeInvoiceBankDetails(bank_details),
           updated_at: new Date().toISOString(),
         },
         { onConflict: "user_id" }

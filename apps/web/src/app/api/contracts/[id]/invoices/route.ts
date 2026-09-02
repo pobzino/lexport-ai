@@ -118,9 +118,13 @@ export async function POST(
 
     const { data: invoiceSettings } = await supabase
       .from("invoice_settings")
-      .select("company_name, company_address, default_notes, default_due_days")
+      .select("company_name, company_address, default_notes, default_due_days, bank_details")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    const invoiceBankDetails = normalizeInvoiceBankDetails(
+      bankDetails ?? invoiceSettings?.bank_details
+    );
 
     // Get payment if specified
     let payment: Payment | null = null;
@@ -182,14 +186,14 @@ export async function POST(
         invoiceSettings?.company_address ||
         invoiceSettings?.company_name ||
         userData?.company_name ||
-        bankDetails
+        invoiceBankDetails
           ? {
               address: invoiceSettings?.company_address || null,
               company: invoiceSettings?.company_name || userData?.company_name || null,
-              bank_details: normalizeInvoiceBankDetails(bankDetails),
+              bank_details: invoiceBankDetails,
             }
           : null,
-      bank_details: normalizeInvoiceBankDetails(bankDetails),
+      bank_details: invoiceBankDetails,
       notes: notes || invoiceSettings?.default_notes || null,
     };
 

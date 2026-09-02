@@ -27,6 +27,7 @@ import {
   getBankDetailRows,
   type InvoiceBankDetails,
 } from "@/lib/invoices/bank-details";
+import { getPreferredPaymentMethodOrder } from "@/lib/payments/payment-methods";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ""
@@ -87,19 +88,6 @@ function CheckoutForm({ paymentInfo, invoiceId }: { paymentInfo: PaymentInfo; in
   const [error, setError] = useState<string | null>(null);
   const [succeeded, setSucceeded] = useState(false);
   const [isAchProcessing, setIsAchProcessing] = useState(false);
-
-  // Determine payment method order based on currency - bank payments first
-  const getPaymentMethodOrder = () => {
-    const currency = paymentInfo.currency.toLowerCase();
-    if (currency === "usd") {
-      return ["us_bank_account", "card", "link"];
-    } else if (currency === "gbp") {
-      return ["bacs_debit", "card", "link"];
-    } else if (currency === "eur") {
-      return ["sepa_debit", "card", "link"];
-    }
-    return ["card", "link"]; // Default for other currencies
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,7 +180,7 @@ function CheckoutForm({ paymentInfo, invoiceId }: { paymentInfo: PaymentInfo; in
       <PaymentElement
         options={{
           layout: "tabs",
-          paymentMethodOrder: getPaymentMethodOrder(),
+          paymentMethodOrder: getPreferredPaymentMethodOrder(paymentInfo.currency),
           fields: {
             billingDetails: {
               name: "auto",
