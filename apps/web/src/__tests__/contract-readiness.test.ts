@@ -42,11 +42,11 @@ describe("contract readiness", () => {
       content({
         preamble: "Between {{Client Name}} and <<Supplier Name>>.",
         recitals: "The delivery date is TBD.",
-        signatureBlock: "Reference: __________",
+        signatureBlock: "Reference: __________. Notice: [X] days.",
       }),
     );
 
-    expect(unresolved).toHaveLength(4);
+    expect(unresolved).toHaveLength(5);
   });
 
   it("does not flag completed prose or legal citations", () => {

@@ -9,7 +9,7 @@ const PLACEHOLDER_PATTERNS = [
   // Generated agreements commonly wrap an instruction in square brackets,
   // sometimes with underscores on either side.
   /_{2,}\s*\[[^\]\r\n]{1,160}\]\s*_{2,}/g,
-  /(?<!_)\[(?:[A-Z][A-Za-z0-9 &'’(),./:%-]{1,159})\](?!_)/g,
+  /(?<!_)\[(?:X|[A-Z][A-Za-z0-9 &'’(),./:%-]{1,159})\](?!_)/g,
   // Also recognise common template syntaxes and completely blank lines.
   /\{\{[^{}\r\n]{1,160}\}\}/g,
   /<<[^<>\r\n]{1,160}>>/g,
