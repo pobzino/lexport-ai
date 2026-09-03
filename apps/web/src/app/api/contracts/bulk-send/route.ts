@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  findUnresolvedContractPlaceholders,
+  shouldCheckContractPlaceholders,
+} from "@/lib/contracts/readiness";
 
 interface Recipient {
   name: string;
@@ -42,6 +46,20 @@ export async function POST(request: NextRequest) {
 
     if (contractError || !contract) {
       return NextResponse.json({ error: "Contract not found" }, { status: 404 });
+    }
+
+    if (shouldCheckContractPlaceholders(contract)) {
+      const unresolvedFields = findUnresolvedContractPlaceholders(contract.content);
+      if (unresolvedFields.length > 0) {
+        return NextResponse.json(
+          {
+            error: `This agreement still has ${unresolvedFields.length} unresolved template field${unresolvedFields.length === 1 ? "" : "s"}. Complete them before sending.`,
+            code: "CONTRACT_INCOMPLETE",
+            unresolvedFields,
+          },
+          { status: 422 },
+        );
+      }
     }
 
     // Create a bulk send batch

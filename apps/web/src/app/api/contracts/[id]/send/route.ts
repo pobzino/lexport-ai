@@ -7,6 +7,10 @@ import { SIGNING_HASH_ALGORITHM } from "@/lib/document-integrity";
 import { fingerprintSigningDocument } from "@/lib/signing-document";
 import { auditLogger, getRequestContextFromRequest } from "@/lib/audit";
 import { isMissingColumnError } from "@/lib/supabase/schema-compat";
+import {
+  findUnresolvedContractPlaceholders,
+  shouldCheckContractPlaceholders,
+} from "@/lib/contracts/readiness";
 
 // Request schema
 const SendRequestSchema = z.object({
@@ -110,6 +114,28 @@ export async function POST(
 
     if (contractError || !contract) {
       return NextResponse.json({ error: "Contract not found" }, { status: 404 });
+    }
+
+    // A generated/editable agreement must not become immutable while template
+    // instructions or blank values remain in its legal text. Sign-only uploads
+    // are excluded because their blanks can be completed with placed fields.
+    if (shouldCheckContractPlaceholders(contract)) {
+      const unresolvedFields = findUnresolvedContractPlaceholders(contract.content);
+      if (unresolvedFields.length > 0) {
+        const examples = unresolvedFields
+          .slice(0, 3)
+          .map(({ text }) => text)
+          .join(", ");
+
+        return NextResponse.json(
+          {
+            error: `This agreement still has ${unresolvedFields.length} unresolved template field${unresolvedFields.length === 1 ? "" : "s"}. Complete them before sending${examples ? `: ${examples}` : "."}`,
+            code: "CONTRACT_INCOMPLETE",
+            unresolvedFields,
+          },
+          { status: 422 },
+        );
+      }
     }
 
     // Freeze the document identity before creating any invitations. For an
