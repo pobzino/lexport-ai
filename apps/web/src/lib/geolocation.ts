@@ -1,8 +1,8 @@
 /**
  * IP Geolocation Utility
  *
- * Provides IP-to-location lookup for audit trail enhancement.
- * Uses ip-api.com (free tier: 45 requests/minute)
+ * Preserves IP evidence for the audit trail without sending signer data to a
+ * third-party geolocation service.
  */
 
 import type { GeoLocation } from "@/db/types";
@@ -34,50 +34,14 @@ export async function lookupGeoLocation(ip: string): Promise<GeoLocation | null>
     return cached.data;
   }
 
-  try {
-    // Use ip-api.com (free, no API key needed for non-commercial use)
-    const response = await fetch(
-      `http://ip-api.com/json/${ip}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp`,
-      {
-        signal: AbortSignal.timeout(3000), // 3 second timeout
-      }
-    );
+  const geoLocation: GeoLocation = { ip };
 
-    if (!response.ok) {
-      console.error("Geolocation API error:", response.status);
-      return null;
-    }
+  geoCache.set(ip, {
+    data: geoLocation,
+    expires: Date.now() + CACHE_TTL,
+  });
 
-    const data = await response.json();
-
-    if (data.status === "fail") {
-      console.error("Geolocation lookup failed:", data.message);
-      return null;
-    }
-
-    const geoLocation: GeoLocation = {
-      ip,
-      city: data.city || undefined,
-      region: data.regionName || undefined,
-      country: data.country || undefined,
-      countryCode: data.countryCode || undefined,
-      timezone: data.timezone || undefined,
-      latitude: data.lat || undefined,
-      longitude: data.lon || undefined,
-      isp: data.isp || undefined,
-    };
-
-    // Cache the result
-    geoCache.set(ip, {
-      data: geoLocation,
-      expires: Date.now() + CACHE_TTL,
-    });
-
-    return geoLocation;
-  } catch (error) {
-    console.error("Geolocation lookup error:", error);
-    return null;
-  }
+  return geoLocation;
 }
 
 /**

@@ -47,7 +47,7 @@ const contentSecurityPolicyDirectives = [
         .filter(Boolean)
         .join(" ")}`,
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https: http:",
+    `img-src 'self' data: blob: https:${!isProduction ? " http:" : ""}`,
     `connect-src ${[
         "'self'",
         "https://*.supabase.co",
@@ -87,7 +87,7 @@ const contentSecurityPolicyDirectives = [
     "worker-src 'self' blob:",
     "frame-ancestors 'self'",
     "form-action 'self'",
-    "base-uri 'self'",
+    "base-uri 'none'",
     "object-src 'none'",
     ...(isProduction ? ["upgrade-insecure-requests"] : []),
 ];
@@ -131,6 +131,38 @@ export function applySecurityHeaders(response: NextResponse): NextResponse {
         response.headers.set(key, value);
     });
     return response;
+}
+
+const SAFE_HTTP_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * Block browser-based cross-origin mutations while retaining support for
+ * server-to-server callbacks, which normally omit Origin and Sec-Fetch-Site.
+ */
+export function isAllowedMutationOrigin(request: Request): boolean {
+    if (SAFE_HTTP_METHODS.has(request.method.toUpperCase())) {
+        return true;
+    }
+
+    const fetchSite = request.headers.get("sec-fetch-site")?.toLowerCase();
+    if (fetchSite === "cross-site") {
+        return false;
+    }
+
+    const origin = request.headers.get("origin");
+    if (!origin) {
+        return true;
+    }
+
+    if (origin === "null") {
+        return false;
+    }
+
+    try {
+        return new URL(origin).origin === new URL(request.url).origin;
+    } catch {
+        return false;
+    }
 }
 
 /**

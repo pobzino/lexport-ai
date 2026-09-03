@@ -4,6 +4,10 @@ import { z } from "zod";
 import { randomInt } from "crypto";
 import { sendVerificationCodeEmail } from "@/lib/email";
 import {
+  hashVerificationCode,
+  matchesVerificationCode,
+} from "@/lib/auth/verification-code";
+import {
   getRequestContextFromRequest,
   logAuditEventWithClient,
 } from "@/lib/audit";
@@ -20,7 +24,7 @@ const SendCodeSchema = z.object({
 // POST - Verify code
 const VerifyCodeSchema = z.object({
   action: z.literal("verify"),
-  code: z.string().length(6, "Code must be 6 digits"),
+  code: z.string().regex(/^\d{6}$/, "Code must be 6 digits"),
 });
 
 export async function POST(
@@ -135,6 +139,7 @@ async function handleSendCode(
 
   // Generate 6-digit code
   const code = randomInt(100000, 999999).toString();
+  const storedCode = hashVerificationCode(signatureRequest.id, code);
   const expiresAt = new Date(Date.now() + CODE_EXPIRY_MINUTES * 60 * 1000);
 
   // Delete any existing codes for this signature request
@@ -149,7 +154,7 @@ async function handleSendCode(
     .insert({
       signature_request_id: signatureRequest.id,
       email: signatureRequest.signer_email,
-      code,
+      code: storedCode,
       expires_at: expiresAt.toISOString(),
     });
 
@@ -175,8 +180,7 @@ async function handleSendCode(
     await supabase
       .from("signer_verification_codes")
       .delete()
-      .eq("signature_request_id", signatureRequest.id)
-      .eq("code", code);
+      .eq("signature_request_id", signatureRequest.id);
     return NextResponse.json(
       { error: "Failed to send verification email" },
       { status: 500 }
@@ -234,7 +238,13 @@ async function handleVerifyCode(
     );
   }
 
-  if (verificationCode.code !== code) {
+  if (
+    !matchesVerificationCode(
+      verificationCode.code,
+      signatureRequest.id,
+      code
+    )
+  ) {
     const attempts = verificationCode.attempts + 1;
     await supabase
       .from("signer_verification_codes")
@@ -262,17 +272,17 @@ async function handleVerifyCode(
     });
   }
 
-  // Mark as verified
-  await supabase
-    .from("signer_verification_codes")
-    .update({ verified_at: new Date().toISOString() })
-    .eq("id", verificationCode.id);
-
   // Update signature request
   await supabase
     .from("signature_requests")
     .update({ email_verified_at: new Date().toISOString() })
     .eq("id", signatureRequest.id);
+
+  // Authentication codes are one-time secrets; remove them after successful use.
+  await supabase
+    .from("signer_verification_codes")
+    .delete()
+    .eq("id", verificationCode.id);
 
   // Log the verification event
   const context = getRequestContextFromRequest(request);

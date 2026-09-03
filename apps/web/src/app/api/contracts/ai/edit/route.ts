@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+function getOpenAIClient(): OpenAI {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+        throw new Error("AI service is not configured");
+    }
+    return new OpenAI({ apiKey });
+}
 
 export async function POST(request: Request) {
     try {
@@ -34,6 +38,7 @@ export async function POST(request: Request) {
             .from("contracts")
             .select("*")
             .eq("id", contractId)
+            .eq("user_id", user.id)
             .single();
 
         if (contractError || !contract) {
@@ -80,7 +85,7 @@ CONTRACT TYPE: ${contract.type}
 
 Provide the specific clause modification or addition needed.`;
 
-        const response = await openai.chat.completions.create({
+        const response = await getOpenAIClient().chat.completions.create({
             model: "gpt-4.1-mini",
             messages: [
                 { role: "system", content: systemPrompt },
@@ -113,7 +118,8 @@ Provide the specific clause modification or addition needed.`;
                     content: { ...contract.content, clauses: updatedClauses },
                     updated_at: new Date().toISOString(),
                 })
-                .eq("id", contractId);
+                .eq("id", contractId)
+                .eq("user_id", user.id);
 
             if (updateError) {
                 console.error("Failed to update contract:", updateError);

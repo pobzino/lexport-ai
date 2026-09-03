@@ -148,15 +148,11 @@ export async function PATCH(
       error: authError,
     } = await supabase.auth.getUser();
 
-    console.log("PATCH - Auth user:", user?.id, "Contract ID:", id);
-
     if (authError || !user) {
-      console.log("PATCH - Auth error:", authError);
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
-    console.log("PATCH - Request body:", JSON.stringify(body, null, 2));
 
     // Get the current contract state before update (for version history)
     const { data: currentContract, error: fetchError } = await supabase
@@ -260,8 +256,6 @@ export async function PATCH(
       }
     }
 
-    console.log("PATCH - Update data:", JSON.stringify(updateData, null, 2));
-
     // Update contract (Supabase RLS handles ownership)
     const { data: updated, error } = await supabase
       .from("contracts")
@@ -271,10 +265,8 @@ export async function PATCH(
       .select()
       .single();
 
-    console.log("PATCH - Update result:", updated ? "success" : "failed", "Error:", error);
-
     if (error || !updated) {
-      return NextResponse.json({ error: "Contract not found", details: error?.message }, { status: 404 });
+      return NextResponse.json({ error: "Contract not found" }, { status: 404 });
     }
 
     // Create version history entry if content changed
@@ -315,8 +307,8 @@ export async function PATCH(
       user.email || "",
       user.user_metadata?.name || user.user_metadata?.full_name || null,
       affectedFields,
-      contentChanged ? { content: oldContent } : undefined,
-      contentChanged && newContent ? { content: newContent } : undefined,
+      undefined,
+      undefined,
       context
     );
 

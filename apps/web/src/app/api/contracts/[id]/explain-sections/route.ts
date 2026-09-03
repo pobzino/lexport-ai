@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+function getOpenAIClient(): OpenAI {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+        throw new Error("AI service is not configured");
+    }
+    return new OpenAI({ apiKey });
+}
 
 interface ClauseInput {
     id: string;
@@ -32,7 +36,7 @@ async function generateExplanationsForClauses(
         `## ${c.title}\n${c.content}`
     ).join("\n\n");
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAIClient().chat.completions.create({
         model: "gpt-4.1-mini",
         messages: [
             {
@@ -115,11 +119,7 @@ export async function POST(
         const requestedClauseIds = new Set(clauses.map(c => c.id));
         const cachedClauseIds = new Set(Object.keys(existingCache));
 
-        console.log("[Smart Cache] Requested clause IDs:", Array.from(requestedClauseIds));
-        console.log("[Smart Cache] Cached clause IDs:", Array.from(cachedClauseIds));
-
         const missingClauses = clauses.filter(c => !cachedClauseIds.has(c.id));
-        console.log("[Smart Cache] Missing clauses:", missingClauses.map(c => ({ id: c.id, title: c.title })));
 
         // Also remove any cached explanations for clauses that no longer exist
         // (e.g., if a clause was deleted)
@@ -132,15 +132,12 @@ export async function POST(
 
         // If all clauses are cached, return immediately
         if (missingClauses.length === 0) {
-            console.log("[Smart Cache] ✅ All clauses cached - returning immediately");
             return NextResponse.json({
                 explanations: validCache,
                 cached: true,
                 regeneratedCount: 0
             });
         }
-
-        console.log(`[Smart Cache] 🔄 Regenerating ${missingClauses.length} of ${clauses.length} clauses`);
 
         // Generate explanations only for missing clauses
         const newExplanations = await generateExplanationsForClauses(missingClauses);

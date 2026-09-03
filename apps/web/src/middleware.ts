@@ -22,6 +22,7 @@ export const config = {
     "/invoices/:path*",
     "/activity/:path*",
     "/payments/:path*",
+    "/api/:path*",
     "/login",
     "/register",
   ],

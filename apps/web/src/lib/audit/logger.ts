@@ -138,8 +138,9 @@ export function parseUserAgent(userAgent: string | null): DeviceInfo {
 }
 
 /**
- * Fetch geolocation data from IP address using ip-api.com (free tier)
- * Note: Free tier has rate limits (45 requests per minute from an IP)
+ * Preserve the source IP in the location envelope without disclosing it to an
+ * external geolocation provider. Hosting-layer geolocation can be added later
+ * without making an outbound request containing signer data.
  */
 export async function getGeoLocation(
   ipAddress: string | null
@@ -148,43 +149,7 @@ export async function getGeoLocation(
     return null;
   }
 
-  try {
-    // Use ip-api.com free tier (no API key required)
-    const response = await fetch(
-      `http://ip-api.com/json/${ipAddress}?fields=status,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,query`,
-      {
-        signal: AbortSignal.timeout(3000), // 3 second timeout
-        cache: "force-cache" // Cache results
-      }
-    );
-
-    if (!response.ok) {
-      console.warn("Geolocation lookup failed:", response.status);
-      return null;
-    }
-
-    const data = await response.json();
-
-    if (data.status !== "success") {
-      return null;
-    }
-
-    return {
-      ip: data.query || ipAddress,
-      city: data.city,
-      region: data.regionName,
-      country: data.country,
-      countryCode: data.countryCode,
-      timezone: data.timezone,
-      latitude: data.lat,
-      longitude: data.lon,
-      isp: data.isp,
-    };
-  } catch (error) {
-    // Silently fail - geolocation is not critical
-    console.warn("Geolocation lookup error:", error);
-    return null;
-  }
+  return { ip: ipAddress };
 }
 
 /**
@@ -204,10 +169,14 @@ export async function logAuditEvent(
 }
 
 export async function logAuditEventWithClient(
-  supabase: SupabaseClient,
+  _supabase: SupabaseClient,
   options: AuditLogOptions
 ): Promise<AuditLog | null> {
   try {
+    // Audit entries must be written with a server-only credential. Allowing a
+    // browser's Supabase client to insert them would let users forge evidence.
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const auditClient = createAdminClient();
 
     // Parse device info from user agent
     const deviceInfo = parseUserAgent(options.context?.userAgent || null);
@@ -242,7 +211,7 @@ export async function logAuditEventWithClient(
       metadata: options.metadata || null,
     };
 
-    const { data, error } = await supabase
+    const { data, error } = await auditClient
       .from("audit_logs")
       .insert(auditData)
       .select()

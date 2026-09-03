@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { applySecurityHeaders } from "@/lib/security";
+import { applySecurityHeaders, isAllowedMutationOrigin } from "@/lib/security";
 import { generateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/logging";
 
 export async function updateSession(request: NextRequest) {
@@ -10,6 +10,15 @@ export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   });
+
+  if (!isAllowedMutationOrigin(request)) {
+    return applySecurityHeaders(
+      NextResponse.json(
+        { error: "Cross-origin request blocked" },
+        { status: 403 }
+      )
+    );
+  }
 
   // Add correlation ID to response headers for tracing
   supabaseResponse.headers.set(CORRELATION_ID_HEADER, correlationId);
@@ -121,4 +130,3 @@ export async function updateSession(request: NextRequest) {
 
   return applySecurityHeaders(supabaseResponse);
 }
-

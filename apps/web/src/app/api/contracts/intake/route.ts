@@ -9,9 +9,13 @@ import {
   normalizeIntakeResponse,
 } from "@/lib/contracts/intake-prompt";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+function getOpenAIClient(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("AI service is not configured");
+  }
+  return new OpenAI({ apiKey });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,7 +36,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAIClient().chat.completions.create({
       model: INTAKE_MODEL,
       messages: [
         { role: "system", content: INTAKE_SYSTEM_PROMPT },
