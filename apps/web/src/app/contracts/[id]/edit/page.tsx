@@ -916,7 +916,7 @@ export default function ContractEditorPage() {
   useEffect(() => {
     async function fetchContract() {
       try {
-        const response = await fetch(`/api/contracts/${contractId}`);
+        const response = await fetch(`/api/contracts/${contractId}?view=editor`);
         if (!response.ok) throw new Error("Contract not found");
         const data = await response.json();
         setContract(data.contract);
@@ -2379,7 +2379,7 @@ export default function ContractEditorPage() {
                     </div>
                   </div>
                   <EmbeddedPDFViewer
-                    pdfUrl={`/api/contracts/${contractId}/pdf`}
+                    pdfUrl={`/api/contracts/${contractId}/pdf?view=inline`}
                   />
                 </div>
               ) : (
@@ -3213,7 +3213,7 @@ export default function ContractEditorPage() {
         <SignatureFieldEditorVisual
           contractId={contractId}
           contractTitle={contract.title}
-          pdfUrl={`/api/contracts/${contractId}/pdf`}
+          pdfUrl={`/api/contracts/${contractId}/pdf?view=inline`}
           signers={definedSigners.length > 0
             ? definedSigners.map(s => ({ id: s.id, role: s.role, name: s.name, email: s.email, color: s.color }))
             : getSignerRoles().map((role, idx) => ({

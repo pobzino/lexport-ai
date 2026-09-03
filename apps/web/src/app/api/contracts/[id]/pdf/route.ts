@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { PDFDocument, rgb, StandardFonts, degrees } from "pdf-lib";
 import { auditLogger, getRequestContextFromRequest } from "@/lib/audit";
@@ -14,6 +14,7 @@ import {
   preservesUploadedOriginal,
   supportsOriginalSigning,
 } from "@/lib/contracts/uploaded-document";
+import { getPdfResponseHeaders } from "@/lib/pdf/response";
 
 interface Clause {
   id: string;
@@ -110,6 +111,30 @@ export async function GET(
       );
     }
 
+    const isInlinePreview = request.nextUrl.searchParams.get("view") === "inline";
+    const shouldPreserveUploadedOriginal =
+      contract.source_type === "uploaded" &&
+      preservesUploadedOriginal(contract.processing_mode) &&
+      supportsOriginalSigning(contract.source_file_type) &&
+      contract.source_file_url;
+
+    // A draft preview is the clean original document. Avoid loading signing,
+    // invoice, and profile data that cannot affect what the editor displays.
+    if (isInlinePreview && contract.status === "draft" && shouldPreserveUploadedOriginal) {
+      const sourceBytes = await downloadUploadedSource(
+        supabase,
+        contract.source_file_url,
+      );
+      const previewBytes = await generateUploadedContractPdf({
+        sourceBytes,
+        sourceFileType: contract.source_file_type as UploadedSourceFileType,
+      });
+
+      return new NextResponse(Buffer.from(previewBytes), {
+        headers: getPdfResponseHeaders(contract.title, "inline"),
+      });
+    }
+
     // Fetch signatures for this contract
     const { data: signatureRequests } = await supabase
       .from("signature_requests")
@@ -192,12 +217,6 @@ export async function GET(
     const isSigned = contract.status === "signed" || contract.status === "completed";
 
     let pdfBytes: Uint8Array;
-    const shouldPreserveUploadedOriginal =
-      contract.source_type === "uploaded" &&
-      preservesUploadedOriginal(contract.processing_mode) &&
-      supportsOriginalSigning(contract.source_file_type) &&
-      contract.source_file_url;
-
     if (shouldPreserveUploadedOriginal) {
       if (!(["pdf", "jpg", "png"] as const).includes(contract.source_file_type)) {
         return NextResponse.json(
@@ -240,21 +259,27 @@ export async function GET(
       );
     }
 
-    // Log audit event for PDF download
+    // Logging remains durable without delaying delivery of a generated PDF.
     const context = getRequestContextFromRequest(request);
-    await auditLogger.pdfDownloaded(
-      id,
-      user.id,
-      user.email || null,
-      user.user_metadata?.name || user.user_metadata?.full_name || null,
-      context
-    );
+    after(async () => {
+      try {
+        await auditLogger.pdfDownloaded(
+          id,
+          user.id,
+          user.email || null,
+          user.user_metadata?.name || user.user_metadata?.full_name || null,
+          context
+        );
+      } catch (auditError) {
+        console.error("Failed to record PDF download:", auditError);
+      }
+    });
 
     return new NextResponse(Buffer.from(pdfBytes), {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${sanitizeFilename(contract.title)}.pdf"`,
-      },
+      headers: getPdfResponseHeaders(
+        contract.title,
+        isInlinePreview ? "inline" : "attachment",
+      ),
     });
   } catch (error) {
     console.error("Error generating PDF:", error);
@@ -286,10 +311,6 @@ async function downloadUploadedSource(
     throw new Error(error?.message || "Failed to download uploaded source");
   }
   return new Uint8Array(await data.arrayBuffer());
-}
-
-function sanitizeFilename(name: string): string {
-  return name.replace(/[^a-zA-Z0-9-_\s]/g, "").replace(/\s+/g, "_");
 }
 
 async function generateContractPDF(

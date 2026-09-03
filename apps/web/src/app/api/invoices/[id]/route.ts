@@ -73,7 +73,7 @@ function formatDate(dateString: string | null): string {
   });
 }
 
-export async function generateInvoicePDF(invoice: Invoice): Promise<Uint8Array> {
+async function generateInvoicePDF(invoice: Invoice): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   let page = pdfDoc.addPage([612, 792]); // Letter size
 

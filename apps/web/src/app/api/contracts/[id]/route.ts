@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateChangeSummary, hasChanges } from "@/lib/version-diff";
 import { auditLogger, getRequestContextFromRequest } from "@/lib/audit";
@@ -32,12 +32,33 @@ export async function GET(
       return NextResponse.json({ error: "Contract not found" }, { status: 404 });
     }
 
+    const isEditorRequest = request.nextUrl.searchParams.get("view") === "editor";
+    const sourceFileSignedUrlPromise = (async () => {
+      if (
+        isEditorRequest ||
+        contract.source_type !== "uploaded" ||
+        !contract.source_file_url
+      ) {
+        return null;
+      }
+
+      if (contract.source_file_url.startsWith("http")) {
+        return contract.source_file_url;
+      }
+
+      const { data } = await supabase.storage
+        .from("contract-uploads")
+        .createSignedUrl(contract.source_file_url, 3600);
+      return data?.signedUrl || null;
+    })();
+
     // Query related records explicitly instead of relying on PostgREST schema-cache
     // relationship names, which can drift between hosted and fresh local databases.
     const [
       { data: signatureFieldsData },
       { data: signatureRequestsData },
       { data: signaturesData },
+      sourceFileSignedUrl,
     ] = await Promise.all([
       supabase
         .from("signature_fields")
@@ -64,6 +85,7 @@ export async function GET(
           ip_address, user_agent, signed_at
         `)
         .eq("contract_id", id),
+      sourceFileSignedUrlPromise,
     ]);
 
     const signatureFields = (signatureFieldsData || []).sort(
@@ -90,31 +112,21 @@ export async function GET(
 
     const contractData = contract;
 
-    // Log contract view
+    // Viewing must not be held up by a secondary audit write.
     const context = getRequestContextFromRequest(request);
-    await auditLogger.contractViewed(
-      id,
-      user.id,
-      user.email || null,
-      user.user_metadata?.name || user.user_metadata?.full_name || null,
-      context
-    );
-
-    // For uploaded contracts, generate a fresh signed URL for the source file
-    let sourceFileSignedUrl = null;
-    if (contractData.source_type === "uploaded" && contractData.source_file_url) {
-      // Check if it's already a full URL or just a file path
-      const isFullUrl = contractData.source_file_url.startsWith("http");
-      if (!isFullUrl) {
-        // Generate signed URL from file path
-        const { data: signedUrlData } = await supabase.storage
-          .from("contract-uploads")
-          .createSignedUrl(contractData.source_file_url, 3600); // 1 hour
-        sourceFileSignedUrl = signedUrlData?.signedUrl || null;
-      } else {
-        sourceFileSignedUrl = contractData.source_file_url;
+    after(async () => {
+      try {
+        await auditLogger.contractViewed(
+          id,
+          user.id,
+          user.email || null,
+          user.user_metadata?.name || user.user_metadata?.full_name || null,
+          context
+        );
+      } catch (auditError) {
+        console.error("Failed to record contract view:", auditError);
       }
-    }
+    });
 
     return NextResponse.json({
       contract: {
