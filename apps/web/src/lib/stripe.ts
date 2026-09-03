@@ -59,7 +59,7 @@ export function getPlatformFeePercent(subscriptionTier: SubscriptionTier = "free
 
 export function getPaymentMethodConfiguration(): Pick<
   Stripe.PaymentIntentCreateParams,
-  "automatic_payment_methods"
+  "automatic_payment_methods" | "excluded_payment_method_types"
 > {
   // Destination charges can involve sellers in several countries. Let Stripe
   // evaluate the currency, seller location, capabilities, and Dashboard
@@ -67,6 +67,9 @@ export function getPaymentMethodConfiguration(): Pick<
   // a particular platform/connected-account combination.
   return {
     automatic_payment_methods: { enabled: true },
+    // Lexport invoices are commonly B2B. Klarna's rules prohibit B2B
+    // transactions, so do not let Dashboard auto-enablement surface it here.
+    excluded_payment_method_types: ["klarna"],
   };
 }
 

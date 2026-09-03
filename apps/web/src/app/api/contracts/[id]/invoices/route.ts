@@ -118,7 +118,7 @@ export async function POST(
 
     const { data: invoiceSettings } = await supabase
       .from("invoice_settings")
-      .select("company_name, company_address, default_notes, default_due_days, bank_details")
+      .select("company_name, company_address, company_logo_url, default_notes, default_due_days, bank_details")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -182,6 +182,7 @@ export async function POST(
       sender_name: userData?.name || null,
       sender_company: invoiceSettings?.company_name || userData?.company_name || null,
       sender_email: userData?.email || null,
+      sender_logo_url: invoiceSettings?.company_logo_url || null,
       sender_address:
         invoiceSettings?.company_address ||
         invoiceSettings?.company_name ||

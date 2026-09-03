@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { InvoiceSettings } from "@/db/types";
 import { normalizeInvoiceBankDetails } from "@/lib/invoices/bank-details";
+import { isSafePdfLogoUrl } from "@/lib/pdf/logo";
 
 // GET invoice settings for the current user
 export async function GET() {
@@ -104,6 +105,13 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    if (company_logo_url && !isSafePdfLogoUrl(company_logo_url)) {
+      return NextResponse.json(
+        { error: "Logo URL must be a secure public image URL" },
+        { status: 400 },
+      );
+    }
+
     // Upsert settings (insert if not exists, update if exists)
     const { data: settings, error } = await supabase
       .from("invoice_settings")
@@ -114,7 +122,7 @@ export async function PUT(request: NextRequest) {
           company_name: company_name || null,
           company_address: company_address || null,
           company_logo_url: company_logo_url || null,
-          default_due_days: default_due_days || 30,
+          default_due_days: default_due_days ?? 30,
           default_notes: default_notes || null,
           default_payment_terms: default_payment_terms || "Net 30",
           bank_details: normalizeInvoiceBankDetails(bank_details),

@@ -536,6 +536,7 @@ export interface Invoice {
   sender_name: string | null;
   sender_company?: string | null;
   sender_email: string | null;
+  sender_logo_url?: string | null;
   sender_address: Record<string, unknown> | null;
   bank_details?: InvoiceBankDetails | null;
   notes: string | null;

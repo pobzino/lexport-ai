@@ -149,6 +149,7 @@ export async function POST(request: NextRequest) {
       sender_name: bodySenderName,
       sender_company: bodySenderCompany,
       sender_email: bodySenderEmail,
+      sender_logo_url: bodySenderLogoUrl,
       sender_address: bodySenderAddress,
       bank_details: bodyBankDetails,
       recipient_name,
@@ -254,6 +255,7 @@ export async function POST(request: NextRequest) {
       sender_name: bodySenderName || userData?.name || null,
       sender_company: bodySenderCompany || settings.company_name || null,
       sender_email: bodySenderEmail || userData?.email || null,
+      sender_logo_url: bodySenderLogoUrl || settings.company_logo_url || null,
       sender_address: bodySenderAddress || bodySenderCompany || bodyBankDetails
         ? {
             address: bodySenderAddress || settings.company_address || null,

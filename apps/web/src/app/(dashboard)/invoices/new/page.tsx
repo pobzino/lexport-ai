@@ -303,6 +303,7 @@ export default function NewInvoicePage() {
           sender_name: senderName.trim(),
           sender_company: senderCompany.trim() || null,
           sender_email: senderEmail.trim() || null,
+          sender_logo_url: senderLogoUrl || null,
           sender_address: senderAddress.trim() || null,
           bank_details: includeBankDetails ? bankDetails : null,
           recipient_name: recipientName.trim(),

@@ -5,6 +5,7 @@ import { sendPaymentReceiptEmail } from "@/lib/email";
 import { getPublicInvoicePdfUrl } from "@/lib/invoices/payment-link";
 import Stripe from "stripe";
 import type { InvoiceLineItem, PaymentType } from "@/db/types";
+import { normalizeInvoiceBankDetails } from "@/lib/invoices/bank-details";
 
 // Generate invoice number
 function generateInvoiceNumber(): string {
@@ -80,6 +81,12 @@ async function createInvoiceForPayment(
       .select("name, email")
       .eq("id", contract.user_id)
       .single();
+    const { data: invoiceSettings } = await supabase
+      .from("invoice_settings")
+      .select("company_name, company_address, company_logo_url, bank_details")
+      .eq("user_id", contract.user_id)
+      .maybeSingle();
+    const bankDetails = normalizeInvoiceBankDetails(invoiceSettings?.bank_details);
 
     // Create line items with payment type description
     const milestoneLabel = typeof payment.metadata?.payment_milestone_label === "string"
@@ -116,7 +123,18 @@ async function createInvoiceForPayment(
       recipient_email: payerEmail,
       recipient_address: null,
       sender_name: userData?.name || null,
+      sender_company: invoiceSettings?.company_name || null,
       sender_email: userData?.email || null,
+      sender_logo_url: invoiceSettings?.company_logo_url || null,
+      sender_address:
+        invoiceSettings?.company_address || invoiceSettings?.company_name || bankDetails
+          ? {
+              address: invoiceSettings?.company_address || null,
+              company: invoiceSettings?.company_name || null,
+              bank_details: bankDetails,
+            }
+          : null,
+      bank_details: bankDetails,
       notes: `Auto-generated receipt for ${paymentTypeLabel.toLowerCase()}`,
     };
 

@@ -30,6 +30,7 @@ describe("Stripe payment method configuration", () => {
   it("lets Stripe select eligible methods for the payment context", () => {
     expect(getPaymentMethodConfiguration()).toEqual({
       automatic_payment_methods: { enabled: true },
+      excluded_payment_method_types: ["klarna"],
     });
   });
 
@@ -44,5 +45,10 @@ describe("Stripe payment method configuration", () => {
       "card",
       "link",
     ]);
+  });
+
+  it("does not promote Klarna in the B2B invoice checkout", () => {
+    expect(getPreferredPaymentMethodOrder("USD")).not.toContain("klarna");
+    expect(getPreferredPaymentMethodOrder("EUR")).not.toContain("klarna");
   });
 });

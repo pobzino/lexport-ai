@@ -16,6 +16,8 @@ import {
   Image,
   X,
   Landmark,
+  Upload,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -48,6 +50,8 @@ export default function InvoiceSettingsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [removingLogo, setRemovingLogo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -124,6 +128,63 @@ export default function InvoiceSettingsPage() {
       setError(err instanceof Error ? err.message : "Failed to save settings");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleLogoUpload(file: File | undefined) {
+    if (!file) return;
+
+    try {
+      setUploadingLogo(true);
+      setError(null);
+      setSuccess(null);
+
+      const formData = new FormData();
+      formData.append("logo", file);
+      const response = await fetch("/api/invoices/settings/logo", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to upload logo");
+      }
+
+      setSettings((current) => ({
+        ...current,
+        company_logo_url: data.logoUrl,
+      }));
+      setSuccess("Logo uploaded and saved.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload logo");
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
+
+  async function handleLogoRemove() {
+    if (!window.confirm("Remove this logo from future contracts and invoices?")) {
+      return;
+    }
+
+    try {
+      setRemovingLogo(true);
+      setError(null);
+      setSuccess(null);
+      const response = await fetch("/api/invoices/settings/logo", {
+        method: "DELETE",
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to remove logo");
+      }
+
+      setSettings((current) => ({ ...current, company_logo_url: null }));
+      setSuccess("Logo removed.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove logo");
+    } finally {
+      setRemovingLogo(false);
     }
   }
 
@@ -346,20 +407,65 @@ export default function InvoiceSettingsPage() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Company Logo URL
+                Company Logo
               </label>
-              <input
-                type="url"
-                value={settings.company_logo_url || ""}
-                onChange={(e) =>
-                  setSettings({ ...settings, company_logo_url: e.target.value })
-                }
-                placeholder="https://example.com/logo.png"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                Direct URL to your logo image (PNG or JPG recommended)
-              </p>
+              <div className="flex items-center gap-4 rounded-lg border border-slate-200 p-3">
+                <div className="flex h-14 w-28 items-center justify-center overflow-hidden rounded border border-slate-200 bg-slate-50">
+                  {settings.company_logo_url ? (
+                    <img
+                      src={settings.company_logo_url}
+                      alt="Company logo"
+                      className="max-h-12 max-w-24 object-contain"
+                    />
+                  ) : (
+                    <Image className="h-5 w-5 text-slate-400" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap gap-2">
+                    <label
+                      htmlFor="company-logo-upload"
+                      className={`inline-flex cursor-pointer items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 ${uploadingLogo ? "pointer-events-none opacity-60" : ""}`}
+                    >
+                      {uploadingLogo ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Upload className="mr-2 h-4 w-4" />
+                      )}
+                      {settings.company_logo_url ? "Replace logo" : "Upload logo"}
+                    </label>
+                    <input
+                      id="company-logo-upload"
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      className="sr-only"
+                      disabled={uploadingLogo || removingLogo}
+                      onChange={(event) => {
+                        void handleLogoUpload(event.target.files?.[0]);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                    {settings.company_logo_url && (
+                      <button
+                        type="button"
+                        onClick={() => void handleLogoRemove()}
+                        disabled={uploadingLogo || removingLogo}
+                        className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                      >
+                        {removingLogo ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="mr-2 h-4 w-4" />
+                        )}
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    PNG or JPG, up to 2 MB. Kept restrained on legal documents.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -378,29 +484,6 @@ export default function InvoiceSettingsPage() {
             />
           </div>
 
-          {settings.company_logo_url && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Logo Preview
-              </label>
-              <div className="w-32 h-16 border border-slate-200 rounded-lg overflow-hidden bg-slate-50 flex items-center justify-center">
-                <img
-                  src={settings.company_logo_url}
-                  alt="Company Logo"
-                  className="max-w-full max-h-full object-contain"
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                    e.currentTarget.nextElementSibling?.classList.remove(
-                      "hidden"
-                    );
-                  }}
-                />
-                <span className="hidden text-xs text-slate-400">
-                  Failed to load
-                </span>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

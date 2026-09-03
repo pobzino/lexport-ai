@@ -39,7 +39,9 @@ function isMissingInvoicePaymentColumns(error: {
 
   return (
     (error.code === "PGRST204" || error.code === "42703") &&
-    (haystack.includes("sender_company") || haystack.includes("bank_details"))
+    (haystack.includes("sender_company") ||
+      haystack.includes("sender_logo_url") ||
+      haystack.includes("bank_details"))
   );
 }
 
@@ -78,6 +80,7 @@ export async function insertInvoiceWithRetry<TInvoice extends { id: string }>(
       // The sender_address JSON snapshot carries the same values until the
       // dedicated invoice columns are migrated in every environment.
       delete payload.sender_company;
+      delete payload.sender_logo_url;
       delete payload.bank_details;
       usedLegacySchemaFallback = true;
       attempt -= 1;

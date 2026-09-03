@@ -1,12 +1,13 @@
 import {
   PDFDocument,
-  PDFImage,
+  type PDFImage,
   PDFFont,
   PDFPage,
   StandardFonts,
   degrees,
   rgb,
 } from "pdf-lib";
+import { loadPdfLogo } from "@/lib/pdf/logo";
 
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
@@ -118,37 +119,6 @@ function getJurisdictionLabel(jurisdiction: string | null | undefined): string {
   return labels[jurisdiction] || jurisdiction;
 }
 
-async function loadLogo(
-  pdfDoc: PDFDocument,
-  logoUrl: string | null | undefined,
-): Promise<PDFImage | null> {
-  if (!logoUrl) return null;
-  try {
-    const response = await fetch(logoUrl, {
-      cache: "no-store",
-      redirect: "follow",
-      signal: AbortSignal.timeout(6000),
-    });
-    if (!response.ok) return null;
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > 5 * 1024 * 1024) return null;
-    const contentType = response.headers.get("content-type")?.toLowerCase() || "";
-    if (contentType.includes("png") || logoUrl.toLowerCase().includes(".png")) {
-      return await pdfDoc.embedPng(bytes);
-    }
-    if (
-      contentType.includes("jpeg") ||
-      contentType.includes("jpg") ||
-      /\.jpe?g(?:\?|$)/i.test(logoUrl)
-    ) {
-      return await pdfDoc.embedJpg(bytes);
-    }
-  } catch (error) {
-    console.warn("Unable to load document logo:", error);
-  }
-  return null;
-}
-
 async function embedSignature(
   pdfDoc: PDFDocument,
   dataUrl: string | null | undefined,
@@ -190,7 +160,7 @@ export async function renderLegalContractPdf({
   const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const italic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
-  const logo = await loadLogo(pdfDoc, identity.companyLogoUrl);
+  const logo = await loadPdfLogo(pdfDoc, identity.companyLogoUrl);
   const companyName = safeText(identity.companyName || "").trim();
   const documentTitle = safeText(title).trim() || "Agreement";
 
