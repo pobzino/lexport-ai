@@ -99,7 +99,8 @@ export async function POST(request: NextRequest) {
       try {
         const backgroundResponse = await createBackgroundContractGeneration(
           contractType,
-          metadata
+          metadata,
+          paymentConfig
         );
 
         const { error: updateError } = await supabase

@@ -175,7 +175,8 @@ export async function processContractGenerationJob(
           progress_status: progress.status,
           error_message: null,
         });
-      }
+      },
+      parsedJob.data.paymentConfig
     );
 
     await updateContractGenerationJob(supabase, jobId, {

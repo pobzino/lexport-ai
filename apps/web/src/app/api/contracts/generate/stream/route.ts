@@ -115,7 +115,8 @@ export async function POST(request: NextRequest) {
         const generated = await generateContractStreaming(
           contractType,
           metadata,
-          (progress) => sendSSE(controller, "progress", progress)
+          (progress) => sendSSE(controller, "progress", progress),
+          paymentConfig
         );
 
         sendSSE(controller, "progress", {

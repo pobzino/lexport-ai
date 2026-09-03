@@ -11,9 +11,11 @@ import {
   type ContractMetadata,
   type Clause,
   type Jurisdiction,
+  type PaymentConfig,
   CONTRACT_TYPES,
   JURISDICTION_NAMES,
 } from "./schemas";
+import { formatPaymentAmount, getMilestoneAmount } from "../payments/config";
 
 // Import clause manifests
 import californiaManifests from "./manifests/california.json";
@@ -220,6 +222,7 @@ FORMATTING REQUIREMENTS:
 3. Use professional signature block with "By:" line format
 4. All clauses must be appropriate for the specific contract type
 5. For optional fields not provided, use labeled placeholder format: _____[Description]_____ where Description is a short label for what should be filled in (e.g., _____[Company Name]_____, _____[Effective Date]_____, _____[State of Incorporation]_____, _____[Payment Amount]_____). Always include a descriptive label between the brackets.
+6. Treat every supplied contract and payment fact as authoritative. Copy currencies, amounts, percentages, labels, dates, party names, and the number and order of payment stages exactly. Never substitute a currency, collapse multiple stages into one, or add a placeholder for a supplied fact.
 
 SIGNATURE BLOCK FOR MULTIPLE SIGNERS:
 When there are multiple signers for the same party (e.g., multiple investors, multiple founders, co-clients):
@@ -267,10 +270,74 @@ Output as JSON:
   return prompt;
 }
 
+function formatPaymentConfigForPrompt(paymentConfig?: PaymentConfig): string {
+  if (!paymentConfig?.paymentRequired || !paymentConfig.paymentAmount) {
+    return "- No payment collection is configured.";
+  }
+
+  const total = formatPaymentAmount(
+    paymentConfig.paymentAmount,
+    paymentConfig.paymentCurrency
+  );
+  const lines = [
+    `- Total fee: ${total} (${paymentConfig.paymentCurrency.toUpperCase()})`,
+  ];
+
+  if (
+    paymentConfig.paymentStructure === "custom" &&
+    paymentConfig.paymentSchedule?.length
+  ) {
+    const totalMinorUnits = Math.round(paymentConfig.paymentAmount * 100);
+    lines.push("- Structure: ordered payment stages");
+    paymentConfig.paymentSchedule.forEach((stage, index) => {
+      lines.push(
+        `  ${index + 1}. ${stage.label}: ${stage.percentage}% (${formatPaymentAmount(
+          getMilestoneAmount(totalMinorUnits, paymentConfig.paymentSchedule!, index),
+          paymentConfig.paymentCurrency,
+          { minorUnits: true }
+        )})${stage.dueDate ? `, due ${stage.dueDate}` : ""}`
+      );
+    });
+    lines.push(
+      "- State that the stages are invoiced and collected in this order; do not describe them as a single milestone."
+    );
+  } else if (paymentConfig.paymentStructure === "deposit_balance") {
+    const depositPercentage = paymentConfig.depositPercentage ?? 50;
+    const depositMinorUnits = Math.round(
+      paymentConfig.paymentAmount * 100 * (depositPercentage / 100)
+    );
+    lines.push(
+      `- Structure: ${depositPercentage}% deposit (${formatPaymentAmount(
+        depositMinorUnits,
+        paymentConfig.paymentCurrency,
+        { minorUnits: true }
+      )}), then ${100 - depositPercentage}% balance (${formatPaymentAmount(
+        Math.round(paymentConfig.paymentAmount * 100) - depositMinorUnits,
+        paymentConfig.paymentCurrency,
+        { minorUnits: true }
+      )})`
+    );
+  } else {
+    lines.push("- Structure: full payment");
+  }
+
+  return lines.join("\n");
+}
+
+function formatAmountForPrompt(
+  amount: number,
+  paymentConfig?: PaymentConfig
+): string {
+  return paymentConfig?.paymentCurrency
+    ? formatPaymentAmount(amount, paymentConfig.paymentCurrency)
+    : `$${amount}`;
+}
+
 // Format metadata for the prompt based on contract type
 function formatMetadataForPrompt(
   contractType: ContractType,
-  metadata: ContractMetadata
+  metadata: ContractMetadata,
+  paymentConfig?: PaymentConfig
 ): string {
   const signersPrompt = formatSignersForPrompt(metadata);
 
@@ -303,7 +370,7 @@ ${m.geographicScope ? `- Geographic Scope: ${m.geographicScope}` : ""}`;
 - Effective Date: ${m.effectiveDate}
 ${m.endDate ? `- End Date: ${m.endDate}` : "- Ongoing engagement"}
 - Services: ${m.servicesDescription}
-- Payment: ${m.paymentAmount ? `$${m.paymentAmount}` : "_____[Payment Amount]_____"} (${m.paymentFrequency})
+- Payment: ${m.paymentAmount ? formatAmountForPrompt(m.paymentAmount, paymentConfig) : "_____[Payment Amount]_____"} (${m.paymentFrequency})
 - Payment Terms: Net ${m.paymentTerms} days
 - Termination Notice: ${m.terminationNoticeDays} days
 ${m.includeIPAssignment ? "- Include IP Assignment clause" : ""}
@@ -321,8 +388,8 @@ ${m.includeConfidentiality ? "- Include Confidentiality clause" : ""}`;
 - Effective Date: ${m.effectiveDate}
 ${m.endDate ? `- End Date: ${m.endDate}` : "- Ongoing engagement"}
 - Scope: ${m.consultingScope}
-${m.retainerAmount ? `- Retainer: $${m.retainerAmount}` : ""}
-${m.hourlyRate ? `- Hourly Rate: $${m.hourlyRate}` : ""}
+${m.retainerAmount ? `- Retainer: ${formatAmountForPrompt(m.retainerAmount, paymentConfig)}` : ""}
+${m.hourlyRate ? `- Hourly Rate: ${formatAmountForPrompt(m.hourlyRate, paymentConfig)}` : ""}
 ${m.maxHours ? `- Maximum Hours: ${m.maxHours}` : ""}
 - Payment Terms: Net ${m.paymentTerms} days
 ${m.deliverables?.length ? `- Deliverables: ${m.deliverables.join(", ")}` : ""}
@@ -350,7 +417,7 @@ ${m.discountRate ? `- Discount Rate: ${m.discountRate}%` : ""}
       const deliverablesList = m.deliverables
         .map(
           (d) =>
-            `  - ${d.description}${d.dueDate ? ` (due: ${d.dueDate})` : ""}${d.amount ? ` - $${d.amount}` : ""}`
+            `  - ${d.description}${d.dueDate ? ` (due: ${d.dueDate})` : ""}${d.amount ? ` - ${formatAmountForPrompt(d.amount, paymentConfig)}` : ""}`
         )
         .join("\n");
       const partiesSection =
@@ -361,8 +428,8 @@ ${m.discountRate ? `- Discount Rate: ${m.discountRate}%` : ""}
       return `${partiesSection}
 - Project: ${m.projectName}
 - Description: ${m.projectDescription}
-- Total Amount: ${m.totalAmount ? `$${m.totalAmount}` : "_____[Total Amount]_____"}
-${m.depositAmount ? `- Deposit: $${m.depositAmount}` : ""}
+- Total Amount: ${m.totalAmount ? formatAmountForPrompt(m.totalAmount, paymentConfig) : "_____[Total Amount]_____"}
+${m.depositAmount ? `- Deposit: ${formatAmountForPrompt(m.depositAmount, paymentConfig)}` : ""}
 - Payment Schedule: ${m.paymentSchedule}
 - Revision Rounds: ${m.revisionRounds === -1 ? "Unlimited" : m.revisionRounds}
 - Effective Date: ${m.effectiveDate}
@@ -381,15 +448,25 @@ function buildUserPrompt(
   contractType: ContractType,
   metadata: ContractMetadata,
   typeDefinition: (typeof CONTRACT_TYPES)[ContractType],
-  manifest: ClauseManifest | null
+  manifest: ClauseManifest | null,
+  paymentConfig?: PaymentConfig
 ): string {
-  const metadataSummary = formatMetadataForPrompt(contractType, metadata);
+  const metadataSummary = formatMetadataForPrompt(
+    contractType,
+    metadata,
+    paymentConfig
+  );
   const contractName = manifest?.contractName || typeDefinition.name;
 
   return `Generate a ${contractName} for ${JURISDICTION_NAMES[metadata.jurisdiction]}.
 
 CONTRACT DETAILS:
 ${metadataSummary}
+
+AUTHORITATIVE PAYMENT CONFIGURATION:
+${formatPaymentConfigForPrompt(paymentConfig)}
+
+The generated payment, fee, invoicing, definitions, and milestone provisions must agree with this configuration exactly.
 
 Return only valid JSON.`;
 }
@@ -460,7 +537,10 @@ function parseGeneratedContractContent(
   };
 }
 
-function buildCustomGenerationInput(metadata: ContractMetadata): OpenAIGenerationInput {
+function buildCustomGenerationInput(
+  metadata: ContractMetadata,
+  paymentConfig?: PaymentConfig
+): OpenAIGenerationInput {
   const meta = metadata as Record<string, unknown>;
   const customContractName =
     (meta.customContractName as string) || "Custom Agreement";
@@ -480,6 +560,7 @@ FORMATTING REQUIREMENTS:
 3. Use professional signature block with "By:" line format
 4. Generate clauses appropriate for this specific contract type
 5. For optional fields not provided, use labeled placeholder format: _____[Description]_____ where Description is a short label for what should be filled in (e.g., _____[Company Name]_____, _____[Effective Date]_____, _____[Payment Amount]_____). Always include a descriptive label.
+6. Treat every supplied contract and payment fact as authoritative. Copy currencies, amounts, percentages, labels, dates, party names, and the number and order of payment stages exactly. Never substitute a currency, collapse multiple stages into one, or add a placeholder for a supplied fact.
 
 Key requirements for ${jurisdictionName}:
 ${getJurisdictionRequirements(jurisdiction)}
@@ -511,6 +592,11 @@ ${signersPrompt ? `\nPARTIES:\n${signersPrompt}` : ""}
 
 ${meta.followUpAnswers ? `ADDITIONAL DETAILS:\n${JSON.stringify(meta.followUpAnswers, null, 2)}` : ""}
 
+AUTHORITATIVE PAYMENT CONFIGURATION:
+${formatPaymentConfigForPrompt(paymentConfig)}
+
+The generated payment, fee, invoicing, definitions, and milestone provisions must agree with this configuration exactly.
+
 Return only valid JSON.`;
 
   return [
@@ -521,7 +607,8 @@ Return only valid JSON.`;
 
 function buildStandardGenerationInput(
   contractType: ContractType,
-  metadata: ContractMetadata
+  metadata: ContractMetadata,
+  paymentConfig?: PaymentConfig
 ): OpenAIGenerationInput {
   const jurisdiction = metadata.jurisdiction;
   const typeDefinition = CONTRACT_TYPES[contractType];
@@ -531,20 +618,27 @@ function buildStandardGenerationInput(
     { role: "developer", content: buildDeveloperPrompt(jurisdiction, manifest) },
     {
       role: "user",
-      content: buildUserPrompt(contractType, metadata, typeDefinition, manifest),
+      content: buildUserPrompt(
+        contractType,
+        metadata,
+        typeDefinition,
+        manifest,
+        paymentConfig
+      ),
     },
   ];
 }
 
 export function buildContractGenerationInput(
   contractType: ContractType,
-  metadata: ContractMetadata
+  metadata: ContractMetadata,
+  paymentConfig?: PaymentConfig
 ): OpenAIGenerationInput {
   if (contractType === "custom") {
-    return buildCustomGenerationInput(metadata);
+    return buildCustomGenerationInput(metadata, paymentConfig);
   }
 
-  return buildStandardGenerationInput(contractType, metadata);
+  return buildStandardGenerationInput(contractType, metadata, paymentConfig);
 }
 
 export function parseGeneratedContractResponseContent(
@@ -561,14 +655,15 @@ export function parseGeneratedContractResponseContent(
 
 export async function createBackgroundContractGeneration(
   contractType: ContractType,
-  metadata: ContractMetadata
+  metadata: ContractMetadata,
+  paymentConfig?: PaymentConfig
 ): Promise<{ responseId: string; status: string }> {
   const response = await (getOpenAI() as unknown as ResponsesClient).responses.create(
     {
       model: GENERATION_MODEL,
       reasoning: { effort: REASONING_EFFORT },
       background: true,
-      input: buildContractGenerationInput(contractType, metadata),
+      input: buildContractGenerationInput(contractType, metadata, paymentConfig),
     },
     getGenerationRequestOptions()
   );
@@ -593,7 +688,8 @@ export async function retrieveBackgroundContractGeneration(responseId: string) {
 // Custom contract generation with streaming progress
 async function generateCustomContractStreaming(
   metadata: ContractMetadata,
-  onProgress: ProgressCallback
+  onProgress: ProgressCallback,
+  paymentConfig?: PaymentConfig
 ): Promise<GeneratedContract> {
   onProgress({ status: "Preparing custom contract template...", percent: 25 });
 
@@ -604,7 +700,7 @@ async function generateCustomContractStreaming(
     {
       model: GENERATION_MODEL,
       reasoning: { effort: REASONING_EFFORT },
-      input: buildCustomGenerationInput(metadata),
+      input: buildCustomGenerationInput(metadata, paymentConfig),
     },
     getGenerationRequestOptions()
   );
@@ -628,11 +724,12 @@ async function generateCustomContractStreaming(
 export async function generateContractStreaming(
   contractType: ContractType,
   metadata: ContractMetadata,
-  onProgress: ProgressCallback
+  onProgress: ProgressCallback,
+  paymentConfig?: PaymentConfig
 ): Promise<GeneratedContract> {
   // Handle custom contracts specially
   if (contractType === "custom") {
-    return generateCustomContractStreaming(metadata, onProgress);
+    return generateCustomContractStreaming(metadata, onProgress, paymentConfig);
   }
 
   onProgress({ status: "Loading contract template...", percent: 25 });
@@ -648,7 +745,7 @@ export async function generateContractStreaming(
     {
       model: GENERATION_MODEL,
       reasoning: { effort: REASONING_EFFORT },
-      input: buildStandardGenerationInput(contractType, metadata),
+      input: buildStandardGenerationInput(contractType, metadata, paymentConfig),
     },
     getGenerationRequestOptions()
   );
