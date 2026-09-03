@@ -30,8 +30,10 @@ export function findUnresolvedContractPlaceholders(
   const textEntries: Array<[string, unknown]> = [
     ["preamble", content.preamble],
     ["recitals", content.recitals],
-    ["signatureBlock", content.signatureBlock],
   ];
+
+  // The signature block deliberately contains blank signature/date lines.
+  // Those are completed by the e-sign fields and must never block sending.
 
   for (const [index, clause] of (content.clauses || []).entries()) {
     textEntries.push([`clauses.${index}.title`, clause?.title]);

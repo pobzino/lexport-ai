@@ -46,7 +46,18 @@ describe("contract readiness", () => {
       }),
     );
 
-    expect(unresolved).toHaveLength(5);
+    expect(unresolved).toHaveLength(3);
+  });
+
+  it("does not treat signature and date lines as unresolved template fields", () => {
+    const unresolved = findUnresolvedContractPlaceholders(
+      content({
+        signatureBlock:
+          "CLIENT\nBy: ____________________\nDate: ____________________\nTitle: _____[Title, if any]_____",
+      }),
+    );
+
+    expect(unresolved).toEqual([]);
   });
 
   it("does not flag completed prose or legal citations", () => {
