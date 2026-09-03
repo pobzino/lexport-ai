@@ -29,6 +29,14 @@ WITH CHECK (
   AND (storage.foldername(name))[1] = auth.uid()::TEXT
 );
 
+DROP POLICY IF EXISTS "company_assets_select_own" ON storage.objects;
+CREATE POLICY "company_assets_select_own"
+ON storage.objects FOR SELECT TO authenticated
+USING (
+  bucket_id = 'company-assets'
+  AND (storage.foldername(name))[1] = auth.uid()::TEXT
+);
+
 DROP POLICY IF EXISTS "company_assets_update_own" ON storage.objects;
 CREATE POLICY "company_assets_update_own"
 ON storage.objects FOR UPDATE TO authenticated
