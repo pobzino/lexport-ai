@@ -23,7 +23,6 @@ import {
   Download,
   PenTool,
   Users,
-  DollarSign,
   CreditCard,
   ClipboardList,
   CheckCircle2,
@@ -1601,9 +1600,14 @@ export default function ContractEditorPage() {
                     : "text-slate-600 hover:bg-slate-100"
                   }`}
               >
-                <DollarSign className="w-4 h-4" />
+                <CreditCard className="w-4 h-4" />
                 <span className="hidden sm:inline">
-                  {paymentRequired ? `$${paymentAmount || 0}` : "Payment"}
+                  {paymentRequired
+                    ? formatPaymentAmount(
+                        Number(paymentAmount || 0),
+                        paymentCurrency
+                      )
+                    : "Payment"}
                 </span>
               </button>
 

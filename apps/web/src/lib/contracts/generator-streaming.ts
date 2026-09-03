@@ -495,6 +495,14 @@ function mapGeneratedClauses(
   }));
 }
 
+function normalizeGeneratedText(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\n");
+}
+
 function parseGeneratedContractContent(
   content: string,
   errorMessage: string
@@ -529,11 +537,17 @@ function parseGeneratedContractContent(
   }
 
   return {
-    title: input.title,
-    preamble: input.preamble,
-    recitals: input.recitals,
-    clauses: mapGeneratedClauses(input.clauses),
-    signatureBlock: input.signatureBlock,
+    title: normalizeGeneratedText(input.title),
+    preamble: normalizeGeneratedText(input.preamble),
+    recitals: normalizeGeneratedText(input.recitals),
+    clauses: mapGeneratedClauses(
+      input.clauses.map((clause) => ({
+        ...clause,
+        title: normalizeGeneratedText(clause.title),
+        content: normalizeGeneratedText(clause.content),
+      }))
+    ),
+    signatureBlock: normalizeGeneratedText(input.signatureBlock),
   };
 }
 

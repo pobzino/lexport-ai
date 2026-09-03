@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { buildContractGenerationInput } from "@/lib/contracts/generator-streaming";
+import {
+  buildContractGenerationInput,
+  parseGeneratedContractResponseContent,
+} from "@/lib/contracts/generator-streaming";
 import type {
   FreelanceMetadata,
   PaymentConfig,
@@ -52,5 +55,31 @@ describe("contract generation payment prompt", () => {
     expect(prompt).toContain("2. QA Midpoint: 35% (£1.05)");
     expect(prompt).toContain("3. QA Final Verification: 40% (£1.20)");
     expect(prompt).toContain("do not describe them as a single milestone");
+  });
+
+  it("normalizes escaped model line breaks before persistence", () => {
+    const generated = parseGeneratedContractResponseContent(
+      "freelance_service",
+      JSON.stringify({
+        title: "Freelance Service Agreement",
+        preamble: "First line\\nSecond line",
+        recitals: "A. First\\nB. Second",
+        clauses: [
+          {
+            id: "clause-1",
+            title: "Payment",
+            content: "1.1 Kickoff\\n1.2 Final",
+            type: "standard",
+            order: 1,
+          },
+        ],
+        signatureBlock: "CLIENT\\nBy: __________",
+      })
+    );
+
+    expect(generated.preamble).toBe("First line\nSecond line");
+    expect(generated.recitals).toBe("A. First\nB. Second");
+    expect(generated.clauses[0].content).toBe("1.1 Kickoff\n1.2 Final");
+    expect(generated.signatureBlock).toBe("CLIENT\nBy: __________");
   });
 });
