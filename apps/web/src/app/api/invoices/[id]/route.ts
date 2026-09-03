@@ -9,6 +9,10 @@ import {
 } from "@/lib/invoices/bank-details";
 import { PUBLIC_INVOICE_STATUSES } from "@/lib/invoices/payment-link";
 import { loadPdfLogo } from "@/lib/pdf/logo";
+import {
+  ensureNextContractPaymentInvoice,
+  syncContractPaymentStatus,
+} from "@/lib/invoices/contract-payment-invoice";
 
 interface LineItem {
   description: string;
@@ -590,6 +594,213 @@ export async function GET(
     console.error("Error fetching invoice:", error);
     return NextResponse.json(
       { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const sessionSupabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await sessionSupabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: invoice, error: invoiceError } = await sessionSupabase
+      .from("invoices")
+      .select(
+        "id, user_id, contract_id, payment_id, invoice_number, status, recipient_name, recipient_email, stripe_payment_intent_id"
+      )
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+    if (invoiceError || !invoice) {
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const status = body.status;
+    if (!['paid', 'cancelled', 'void'].includes(status)) {
+      return NextResponse.json(
+        { error: "Invalid invoice status" },
+        { status: 400 }
+      );
+    }
+    if (invoice.status === "paid" && status !== "paid") {
+      return NextResponse.json(
+        { error: "A paid invoice cannot be cancelled or voided" },
+        { status: 409 }
+      );
+    }
+
+    const admin = createAdminClient();
+    const updatedAt = new Date().toISOString();
+    const update: Record<string, unknown> = { status, updated_at: updatedAt };
+
+    if (status === "paid") {
+      const suppliedDate =
+        typeof body.payment_date === "string"
+          ? new Date(`${body.payment_date}T12:00:00.000Z`)
+          : new Date();
+      update.paid_at = Number.isNaN(suppliedDate.getTime())
+        ? updatedAt
+        : suppliedDate.toISOString();
+      update.payment_method =
+        typeof body.payment_method === "string" && body.payment_method.trim()
+          ? body.payment_method.trim()
+          : "other";
+      update.payment_reference =
+        typeof body.payment_reference === "string" &&
+        body.payment_reference.trim()
+          ? body.payment_reference.trim()
+          : null;
+    }
+
+    const { data: updatedInvoice, error: updateError } = await admin
+      .from("invoices")
+      .update(update)
+      .eq("id", invoice.id)
+      .select()
+      .single();
+    if (updateError || !updatedInvoice) {
+      throw updateError || new Error("Failed to update invoice");
+    }
+
+    if (invoice.payment_id) {
+      if (status === "paid") {
+        await admin
+          .from("payments")
+          .update({
+            status: "succeeded",
+            payment_method: update.payment_method,
+            payer_email: invoice.recipient_email,
+            payer_name: invoice.recipient_name,
+            updated_at: updatedAt,
+          })
+          .eq("id", invoice.payment_id)
+          .eq("contract_id", invoice.contract_id);
+
+        if (invoice.contract_id) {
+          await syncContractPaymentStatus(admin, invoice.contract_id);
+          try {
+            await ensureNextContractPaymentInvoice({
+              supabase: admin,
+              contractId: invoice.contract_id,
+              recipientName: invoice.recipient_name,
+              recipientEmail: invoice.recipient_email,
+              baseUrl:
+                process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com",
+            });
+          } catch (nextInvoiceError) {
+            console.error(
+              `Failed to issue next invoice for contract ${invoice.contract_id}:`,
+              nextInvoiceError
+            );
+          }
+        }
+      } else {
+        await admin
+          .from("payments")
+          .update({
+            status: "failed",
+            failure_code: `invoice_${status}`,
+            failure_message: `Linked invoice ${invoice.invoice_number} was ${status}`,
+            updated_at: updatedAt,
+          })
+          .eq("id", invoice.payment_id)
+          .in("status", ["pending", "processing"]);
+      }
+    }
+
+    await admin.from("audit_logs").insert({
+      contract_id: invoice.contract_id,
+      user_id: user.id,
+      event_type: status === "paid" ? "invoice_paid" : "invoice_updated",
+      actor_email: user.email,
+      metadata: {
+        invoice_id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        status,
+        payment_method: update.payment_method || null,
+        payment_reference: update.payment_reference || null,
+        note: typeof body.notes === "string" ? body.notes : null,
+      },
+    });
+
+    return NextResponse.json({ invoice: updatedInvoice });
+  } catch (error) {
+    console.error("Error updating invoice:", error);
+    return NextResponse.json(
+      { error: "Failed to update invoice" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const sessionSupabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await sessionSupabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: invoice, error: invoiceError } = await sessionSupabase
+      .from("invoices")
+      .select("id, status, payment_id")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+    if (invoiceError || !invoice) {
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+    }
+    if (!["draft", "cancelled", "void"].includes(invoice.status)) {
+      return NextResponse.json(
+        { error: "Only draft, cancelled, or void invoices can be deleted" },
+        { status: 409 }
+      );
+    }
+
+    const admin = createAdminClient();
+    if (invoice.payment_id) {
+      await admin
+        .from("payments")
+        .update({
+          status: "failed",
+          failure_code: "invoice_deleted",
+          failure_message: "The linked invoice was deleted",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", invoice.payment_id)
+        .in("status", ["pending", "processing"]);
+    }
+
+    const { error: deleteError } = await admin
+      .from("invoices")
+      .delete()
+      .eq("id", invoice.id);
+    if (deleteError) throw deleteError;
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting invoice:", error);
+    return NextResponse.json(
+      { error: "Failed to delete invoice" },
       { status: 500 }
     );
   }

@@ -16,17 +16,14 @@ import { lookupGeoLocation } from "@/lib/geolocation";
 import { requestTimestamp, hashSignatureData } from "@/lib/rfc3161-timestamp";
 import {
   sendCompletedContractWithCertificate,
-  sendInvoiceEmail,
 } from "@/lib/email";
-import { insertInvoiceWithRetry } from "@/lib/invoices/create-invoice";
-import { normalizeInvoiceBankDetails } from "@/lib/invoices/bank-details";
-import { getInvoicePaymentUrl } from "@/lib/invoices/payment-link";
+import {
+  ensureNextContractPaymentInvoice,
+  sendContractPaymentInvoiceEmail,
+} from "@/lib/invoices/contract-payment-invoice";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { randomBytes } from "crypto";
-import {
-  getMilestoneAmount,
-  normalizePaymentSchedule,
-} from "@/lib/payments/config";
+import { normalizePaymentSchedule } from "@/lib/payments/config";
 import { isPayingSignerRole } from "@/lib/payments/payer-role";
 import { sealCompletedContract } from "@/lib/sealed-contract";
 
@@ -693,6 +690,28 @@ export async function POST(
       }
     }
 
+    // Persist the invoice/payment link before sending the signer to checkout.
+    // Email delivery remains background work so it cannot invalidate a legally
+    // completed signature.
+    let initialPaymentInvoiceId: string | null = null;
+    if (sigRequest && isPayingSignerRole(sigRequest.signer_role)) {
+      try {
+        const paymentInvoice = await ensureNextContractPaymentInvoice({
+          supabase,
+          contractId: sigRequest.contract_id,
+          recipientName: sigRequest.signer_name,
+          recipientEmail: sigRequest.signer_email,
+          baseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com",
+          sendEmail: false,
+        });
+        initialPaymentInvoiceId = paymentInvoice.created
+          ? paymentInvoice.invoice?.id || null
+          : null;
+      } catch (invoiceGenError) {
+        console.error("Error creating the initial payment invoice:", invoiceGenError);
+      }
+    }
+
     // Slow enrichment and follow-up work runs after the response so TSA,
     // geolocation, certificate generation, email delivery, and invoice creation
     // cannot make a successful signature appear to fail at the Netlify timeout.
@@ -743,218 +762,17 @@ export async function POST(
           }
         }
 
-        // Auto-generate invoice for paying party
-        if (sigRequest) {
-          // Check if payment is required and this is a paying party
-          const { data: contractData } = await supabase
-            .from("contracts")
-            .select("*, users!contracts_user_id_fkey(id, email, name)")
-            .eq("id", sigRequest.contract_id)
-            .single();
-
-          if (
-            contractData?.payment_required &&
-            contractData.payment_amount > 0
-          ) {
-            // Only generate invoice for paying roles
-            if (isPayingSignerRole(sigRequest.signer_role)) {
-              try {
-                // Calculate amount based on payment structure
-                let amount = Math.round(
-                  (contractData.payment_amount || 0) * 100,
-                );
-                let paymentLabel = "Full";
-
-                if (contractData.payment_structure === "deposit_balance") {
-                  // Check if deposit already paid
-                  const { data: existingPayments } = await supabase
-                    .from("payments")
-                    .select("payment_type, status")
-                    .eq("contract_id", sigRequest.contract_id)
-                    .eq("status", "succeeded");
-
-                  const hasDeposit = existingPayments?.some(
-                    (p) => p.payment_type === "deposit",
-                  );
-
-                  if (!hasDeposit) {
-                    // First payment is deposit
-                    const depositPercentage =
-                      contractData.deposit_percentage || 50;
-                    amount = Math.round(amount * (depositPercentage / 100));
-                    paymentLabel = "Deposit";
-                  } else {
-                    // Balance payment
-                    const depositPercentage =
-                      contractData.deposit_percentage || 50;
-                    amount = Math.round(
-                      amount * ((100 - depositPercentage) / 100),
-                    );
-                    paymentLabel = "Balance";
-                  }
-                } else if (contractData.payment_structure === "custom") {
-                  const schedule = normalizePaymentSchedule(
-                    contractData.payment_schedule,
-                  );
-                  const { data: existingPayments } = await supabase
-                    .from("payments")
-                    .select("payment_type, status, metadata")
-                    .eq("contract_id", sigRequest.contract_id)
-                    .eq("status", "succeeded");
-                  const paidMilestoneIds = new Set(
-                    (existingPayments || []).map((payment) => {
-                      const metadata = payment.metadata as Record<
-                        string,
-                        unknown
-                      > | null;
-                      return typeof metadata?.payment_milestone_id === "string"
-                        ? metadata.payment_milestone_id
-                        : null;
-                    }),
-                  );
-                  const nextMilestoneIndex = schedule.findIndex(
-                    (milestone) => !paidMilestoneIds.has(milestone.id),
-                  );
-                  if (nextMilestoneIndex < 0) {
-                    throw new Error("No unpaid payment milestones remain");
-                  }
-                  const milestone = schedule[nextMilestoneIndex];
-                  amount = getMilestoneAmount(
-                    amount,
-                    schedule,
-                    nextMilestoneIndex,
-                  );
-                  paymentLabel = milestone.label;
-                }
-
-                const { data: invoiceSettings } = await supabase
-                  .from("invoice_settings")
-                  .select(
-                    "company_name, company_address, company_logo_url, default_due_days, default_notes, bank_details",
-                  )
-                  .eq("user_id", contractData.user_id)
-                  .maybeSingle();
-                const bankDetails = normalizeInvoiceBankDetails(
-                  invoiceSettings?.bank_details,
-                );
-                const dueDate = new Date(
-                  Date.now() +
-                    (invoiceSettings?.default_due_days ?? 30) *
-                      24 *
-                      60 *
-                      60 *
-                      1000,
-                ).toISOString();
-
-                // Create line items
-                const lineItems = [
-                  {
-                    description: `${paymentLabel} Payment - ${contractData.title}`,
-                    quantity: 1,
-                    unit_price: amount,
-                    amount: amount,
-                  },
-                ];
-
-                // Create invoice
-                const owner = contractData.users as {
-                  id: string;
-                  email: string;
-                  name: string;
-                } | null;
-
-                const { data: invoice, error: invoiceError } =
-                  await insertInvoiceWithRetry<{
-                    id: string;
-                    invoice_number: string;
-                  }>(supabase, {
-                    contract_id: sigRequest.contract_id,
-                    user_id: contractData.user_id,
-                    amount,
-                    currency: contractData.payment_currency || "usd",
-                    status: "sent",
-                    line_items: lineItems,
-                    subtotal: amount,
-                    tax_amount: 0,
-                    total: amount,
-                    due_date: dueDate,
-                    sent_at: new Date().toISOString(),
-                    recipient_name: sigRequest.signer_name,
-                    recipient_email: sigRequest.signer_email,
-                    sender_name: owner?.name || null,
-                    sender_company: invoiceSettings?.company_name || null,
-                    sender_email: owner?.email || null,
-                    sender_logo_url: invoiceSettings?.company_logo_url || null,
-                    sender_address:
-                      invoiceSettings?.company_address ||
-                      invoiceSettings?.company_name ||
-                      bankDetails
-                        ? {
-                            address: invoiceSettings?.company_address || null,
-                            company: invoiceSettings?.company_name || null,
-                            bank_details: bankDetails,
-                          }
-                        : null,
-                    bank_details: bankDetails,
-                    notes: invoiceSettings?.default_notes || null,
-                  });
-
-                if (!invoiceError && invoice) {
-                  // Send invoice email
-                  const baseUrl =
-                    process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com";
-                  const paymentUrl = getInvoicePaymentUrl(invoice.id, baseUrl);
-
-                  try {
-                    await sendInvoiceEmail({
-                      to: sigRequest.signer_email,
-                      recipientName: sigRequest.signer_name,
-                      contractTitle: contractData.title,
-                      invoiceNumber: invoice.invoice_number,
-                      amount,
-                      currency: contractData.payment_currency || "usd",
-                      dueDate,
-                      paymentUrl,
-                      lineItems: lineItems.map((item) => ({
-                        description: item.description,
-                        quantity: item.quantity,
-                        amount: item.amount,
-                      })),
-                      senderName: owner?.name,
-                      senderEmail: owner?.email,
-                    });
-                    console.log(
-                      `Invoice email sent to ${sigRequest.signer_email}`,
-                    );
-                  } catch (emailError) {
-                    console.error("Failed to send invoice email:", emailError);
-                    // Don't fail the signature - invoice email is non-critical
-                  }
-
-                  // Log audit event
-                  await supabase.from("audit_logs").insert({
-                    contract_id: sigRequest.contract_id,
-                    user_id: contractData.user_id,
-                    event_type: "invoice_created",
-                    actor_email: sigRequest.signer_email,
-                    metadata: {
-                      invoice_id: invoice.id,
-                      invoice_number: invoice.invoice_number,
-                      amount,
-                      currency: contractData.payment_currency || "usd",
-                      auto_generated: true,
-                      trigger: "signature_completed",
-                    },
-                  });
-                }
-              } catch (invoiceGenError) {
-                console.error(
-                  "Error auto-generating invoice:",
-                  invoiceGenError,
-                );
-                // Don't fail the signature - invoice generation is non-critical
-              }
-            }
+        if (initialPaymentInvoiceId) {
+          try {
+            await sendContractPaymentInvoiceEmail({
+              supabase,
+              invoiceId: initialPaymentInvoiceId,
+              baseUrl:
+                process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com",
+            });
+          } catch (invoiceEmailError) {
+            console.error("Error sending payment invoice:", invoiceEmailError);
+            // Don't fail the signature - invoice email is non-critical.
           }
         }
       } catch (postSignatureError) {

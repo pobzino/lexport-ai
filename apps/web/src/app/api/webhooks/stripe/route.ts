@@ -6,6 +6,7 @@ import { getPublicInvoicePdfUrl } from "@/lib/invoices/payment-link";
 import Stripe from "stripe";
 import type { InvoiceLineItem, PaymentType } from "@/db/types";
 import { normalizeInvoiceBankDetails } from "@/lib/invoices/bank-details";
+import { ensureNextContractPaymentInvoice } from "@/lib/invoices/contract-payment-invoice";
 
 // Generate invoice number
 function generateInvoiceNumber(): string {
@@ -567,6 +568,24 @@ export async function POST(request: NextRequest) {
                 );
               }
             }
+
+            if (invoice.payment_id && invoice.contract_id) {
+              try {
+                await ensureNextContractPaymentInvoice({
+                  supabase,
+                  contractId: invoice.contract_id,
+                  recipientName: payerName || invoice.recipient_name,
+                  recipientEmail: receiptEmail,
+                  baseUrl:
+                    process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com",
+                });
+              } catch (nextInvoiceError) {
+                console.error(
+                  `Failed to issue the next payment stage for contract ${invoice.contract_id}:`,
+                  nextInvoiceError
+                );
+              }
+            }
           }
         }
         // Handle contract-linked payments
@@ -593,6 +612,22 @@ export async function POST(request: NextRequest) {
             payerEmail,
             payerName
           );
+
+          try {
+            await ensureNextContractPaymentInvoice({
+              supabase,
+              contractId,
+              recipientName: payerName,
+              recipientEmail: payerEmail,
+              baseUrl:
+                process.env.NEXT_PUBLIC_APP_URL || "https://lexportai.com",
+            });
+          } catch (nextInvoiceError) {
+            console.error(
+              `Failed to issue the next payment stage for contract ${contractId}:`,
+              nextInvoiceError
+            );
+          }
 
           // Create audit log
           await supabase.from("audit_logs").insert({

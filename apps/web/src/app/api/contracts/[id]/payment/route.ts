@@ -192,17 +192,21 @@ export async function POST(
     }
 
     let invoiceNumber: string | null = null;
+    let validatedRequestedInvoiceId: string | null = null;
     let bankDetails: ReturnType<typeof normalizeInvoiceBankDetails> = null;
     if (requestedInvoiceId) {
       const { data: invoice } = await supabase
         .from("invoices")
-        .select("invoice_number, bank_details, sender_address")
+        .select("id, status, invoice_number, bank_details, sender_address")
         .eq("id", requestedInvoiceId)
         .eq("contract_id", id)
         .in("status", ["sent", "overdue", "paid"])
         .maybeSingle();
 
       if (invoice) {
+        if (["sent", "overdue"].includes(invoice.status)) {
+          validatedRequestedInvoiceId = invoice.id;
+        }
         invoiceNumber = invoice.invoice_number;
         const senderAddress =
           invoice.sender_address &&
@@ -294,19 +298,34 @@ export async function POST(
     // Check for existing valid payment intent for this payment type
     const { data: pendingPayments } = await supabase
       .from("payments")
-      .select("stripe_payment_intent_id, metadata")
+      .select("id, stripe_payment_intent_id, metadata")
       .eq("contract_id", id)
       .eq("payment_type", paymentType)
       .eq("status", "pending");
 
     const existingPayment = pendingPayments?.find((payment) => {
       const metadata = payment.metadata as Record<string, unknown> | null;
-      const isSameDestination =
-        metadata?.connected_account_id === connectedAccountId;
-      if (!isSameDestination) return false;
+      const existingDestination = metadata?.connected_account_id;
+      if (
+        typeof existingDestination === "string" &&
+        existingDestination !== connectedAccountId
+      ) {
+        return false;
+      }
       if (!activeMilestone) return true;
       return metadata?.payment_milestone_id === activeMilestone.id;
     });
+
+    let linkedInvoiceId = validatedRequestedInvoiceId;
+    if (!linkedInvoiceId && existingPayment?.id) {
+      const { data: linkedInvoice } = await supabase
+        .from("invoices")
+        .select("id")
+        .eq("payment_id", existingPayment.id)
+        .in("status", ["sent", "overdue"])
+        .maybeSingle();
+      linkedInvoiceId = linkedInvoice?.id || null;
+    }
 
     if (existingPayment?.stripe_payment_intent_id) {
       try {
@@ -368,6 +387,9 @@ export async function POST(
         payment_type: paymentType,
         total_amount: totalAmount.toString(),
         deposit_percentage: depositPercentage.toString(),
+        ...(linkedInvoiceId
+          ? { invoice_id: linkedInvoiceId, type: "standalone_invoice" }
+          : {}),
         ...(activeMilestone
           ? {
               payment_milestone_id: activeMilestone.id,
@@ -395,32 +417,63 @@ export async function POST(
 
     const paymentIntent = await stripe.paymentIntents.create(paymentIntentOptions);
 
-    // Calculate platform fee for tracking
-    // Create payment record in our database
-    await supabase.from("payments").insert({
-      contract_id: id,
-      user_id: contract.user_id,
-      stripe_payment_intent_id: paymentIntent.id,
-      amount: paymentAmount,
-      currency,
-      platform_fee: platformFee,
-      status: "pending",
-      payment_type: paymentType,
-      metadata: {
-        contract_title: contract.title,
-        connected_account_id: connectedAccountId,
-        total_amount: totalAmount,
-        deposit_percentage: depositPercentage,
-        ...(activeMilestone
-          ? {
-              payment_milestone_id: activeMilestone.id,
-              payment_milestone_index: activeMilestone.index,
-              payment_milestone_label: activeMilestone.label,
-              payment_milestone_percentage: activeMilestone.percentage,
-            }
-          : {}),
-      },
-    });
+    const paymentRecordMetadata = {
+      ...((existingPayment?.metadata as Record<string, unknown> | null) || {}),
+      contract_title: contract.title,
+      connected_account_id: connectedAccountId,
+      total_amount: totalAmount,
+      deposit_percentage: depositPercentage,
+      ...(linkedInvoiceId ? { invoice_id: linkedInvoiceId } : {}),
+      ...(activeMilestone
+        ? {
+            payment_milestone_id: activeMilestone.id,
+            payment_milestone_index: activeMilestone.index,
+            payment_milestone_label: activeMilestone.label,
+            payment_milestone_percentage: activeMilestone.percentage,
+          }
+        : {}),
+    };
+
+    let linkedPaymentId = existingPayment?.id || null;
+    if (linkedPaymentId) {
+      await supabase
+        .from("payments")
+        .update({
+          stripe_payment_intent_id: paymentIntent.id,
+          platform_fee: platformFee,
+          metadata: paymentRecordMetadata,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", linkedPaymentId);
+    } else {
+      const { data: insertedPayment } = await supabase
+        .from("payments")
+        .insert({
+          contract_id: id,
+          user_id: contract.user_id,
+          stripe_payment_intent_id: paymentIntent.id,
+          amount: paymentAmount,
+          currency,
+          platform_fee: platformFee,
+          status: "pending",
+          payment_type: paymentType,
+          metadata: paymentRecordMetadata,
+        })
+        .select("id")
+        .single();
+      linkedPaymentId = insertedPayment?.id || null;
+    }
+
+    if (linkedInvoiceId) {
+      await supabase
+        .from("invoices")
+        .update({
+          payment_id: linkedPaymentId,
+          stripe_payment_intent_id: paymentIntent.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", linkedInvoiceId);
+    }
 
     // Update contract with payment intent ID (only for first payment or full payment)
     if (paymentType === "full" || paymentType === "deposit" || paymentType === "installment") {
