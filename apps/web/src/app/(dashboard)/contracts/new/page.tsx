@@ -155,6 +155,7 @@ import {
   formatPaymentAmount,
   getScheduleTotal,
   isPaymentScheduleValid,
+  normalizeExtractedPaymentSchedule,
   type PaymentCurrency,
   type PaymentMilestone,
   type PaymentStructure,
@@ -515,10 +516,11 @@ export default function NewContractPage() {
           if (
             draft.paymentStructure === "full" ||
             draft.paymentStructure === "deposit_balance" ||
-            draft.paymentStructure === "custom" ||
-            draft.paymentStructure === "bnpl"
+            draft.paymentStructure === "custom"
           ) {
             setPaymentStructure(draft.paymentStructure);
+          } else if (draft.paymentStructure === "bnpl") {
+            setPaymentStructure("full");
           }
           if (Array.isArray(draft.paymentSchedule)) {
             setPaymentSchedule(draft.paymentSchedule);
@@ -791,7 +793,15 @@ export default function NewContractPage() {
       // Replace form data with freshly extracted fields (clear stale data from previous intake)
       const extractedFields = data.analysis.extractedFields ?? {};
       console.log("[intake] extractedFields:", JSON.stringify(extractedFields));
-      const { paymentRequired: _pr, paymentCurrency: _pc, paymentStructure: _ps, depositPercentage: _dp, ...formFields } = extractedFields;
+      const {
+        paymentRequired: _pr,
+        paymentCurrency: _pc,
+        paymentStructure: _ps,
+        depositPercentage: _dp,
+        paymentMilestones: extractedPaymentMilestones,
+        paymentSchedule: extractedPaymentSchedule,
+        ...formFields
+      } = extractedFields;
       setFormData(formFields);
 
       // Apply payment preferences extracted by AI
@@ -804,11 +814,27 @@ export default function NewContractPage() {
       if (SUPPORTED_PAYMENT_CURRENCIES.includes(extractedFields.paymentCurrency as PaymentCurrency)) {
         setPaymentCurrency(extractedFields.paymentCurrency as PaymentCurrency);
       }
-      if (["full", "deposit_balance", "custom", "bnpl"].includes(extractedFields.paymentStructure as string)) {
+      if (["full", "deposit_balance", "custom"].includes(extractedFields.paymentStructure as string)) {
         setPaymentStructure(extractedFields.paymentStructure as PaymentStructure);
+      } else if (extractedFields.paymentStructure === "bnpl") {
+        setPaymentStructure("full");
       }
       if (typeof extractedFields.depositPercentage === "number" && extractedFields.depositPercentage >= 10 && extractedFields.depositPercentage <= 90) {
         setDepositPercent(extractedFields.depositPercentage);
+      }
+      const rawPaymentSchedule = Array.isArray(extractedPaymentMilestones)
+        ? extractedPaymentMilestones
+        : Array.isArray(extractedPaymentSchedule)
+          ? extractedPaymentSchedule
+          : [];
+      const mappedPaymentSchedule =
+        normalizeExtractedPaymentSchedule(rawPaymentSchedule);
+      if (
+        mappedPaymentSchedule.length >= 2 &&
+        isPaymentScheduleValid(mappedPaymentSchedule)
+      ) {
+        setPaymentStructure("custom");
+        setPaymentSchedule(mappedPaymentSchedule);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -2209,7 +2235,7 @@ export default function NewContractPage() {
                           <label className="block text-sm font-medium text-slate-700 mb-2">
                             Payment Structure
                           </label>
-                          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3">
+                          <div className="grid md:grid-cols-3 gap-3">
                             <button
                               type="button"
                               onClick={() => setPaymentStructure("full")}
@@ -2245,18 +2271,6 @@ export default function NewContractPage() {
                             >
                               <p className="font-medium text-slate-900">Deposit + Balance</p>
                               <p className="text-xs text-slate-500 mt-1">Split payment</p>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setPaymentStructure("bnpl")}
-                              className={`p-3 rounded-lg border-2 text-left transition-all ${
-                                paymentStructure === "bnpl"
-                                  ? "border-emerald-500 bg-emerald-50"
-                                  : "border-slate-200 hover:border-slate-300"
-                              }`}
-                            >
-                              <p className="font-medium text-slate-900">Buy Now, Pay Later</p>
-                              <p className="text-xs text-slate-500 mt-1">Klarna / Afterpay</p>
                             </button>
                           </div>
                         </div>
@@ -2451,7 +2465,6 @@ export default function NewContractPage() {
                               {paymentStructure === "full" && `The signer will pay ${derivedPaymentAmount > 0 ? formatPaymentAmount(derivedPaymentAmount, paymentCurrency) : "the full amount"} when signing the contract. You'll receive funds via Stripe.`}
                               {paymentStructure === "deposit_balance" && `The signer pays ${formatPaymentAmount(derivedDepositAmount, paymentCurrency)} (${depositPercentage}%) deposit upfront, and the remaining ${formatPaymentAmount(derivedPaymentAmount - derivedDepositAmount, paymentCurrency)} upon completion.`}
                               {paymentStructure === "custom" && `${paymentSchedule.length} payment stages will be collected in order.`}
-                              {paymentStructure === "bnpl" && `The signer can pay ${formatPaymentAmount(derivedPaymentAmount, paymentCurrency)} in installments via Klarna or Afterpay. You receive the full amount immediately.`}
                             </p>
                           </div>
                         </div>
@@ -2594,7 +2607,6 @@ export default function NewContractPage() {
                       {paymentStructure === "full" && "Full Payment Upfront"}
                       {paymentStructure === "deposit_balance" && `${depositPercentage}% Deposit + ${100 - depositPercentage}% Balance`}
                       {paymentStructure === "custom" && `${paymentSchedule.length} Payment Stages`}
-                      {paymentStructure === "bnpl" && "Buy Now, Pay Later (Klarna/Afterpay)"}
                     </p>
                   </div>
                   {paymentStructure === "deposit_balance" && derivedPaymentAmount > 0 && (

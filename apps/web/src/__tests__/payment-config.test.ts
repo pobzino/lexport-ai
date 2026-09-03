@@ -6,6 +6,7 @@ import {
   getMilestoneAmount,
   getScheduleTotal,
   isPaymentScheduleValid,
+  normalizeExtractedPaymentSchedule,
   normalizePaymentSchedule,
 } from "@/lib/payments/config";
 
@@ -68,6 +69,25 @@ describe("flexible payment configuration", () => {
     expect(schedule[0].label).toBe("Start");
     expect(schedule[1].id).toBe("stage-2");
     expect(getScheduleTotal(schedule)).toBe(100);
+  });
+
+  it("preserves milestone labels extracted by intake", () => {
+    const schedule = normalizeExtractedPaymentSchedule([
+      { milestoneName: "QA Kickoff", percentage: 25 },
+      { milestoneName: "QA Midpoint", percentage: 35 },
+      { milestoneName: "QA Final Verification", percentage: 40 },
+    ]);
+
+    expect(schedule).toEqual([
+      { id: "intake-stage-1", label: "QA Kickoff", percentage: 25 },
+      { id: "intake-stage-2", label: "QA Midpoint", percentage: 35 },
+      {
+        id: "intake-stage-3",
+        label: "QA Final Verification",
+        percentage: 40,
+      },
+    ]);
+    expect(isPaymentScheduleValid(schedule)).toBe(true);
   });
 
   it("reconciles rounding on the final milestone", () => {

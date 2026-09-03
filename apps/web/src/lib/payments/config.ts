@@ -78,6 +78,41 @@ export function normalizePaymentSchedule(value: unknown): PaymentMilestone[] {
     .filter((item): item is PaymentMilestone => Boolean(item));
 }
 
+export function normalizeExtractedPaymentSchedule(
+  value: unknown
+): PaymentMilestone[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item, index) => {
+      if (!item || typeof item !== "object") return null;
+      const candidate = item as Record<string, unknown>;
+      const rawLabel =
+        candidate.label ?? candidate.milestoneName ?? candidate.name;
+      const percentage = Number(candidate.percentage);
+      if (
+        typeof rawLabel !== "string" ||
+        !rawLabel.trim() ||
+        !Number.isFinite(percentage)
+      ) {
+        return null;
+      }
+
+      return {
+        id:
+          typeof candidate.id === "string" && candidate.id.trim()
+            ? candidate.id
+            : `intake-stage-${index + 1}`,
+        label: rawLabel.trim(),
+        percentage,
+        ...(typeof candidate.dueDate === "string" && candidate.dueDate
+          ? { dueDate: candidate.dueDate }
+          : {}),
+      } satisfies PaymentMilestone;
+    })
+    .filter((item): item is PaymentMilestone => Boolean(item));
+}
+
 export function getScheduleTotal(schedule: PaymentMilestone[]): number {
   const total = schedule.reduce(
     (sum, milestone) => sum + milestone.percentage,

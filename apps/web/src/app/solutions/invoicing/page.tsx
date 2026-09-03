@@ -41,7 +41,7 @@ const features = [
     {
         icon: DollarSign,
         title: "Flexible Options",
-        description: "Collect deposits upfront, full payment, or offer Buy Now Pay Later with Klarna.",
+        description: "Collect full payment, split a deposit and balance, or bill ordered project stages.",
     },
     {
         icon: Zap,
@@ -51,7 +51,7 @@ const features = [
     {
         icon: Receipt,
         title: "Professional Invoices",
-        description: "Branded invoices generated automatically. Customize with your logo and colors.",
+        description: "Professional invoices generated automatically with your logo and company details.",
     },
     {
         icon: Calendar,
@@ -79,8 +79,8 @@ const paymentTypes = [
         color: "blue"
     },
     {
-        title: "Buy Now Pay Later",
-        description: "Klarna/Afterpay installments",
+        title: "Payment Stages",
+        description: "2-12 ordered project milestones",
         icon: Repeat,
         color: "purple"
     },

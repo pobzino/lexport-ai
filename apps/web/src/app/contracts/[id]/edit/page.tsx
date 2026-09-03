@@ -948,7 +948,11 @@ export default function ContractEditorPage() {
           setPaymentRequired(data.contract.payment_required || false);
           setPaymentAmount(data.contract.payment_amount ? String(data.contract.payment_amount) : "");
           setPaymentCurrency((data.contract.payment_currency || "usd") as PaymentCurrency);
-          setPaymentStructure((data.contract.payment_structure || "full") as PaymentStructure);
+          setPaymentStructure(
+            data.contract.payment_structure === "bnpl"
+              ? "full"
+              : ((data.contract.payment_structure || "full") as PaymentStructure)
+          );
           const storedSchedule = normalizePaymentSchedule(data.contract.payment_schedule);
           setPaymentSchedule(
             storedSchedule.length > 0 ? storedSchedule : createDefaultPaymentSchedule()
@@ -2061,7 +2065,7 @@ export default function ContractEditorPage() {
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                           Payment Structure
                         </label>
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <button
                             onClick={() => setPaymentStructure("full")}
                             className={`p-3 rounded-lg border-2 text-left transition-all ${paymentStructure === "full"
@@ -2092,16 +2096,6 @@ export default function ContractEditorPage() {
                           >
                             <p className="font-medium text-slate-900">Deposit + Balance</p>
                             <p className="text-xs text-slate-500 mt-1">Split payment</p>
-                          </button>
-                          <button
-                            onClick={() => setPaymentStructure("bnpl")}
-                            className={`p-3 rounded-lg border-2 text-left transition-all ${paymentStructure === "bnpl"
-                              ? "border-emerald-500 bg-emerald-50"
-                              : "border-slate-200 hover:border-slate-300"
-                              }`}
-                          >
-                            <p className="font-medium text-slate-900">Buy Now, Pay Later</p>
-                            <p className="text-xs text-slate-500 mt-1">Klarna / Afterpay</p>
                           </button>
                         </div>
                       </div>
@@ -2298,7 +2292,6 @@ export default function ContractEditorPage() {
                             {paymentStructure === "full" && "The signer will pay the full amount before or after signing, based on your preference."}
                             {paymentStructure === "deposit_balance" && `The signer will pay ${depositPercentage}% deposit upfront, and the remaining ${100 - parseInt(depositPercentage)}% upon completion.`}
                             {paymentStructure === "custom" && `${paymentSchedule.length} payment stages will be collected in order.`}
-                            {paymentStructure === "bnpl" && "The signer can pay in installments via Klarna or Afterpay. You receive the full amount immediately."}
                           </p>
                         </div>
                       </div>

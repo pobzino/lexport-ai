@@ -884,7 +884,7 @@ export default function PaymentSettingsPage() {
           <p className="text-sm text-slate-600 mb-4">
             When you collect payments on contracts, your clients can pay using:
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="flex items-center gap-2 text-sm text-slate-700">
               <CreditCard className="w-4 h-4 text-slate-400" />
               Credit/Debit Cards
@@ -896,10 +896,6 @@ export default function PaymentSettingsPage() {
             <div className="flex items-center gap-2 text-sm text-slate-700">
               <Wallet className="w-4 h-4 text-slate-400" />
               Apple Pay / Google Pay
-            </div>
-            <div className="flex items-center gap-2 text-sm text-slate-700">
-              <CreditCard className="w-4 h-4 text-slate-400" />
-              Klarna / Afterpay
             </div>
           </div>
         </div>

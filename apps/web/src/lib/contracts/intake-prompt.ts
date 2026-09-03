@@ -70,8 +70,9 @@ IMPORTANT field naming conventions:
 IMPORTANT — Payment-related fields (ALWAYS include in extractedFields when ANY money is mentioned):
 - paymentRequired: boolean — MUST be true if ANY payment amount, fee, rate, cost, price, or deposit is mentioned
 - paymentCurrency: "usd" | "gbp" | "eur" | "cad" | "aud" | "nzd" | "chf" | "sek" | "nok" | "dkk" | "sgd" — infer from the currency code, symbol, or country context; default to "usd" only when no currency context is present
-- paymentStructure: "full" | "deposit_balance" | "custom" | "bnpl" — MUST be set when paymentRequired is true. Use "deposit_balance" for a deposit followed by one balance. Use "custom" for milestone/staged payments or three or more payments. Use "bnpl" only for external financing such as Klarna, Afterpay, or explicit buy-now-pay-later. Default to "full" only when no split is mentioned.
+- paymentStructure: "full" | "deposit_balance" | "custom" — MUST be set when paymentRequired is true. Use "deposit_balance" for a deposit followed by one balance. Use "custom" for milestone/staged payments or three or more payments. Default to "full" only when no split is mentioned. Lexport does not offer buy-now-pay-later for business invoices.
 - depositPercentage: number (10-90) — MUST be included when paymentStructure is "deposit_balance". Extract the percentage (e.g. "40% deposit" → 40, "50% upfront" → 50, "30% down payment" → 30)
+- paymentMilestones: array of { "milestoneName": string, "percentage": number, "dueDate"?: "YYYY-MM-DD" } — REQUIRED when paymentStructure is "custom". Preserve the user's labels and order. Percentages must total 100.
 
 Respond with a JSON object matching this structure:
 {
@@ -84,7 +85,8 @@ Respond with a JSON object matching this structure:
     "paymentRequired": true,
     "paymentCurrency": "usd",
     "paymentStructure": "full",
-    "depositPercentage": 50
+    "depositPercentage": 50,
+    "paymentMilestones": []
   },
   "followUpQuestions": [
     {
