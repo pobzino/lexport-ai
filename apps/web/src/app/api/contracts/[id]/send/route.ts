@@ -4,13 +4,21 @@ import { z } from "zod";
 import { randomBytes } from "crypto";
 import { sendSigningInvitation, sendSignatureLimitEmail } from "@/lib/email";
 import { SIGNING_HASH_ALGORITHM } from "@/lib/document-integrity";
-import { fingerprintSigningDocument } from "@/lib/signing-document";
+import {
+  fingerprintSigningDocument,
+  isUploadedOriginalContract,
+  loadSigningFields,
+} from "@/lib/signing-document";
 import { auditLogger, getRequestContextFromRequest } from "@/lib/audit";
 import { isMissingColumnError } from "@/lib/supabase/schema-compat";
 import {
+  findDuplicateRecipientRoles,
+  findRecipientsMissingRequiredSignatures,
+  findRequiredSignatureRolesWithoutRecipients,
   findUnresolvedContractPlaceholders,
   shouldCheckContractPlaceholders,
 } from "@/lib/contracts/readiness";
+import type { SigningFieldFingerprint } from "@/lib/document-integrity";
 
 // Request schema
 const SendRequestSchema = z.object({
@@ -116,6 +124,21 @@ export async function POST(
       return NextResponse.json({ error: "Contract not found" }, { status: 404 });
     }
 
+    if (
+      contract.source_type === "uploaded" &&
+      contract.processing_mode === "review" &&
+      contract.source_file_type === "docx"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Export the reviewed Word document to PDF and upload that fixed-layout copy before sending it for signature.",
+          code: "FIXED_LAYOUT_REQUIRED",
+        },
+        { status: 422 },
+      );
+    }
+
     // A generated/editable agreement must not become immutable while template
     // instructions or blank values remain in its legal text. Sign-only uploads
     // are excluded because their blanks can be completed with placed fields.
@@ -138,6 +161,60 @@ export async function POST(
       }
     }
 
+    let preparedSigningFields: SigningFieldFingerprint[] | undefined;
+    if (isUploadedOriginalContract(contract)) {
+      try {
+        preparedSigningFields = await loadSigningFields(supabase, contract.id);
+      } catch (fieldError) {
+        console.error("Failed to load prepared signing fields:", fieldError);
+        return NextResponse.json(
+          { error: "The signing fields could not be verified" },
+          { status: 500 },
+        );
+      }
+
+      const missingRoles = findRecipientsMissingRequiredSignatures(
+        signers,
+        preparedSigningFields,
+      );
+      if (missingRoles.length > 0) {
+        return NextResponse.json(
+          {
+            error: `Add a required signature field for ${missingRoles.join(", ")} before sending.`,
+            code: "SIGNATURE_FIELDS_REQUIRED",
+            missingRoles,
+          },
+          { status: 422 },
+        );
+      }
+
+      const rolesWithoutRecipients = findRequiredSignatureRolesWithoutRecipients(
+        signers,
+        preparedSigningFields,
+      );
+      const duplicateRoles = findDuplicateRecipientRoles(signers);
+      if (rolesWithoutRecipients.length > 0 || duplicateRoles.length > 0) {
+        const problems = [
+          rolesWithoutRecipients.length > 0
+            ? `add a recipient for ${rolesWithoutRecipients.join(", ")}`
+            : "",
+          duplicateRoles.length > 0
+            ? `give each recipient a unique role (duplicate: ${duplicateRoles.join(", ")})`
+            : "",
+        ].filter(Boolean);
+
+        return NextResponse.json(
+          {
+            error: `Recipient assignments do not match the prepared document: ${problems.join("; ")}.`,
+            code: "SIGNATURE_RECIPIENTS_MISMATCH",
+            rolesWithoutRecipients,
+            duplicateRoles,
+          },
+          { status: 422 },
+        );
+      }
+    }
+
     // Freeze the document identity before creating any invitations. For an
     // uploaded sign-only contract this covers the exact source bytes and the
     // full signing-field manifest; generated contracts cover every clause.
@@ -146,6 +223,7 @@ export async function POST(
       ({ hash: contentHash } = await fingerprintSigningDocument(
         supabase,
         contract,
+        preparedSigningFields,
       ));
     } catch (fingerprintError) {
       console.error("Failed to fingerprint signing document:", fingerprintError);

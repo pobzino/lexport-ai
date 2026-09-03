@@ -9,6 +9,10 @@ import {
   SIGNING_HASH_ALGORITHM,
 } from "@/lib/document-integrity";
 import { fingerprintSigningDocument } from "@/lib/signing-document";
+import {
+  preservesUploadedOriginal,
+  supportsOriginalSigning,
+} from "@/lib/contracts/uploaded-document";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +45,8 @@ export async function GET(
     if (
       !contract ||
       contract.source_type !== "uploaded" ||
-      contract.processing_mode !== "sign_only" ||
+      !preservesUploadedOriginal(contract.processing_mode) ||
+      !supportsOriginalSigning(contract.source_file_type) ||
       !contract.source_file_url
     ) {
       return NextResponse.json({ error: "Uploaded document not found" }, { status: 404 });
@@ -53,14 +58,12 @@ export async function GET(
       );
     }
 
-    const [fieldsResult, signaturesResult, requestsResult] = await Promise.all([
+    const [fieldsResult, signaturesResult] = await Promise.all([
       supabase.from("signature_fields").select("*").eq("contract_id", contract.id),
       supabase.from("signatures").select("*").eq("contract_id", contract.id),
-      supabase.from("signature_requests").select("*").eq("contract_id", contract.id),
     ]);
     if (fieldsResult.error) throw fieldsResult.error;
     if (signaturesResult.error) throw signaturesResult.error;
-    if (requestsResult.error) throw requestsResult.error;
     const signatureFields = fieldsResult.data || [];
     const fingerprint = await fingerprintSigningDocument(
       supabase,
@@ -91,18 +94,9 @@ export async function GET(
     const pdfBytes = await generateUploadedContractPdf({
       sourceBytes: fingerprint.sourceBytes,
       sourceFileType: contract.source_file_type as UploadedSourceFileType,
-      contract: {
-        id: contract.id,
-        title: contract.title,
-        status: contract.status,
-        contentHash: contract.content_hash,
-        completedAt: contract.completed_at || contract.signed_at,
-      },
       signatureFields,
       fieldValues: fieldValuesResult.data || [],
       signatures: signaturesResult.data || [],
-      signatureRequests: requestsResult.data || [],
-      appendCompletionPage: false,
     });
 
     return new NextResponse(Buffer.from(pdfBytes), {

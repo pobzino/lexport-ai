@@ -5,18 +5,17 @@ import {
   isOwnedUploadPath,
   type UploadFileType,
 } from "@/lib/upload/file-validation";
-
-type ProcessingMode = "sign_only" | "edit_and_sign";
+import type { UploadedProcessingMode } from "@/lib/contracts/uploaded-document";
 
 interface CreateUploadedContractRequest {
   title: string;
   type: string;
   jurisdiction: string;
-  processingMode: ProcessingMode;
+  processingMode: UploadedProcessingMode;
   extractedText?: string;
   sourceFileUrl: string;
   sourceFileType: UploadFileType;
-  content?: ContractContent | null; // Required for edit_and_sign, null for sign_only
+  content?: ContractContent | null; // Review outline; never replaces the source document.
 }
 
 export async function POST(request: Request) {
@@ -44,7 +43,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid upload path" }, { status: 400 });
     }
 
-    if (!(["sign_only", "edit_and_sign"] as const).includes(body.processingMode)) {
+    if (!(["sign_only", "review", "edit_and_sign"] as const).includes(body.processingMode)) {
       return NextResponse.json({ error: "Invalid processing mode" }, { status: 400 });
     }
 
@@ -56,7 +55,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Word files must be converted to editable clauses before signing so the final PDF is deterministic.",
+            "Export the Word document to PDF before preparing it for signature.",
         },
         { status: 400 },
       );
@@ -68,14 +67,18 @@ export async function POST(request: Request) {
     }
 
     // Validate mode-specific requirements
-    if (body.processingMode === "edit_and_sign" && !body.content) {
+    if (
+      (body.processingMode === "review" || body.processingMode === "edit_and_sign") &&
+      !body.content
+    ) {
       return NextResponse.json(
-        { error: "Content is required for Edit & Sign mode" },
+        { error: "Extracted content is required for AI review" },
         { status: 400 }
       );
     }
 
-    // For sign_only mode, create minimal content structure
+    // Signing-only mode needs no reconstructed legal text. Review mode stores a
+    // separate clause outline while the original remains the signing document.
     let contractContent: ContractContent;
 
     if (body.processingMode === "sign_only") {
@@ -87,7 +90,7 @@ export async function POST(request: Request) {
         signatureBlock: "",
       };
     } else {
-      // Use AI-parsed content for edit_and_sign
+      // Use extracted content for the review workspace or a legacy conversion.
       contractContent = body.content as ContractContent;
     }
 
@@ -133,7 +136,13 @@ export async function POST(request: Request) {
       contract_id: contract.id,
       version_number: 1,
       content: contractContent,
-      change_summary: `Initial upload (${body.processingMode === "sign_only" ? "Sign Only" : "Edit & Sign"})`,
+      change_summary: `Initial upload (${
+        body.processingMode === "sign_only"
+          ? "Original document"
+          : body.processingMode === "review"
+            ? "AI review workspace"
+            : "Legacy editable conversion"
+      })`,
       change_type: "create",
       created_by: user.id,
     });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, PDFName, StandardFonts, rgb } from "pdf-lib";
 import { generateUploadedContractPdf } from "@/lib/pdf/uploaded-contract";
 
 async function createSourcePdf() {
@@ -32,13 +32,6 @@ describe("uploaded contract PDF preservation", () => {
     const output = await generateUploadedContractPdf({
       sourceBytes,
       sourceFileType: "pdf",
-      contract: {
-        id: "contract-123",
-        title: "Original Consulting Agreement",
-        status: "completed",
-        contentHash: "abc123",
-        completedAt: "2026-09-02T12:00:00.000Z",
-      },
     });
 
     const result = await PDFDocument.load(output);
@@ -55,14 +48,31 @@ describe("uploaded contract PDF preservation", () => {
     const output = await generateUploadedContractPdf({
       sourceBytes,
       sourceFileType: "pdf",
-      contract: {
-        id: "contract-456",
-        title: "Draft Agreement",
-        status: "draft",
-      },
     });
 
     const result = await PDFDocument.load(output);
     expect(result.getPageCount()).toBe(2);
+  });
+
+  it("removes executable PDF actions without changing the visible pages", async () => {
+    const source = await PDFDocument.load(await createSourcePdf());
+    source.catalog.set(
+      PDFName.of("OpenAction"),
+      source.context.obj({ S: "JavaScript", JS: "app.alert('hello')" }),
+    );
+    source.getPage(0).node.set(
+      PDFName.of("AA"),
+      source.context.obj({ O: { S: "JavaScript", JS: "app.alert('open')" } }),
+    );
+
+    const output = await generateUploadedContractPdf({
+      sourceBytes: await source.save(),
+      sourceFileType: "pdf",
+    });
+    const result = await PDFDocument.load(output);
+
+    expect(result.getPageCount()).toBe(2);
+    expect(result.catalog.has(PDFName.of("OpenAction"))).toBe(false);
+    expect(result.getPage(0).node.has(PDFName.of("AA"))).toBe(false);
   });
 });

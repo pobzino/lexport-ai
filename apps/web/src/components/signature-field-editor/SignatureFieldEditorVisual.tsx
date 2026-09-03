@@ -7,12 +7,14 @@ import { FieldPalette } from "./FieldPalette";
 import { PlacedField } from "./PlacedField";
 import { PlacedFieldData, FieldType, getFieldConfig, FIELD_CONFIGS } from "./types";
 import { X, Save, Loader2, AlertCircle } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Signer {
   id: string;
   role: string;
   name?: string;
   email?: string;
+  color?: string;
 }
 
 interface SignatureFieldEditorVisualProps {
@@ -43,6 +45,7 @@ export function SignatureFieldEditorVisual({
   const [error, setError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   // Track changes
   useEffect(() => {
@@ -176,9 +179,42 @@ export function SignatureFieldEditorVisual({
     setSelectedFieldId(newField.id);
   }, [currentPage, fields, selectedSignerId, signers]);
 
+  const handleSignerChange = useCallback((signerId: string) => {
+    setSelectedSignerId(signerId);
+    if (!selectedFieldId) return;
+
+    const signer = signers.find((candidate) => candidate.id === signerId);
+    if (!signer) return;
+    setFields((previous) => previous.map((field) =>
+      field.id === selectedFieldId
+        ? { ...field, signerId: signer.id, signerRole: signer.role }
+        : field,
+    ));
+  }, [selectedFieldId, signers]);
+
   const handleSave = async () => {
-    setIsSaving(true);
     setError(null);
+
+    const missingSignatureRoles = signers
+      .filter(
+        (signer) =>
+          !fields.some(
+            (field) =>
+              field.signerId === signer.id &&
+              field.type === "signature" &&
+              field.required,
+          ),
+      )
+      .map((signer) => signer.role);
+
+    if (missingSignatureRoles.length > 0) {
+      setError(
+        `Add a required signature field for ${missingSignatureRoles.join(", ")}.`,
+      );
+      return;
+    }
+
+    setIsSaving(true);
     try {
       await onSave(fields);
       onClose();
@@ -189,9 +225,24 @@ export function SignatureFieldEditorVisual({
     }
   };
 
+  const requestClose = () => {
+    if (hasChanges) {
+      setShowDiscardConfirm(true);
+      return;
+    }
+    onClose();
+  };
+
   // Filter fields for current page
   const currentPageFields = fields.filter((f) => f.page === currentPage);
   const totalFields = fields.length;
+  const pageFieldCounts = useMemo(
+    () => fields.reduce<Record<number, number>>((counts, field) => {
+      counts[field.page] = (counts[field.page] || 0) + 1;
+      return counts;
+    }, {}),
+    [fields],
+  );
 
   // Get the active dragging item for overlay
   const activeField = activeId
@@ -207,7 +258,7 @@ export function SignatureFieldEditorVisual({
       <div className="flex items-center justify-between gap-4 border-b border-white/10 bg-[#141d2e] px-4 py-3 text-white sm:px-6">
         <div className="flex items-center gap-4">
           <button
-            onClick={onClose}
+            onClick={requestClose}
             className="rounded-lg p-2 text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
             aria-label="Close field editor"
           >
@@ -223,7 +274,7 @@ export function SignatureFieldEditorVisual({
 
         <div className="flex items-center gap-2 sm:gap-3">
           <span className="hidden rounded-full bg-white/10 px-3 py-1.5 text-xs text-slate-200 md:inline-flex">
-            {totalFields} field{totalFields !== 1 ? "s" : ""}
+            {signers.length} recipient{signers.length !== 1 ? "s" : ""} · {totalFields} field{totalFields !== 1 ? "s" : ""}
             {currentPageFields.length > 0 && ` - ${currentPageFields.length} on page`}
           </span>
           {error && (
@@ -233,7 +284,7 @@ export function SignatureFieldEditorVisual({
             </div>
           )}
           <button
-            onClick={onClose}
+            onClick={requestClose}
             disabled={isSaving}
             className="hidden rounded-lg px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white sm:block"
           >
@@ -259,16 +310,23 @@ export function SignatureFieldEditorVisual({
         </div>
       </div>
 
+      {error && (
+        <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 lg:hidden">
+          {error}
+        </div>
+      )}
+
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           {/* PDF Viewer */}
-          <div className="flex-1 bg-[#dfe6ee]" onClick={() => setSelectedFieldId(null)}>
+          <div className="min-h-0 flex-1 bg-[#dfe6ee]" onClick={() => setSelectedFieldId(null)}>
             <PDFViewer
               pdfUrl={pdfUrl}
               currentPage={currentPage}
               onPageChange={setCurrentPage}
               onPageDimensions={setPageDimensions}
+              pageFieldCounts={pageFieldCounts}
             >
               {currentPageFields.map((field) => (
                 <PlacedField
@@ -279,6 +337,7 @@ export function SignatureFieldEditorVisual({
                   onDelete={() => handleFieldDelete(field.id)}
                   onResize={(w, h) => handleFieldResize(field.id, w, h)}
                   pageDimensions={pageDimensions}
+                  signerColor={signers.find((signer) => signer.id === field.signerId)?.color}
                 />
               ))}
             </PDFViewer>
@@ -288,7 +347,8 @@ export function SignatureFieldEditorVisual({
           <FieldPalette
             signers={signers}
             selectedSignerId={selectedSignerId}
-            onSignerChange={setSelectedSignerId}
+            isFieldSelected={Boolean(selectedFieldId)}
+            onSignerChange={handleSignerChange}
             onAddField={handleAddField}
           />
 
@@ -323,6 +383,20 @@ export function SignatureFieldEditorVisual({
           </DragOverlay>
         </DndContext>
       </div>
+
+      <ConfirmDialog
+        isOpen={showDiscardConfirm}
+        onClose={() => setShowDiscardConfirm(false)}
+        onConfirm={() => {
+          setShowDiscardConfirm(false);
+          onClose();
+        }}
+        title="Discard field changes?"
+        message="Your unsaved field positions and assignments will be lost."
+        confirmText="Discard changes"
+        cancelText="Keep editing"
+        variant="danger"
+      />
     </div>
   );
 }

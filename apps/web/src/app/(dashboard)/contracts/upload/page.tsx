@@ -21,6 +21,7 @@ import {
   type ProcessingStep,
 } from "@/components/upload/processing-status";
 import { ContentPreview } from "@/components/upload/content-preview";
+import { OriginalDocumentPreview } from "@/components/upload/original-document-preview";
 import { createClient } from "@/lib/supabase/client";
 import {
   getUploadFileType,
@@ -167,7 +168,7 @@ export default function UploadContractPage() {
       setState((previous) => ({
         ...INITIAL_STATE,
         processingMode:
-          fileType === "docx" ? "edit_and_sign" : previous.processingMode,
+          fileType === "docx" ? "review" : previous.processingMode,
         file,
         fileType,
         title: file ? getFileTitle(file) : "",
@@ -228,7 +229,7 @@ export default function UploadContractPage() {
   const extractDocument = async (
     filePath: string,
     fileType: UploadFileType,
-    requiredForEditing: boolean
+    requiredForReview: boolean
   ): Promise<string | null> => {
     setProcessingStep("extracting");
 
@@ -240,19 +241,19 @@ export default function UploadContractPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ filePath, fileType }),
         },
-        requiredForEditing ? 28_000 : 12_000
+        requiredForReview ? 28_000 : 12_000
       );
 
       let text = typeof extraction.text === "string" ? extraction.text : "";
       let confidence = null as UploadState["confidence"];
 
       if (extraction.needsOCR) {
-        if (!requiredForEditing) {
+        if (!requiredForReview) {
           setState((previous) => ({
             ...previous,
             extractionStatus: "skipped",
             extractionNotice:
-              "This looks like a scan. The original is ready for signing; convert it to editable if you also need OCR text.",
+              "This looks like a scan. The original is ready for signing; choose Review with AI if you also need OCR analysis.",
             pageCount: extraction.pageCount || null,
           }));
           return null;
@@ -274,9 +275,9 @@ export default function UploadContractPage() {
       }
 
       if (text.trim().length < 50) {
-        if (requiredForEditing) {
+        if (requiredForReview) {
           throw new Error(
-            "We could not recover enough text to create an editable version. Keep the original for signing instead."
+            "We could not recover enough text for a reliable AI review. Keep the original for signing instead."
           );
         }
 
@@ -301,7 +302,7 @@ export default function UploadContractPage() {
       }));
       return text;
     } catch (extractionError) {
-      if (requiredForEditing) throw extractionError;
+      if (requiredForReview) throw extractionError;
 
       setState((previous) => ({
         ...previous,
@@ -313,7 +314,7 @@ export default function UploadContractPage() {
     }
   };
 
-  const parseForEditing = async (text: string) => {
+  const parseForReview = async (text: string) => {
     setProcessingStep("parsing");
     const parsed = await requestJson(
       "/api/contracts/upload/parse",
@@ -338,13 +339,13 @@ export default function UploadContractPage() {
   const handleImport = async () => {
     if (!state.file || isProcessing) return;
 
-    const isEditable = state.processingMode === "edit_and_sign";
+    const isAiReview = state.processingMode === "review";
     setError(null);
     setIsProcessing(true);
     setStep("processing");
     setProcessingStep(state.filePath ? "extracting" : "uploading");
     setProcessingSteps(
-      isEditable
+      isAiReview
         ? ["uploading", "extracting", "parsing"]
         : ["uploading", "extracting"]
     );
@@ -356,12 +357,12 @@ export default function UploadContractPage() {
       const text = await extractDocument(
         upload.filePath,
         upload.fileType,
-        isEditable
+        isAiReview
       );
 
-      if (isEditable) {
-        if (!text) throw new Error("No text was available to convert");
-        await parseForEditing(text);
+      if (isAiReview) {
+        if (!text) throw new Error("No text was available for AI review");
+        await parseForReview(text);
       }
 
       setStep("review");
@@ -403,7 +404,10 @@ export default function UploadContractPage() {
       );
 
       setProcessingStep("complete");
-      router.push(`/contracts/${created.contract.id}/edit`);
+      const destination = state.processingMode === "sign_only"
+        ? `/contracts/${created.contract.id}/edit?prepare=signatures`
+        : `/contracts/${created.contract.id}/edit?workspace=review`;
+      router.push(destination);
       router.refresh();
     } catch (createError) {
       setError(
@@ -422,8 +426,8 @@ export default function UploadContractPage() {
   };
 
   const reviewMode = state.processingMode === "sign_only"
-    ? "Original preserved"
-    : "Editable clauses";
+    ? "Ready to prepare"
+    : "AI review workspace";
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(82,158,198,0.12),_transparent_34%),linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)]">
@@ -450,7 +454,7 @@ export default function UploadContractPage() {
 
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
         <div className="mb-8 grid grid-cols-3 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-          {["Add file", "Review", "Open contract"].map((label, index) => {
+          {["Add file", "Review", "Open workspace"].map((label, index) => {
             const activeIndex = step === "review"
               ? 1
               : step === "processing" && processingStep === "creating"
@@ -491,7 +495,7 @@ export default function UploadContractPage() {
                     Add the contract once
                   </h2>
                   <p className="mt-2 text-slate-600">
-                    Choose the file and what you want to do with it. Lexport will preserve the original either way.
+                    Choose the file and what you want to do with it. The original remains the authoritative document either way.
                   </p>
                 </div>
 
@@ -519,7 +523,7 @@ export default function UploadContractPage() {
                 <div className="mt-7 flex flex-col gap-4 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 text-sm text-slate-500">
                     <LockKeyhole className="h-4 w-4 text-emerald-600" />
-                    Direct, private upload. Your file does not pass through our web server.
+                    Direct, private upload with short-lived access scoped to your account.
                   </div>
                   <button
                     type="button"
@@ -537,7 +541,7 @@ export default function UploadContractPage() {
                 {[
                   [ShieldCheck, "Private by default", "Short-lived upload access and owner-scoped files."],
                   [FileText, "Original retained", "The source document remains attached to the contract."],
-                  [Sparkles, "AI only when useful", "OCR and clause conversion run only when requested."],
+                  [Sparkles, "Non-destructive review", "AI builds a separate outline while the original stays unchanged."],
                 ].map(([Icon, title, description]) => {
                   const FeatureIcon = Icon as typeof ShieldCheck;
                   return (
@@ -566,7 +570,7 @@ export default function UploadContractPage() {
                 steps={processingSteps}
               />
               <p className="mx-auto mt-8 max-w-md text-center text-xs leading-5 text-slate-400">
-                We preserve the source file throughout this process. Conversion never overwrites the original.
+                We preserve the source file throughout this process. Analysis never overwrites the original.
               </p>
             </motion.section>
           )}
@@ -606,9 +610,26 @@ export default function UploadContractPage() {
                   />
                   <ReviewFact
                     label="Next step"
-                    value={state.processingMode === "sign_only" ? "Place signature fields" : "Review and edit clauses"}
+                    value={state.processingMode === "sign_only" ? "Assign recipients and place fields" : "Open AI review alongside the original"}
                   />
                 </div>
+              </section>
+
+              <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+                <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#397fa4]">
+                      Source document
+                    </p>
+                    <h2 className="mt-1 text-xl font-semibold text-slate-950">
+                      Confirm every page before continuing
+                    </h2>
+                  </div>
+                  <p className="max-w-md text-sm leading-6 text-slate-500 sm:text-right">
+                    This is the exact file Lexport will retain. AI review never replaces these pages.
+                  </p>
+                </div>
+                <OriginalDocumentPreview file={state.file} />
               </section>
 
               {state.extractionNotice && (
@@ -621,7 +642,7 @@ export default function UploadContractPage() {
                 </div>
               )}
 
-              {state.processingMode === "edit_and_sign" && state.parsedContent && (
+              {state.processingMode === "review" && state.parsedContent && (
                 <ContentPreview
                   content={state.parsedContent}
                   confidence={state.confidence || undefined}
@@ -700,7 +721,9 @@ export default function UploadContractPage() {
                   disabled={!state.title.trim() || isProcessing}
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-slate-950 px-6 py-3 font-semibold text-white transition hover:bg-[#397fa4] disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Create and open contract
+                  {state.processingMode === "sign_only"
+                    ? "Continue to recipient setup"
+                    : "Open AI review workspace"}
                   <CheckCircle2 className="h-5 w-5" />
                 </button>
               </div>

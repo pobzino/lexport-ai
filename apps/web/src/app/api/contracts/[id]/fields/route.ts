@@ -4,7 +4,7 @@ import { z } from "zod";
 
 // Validation schema for signature fields
 const SignatureFieldSchema = z.object({
-  type: z.enum(["signature", "initials", "date", "text"]),
+  type: z.enum(["signature", "initials", "date", "text", "checkbox"]),
   label: z.string().optional(),
   signerRole: z.string().min(1, "Signer role is required"),
   required: z.boolean().default(true),

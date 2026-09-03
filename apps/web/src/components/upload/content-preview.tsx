@@ -40,12 +40,12 @@ export function ContentPreview({
         </div>
       )}
 
-      {/* Parsed structure preview */}
+      {/* Non-destructive review outline */}
       <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-200">
-          <h4 className="font-medium text-slate-900">Parsed Structure</h4>
+          <h4 className="font-medium text-slate-900">AI review outline</h4>
           <p className="text-sm text-slate-500">
-            {content.clauses.length} clauses identified
+            {content.clauses.length} sections identified. Your original document remains unchanged.
           </p>
         </div>
 

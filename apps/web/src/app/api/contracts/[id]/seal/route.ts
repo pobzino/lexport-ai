@@ -13,6 +13,10 @@ import {
   type LegalDocumentIdentity,
 } from "@/lib/pdf/legal-contract";
 import { sealCompletedContract } from "@/lib/sealed-contract";
+import {
+  preservesUploadedOriginal,
+  supportsOriginalSigning,
+} from "@/lib/contracts/uploaded-document";
 
 export const dynamic = "force-dynamic";
 
@@ -265,12 +269,13 @@ async function generateArtifactPdf(
   }[],
 ): Promise<Uint8Array> {
   const sourceFileUrl = contract.source_file_url;
-  const preserveUploadedOriginal =
+  const shouldPreserveUploadedOriginal =
     contract.source_type === "uploaded" &&
-    contract.processing_mode === "sign_only" &&
+    preservesUploadedOriginal(contract.processing_mode) &&
+    supportsOriginalSigning(contract.source_file_type) &&
     sourceFileUrl;
 
-  if (!preserveUploadedOriginal) {
+  if (!shouldPreserveUploadedOriginal) {
     const documentIdentity = await loadDocumentIdentity(contract.user_id);
     return generateSealedPdf(
       contract,
@@ -315,18 +320,9 @@ async function generateArtifactPdf(
   return generateUploadedContractPdf({
     sourceBytes,
     sourceFileType: contract.source_file_type as UploadedSourceFileType,
-    contract: {
-      id: contract.id,
-      title: contract.title,
-      status: "sealed",
-      contentHash: contract.content_hash,
-      completedAt:
-        contract.completed_at || contract.signed_at || contract.sealed_at,
-    },
     signatureFields: signatureFields || [],
     fieldValues: fieldValuesResult.data || [],
     signatures,
-    signatureRequests,
   });
 }
 

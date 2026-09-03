@@ -5,6 +5,10 @@ import {
   generateUploadedDocumentHash,
   type SigningFieldFingerprint,
 } from "@/lib/document-integrity";
+import {
+  preservesUploadedOriginal,
+  supportsOriginalSigning,
+} from "@/lib/contracts/uploaded-document";
 
 export interface SigningContractRecord {
   id: string;
@@ -31,7 +35,7 @@ export async function fingerprintSigningDocument(
   contract: SigningContractRecord,
   existingFields?: SigningFieldFingerprint[],
 ): Promise<SigningDocumentFingerprint> {
-  if (!isUploadedSignOnlyContract(contract)) {
+  if (!isUploadedOriginalContract(contract)) {
     return {
       hash: generateContentHash(contract.content),
       fields: existingFields || [],
@@ -57,15 +61,19 @@ export async function fingerprintSigningDocument(
   };
 }
 
-export function isUploadedSignOnlyContract(
+export function isUploadedOriginalContract(
   contract: SigningContractRecord,
 ): boolean {
   return Boolean(
     contract.source_type === "uploaded" &&
-      contract.processing_mode === "sign_only" &&
+      preservesUploadedOriginal(contract.processing_mode) &&
+      supportsOriginalSigning(contract.source_file_type) &&
       contract.source_file_url,
   );
 }
+
+/** @deprecated Use isUploadedOriginalContract. */
+export const isUploadedSignOnlyContract = isUploadedOriginalContract;
 
 export async function loadSigningFields(
   supabase: SupabaseClient,

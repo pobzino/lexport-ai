@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ContractContent } from "@/db/types";
 import {
+  findDuplicateRecipientRoles,
+  findRecipientsMissingRequiredSignatures,
+  findRequiredSignatureRolesWithoutRecipients,
   findUnresolvedContractPlaceholders,
   shouldCheckContractPlaceholders,
 } from "@/lib/contracts/readiness";
@@ -78,13 +81,28 @@ describe("contract readiness", () => {
     expect(unresolved).toEqual([]);
   });
 
-  it("exempts uploaded sign-only originals but checks editable uploads", () => {
+  it("exempts fixed-layout originals but checks reconstructed documents", () => {
     expect(
       shouldCheckContractPlaceholders({
         source_type: "uploaded",
+        source_file_type: "pdf",
         processing_mode: "sign_only",
       }),
     ).toBe(false);
+    expect(
+      shouldCheckContractPlaceholders({
+        source_type: "uploaded",
+        source_file_type: "pdf",
+        processing_mode: "review",
+      }),
+    ).toBe(false);
+    expect(
+      shouldCheckContractPlaceholders({
+        source_type: "uploaded",
+        source_file_type: "docx",
+        processing_mode: "review",
+      }),
+    ).toBe(true);
     expect(
       shouldCheckContractPlaceholders({
         source_type: "uploaded",
@@ -94,5 +112,57 @@ describe("contract readiness", () => {
     expect(
       shouldCheckContractPlaceholders({ source_type: "generated" }),
     ).toBe(true);
+  });
+
+  it("requires one required signature field for every recipient role", () => {
+    const missing = findRecipientsMissingRequiredSignatures(
+      [
+        { name: "Alex Morgan", role: "Client" },
+        { name: "Sam Lee", role: "Supplier" },
+        { name: "Roleless Recipient" },
+      ],
+      [
+        { type: "signature", signer_role: " client ", required: true },
+        { type: "initials", signer_role: "Supplier", required: true },
+        { type: "signature", signer_role: "Supplier", required: false },
+      ],
+    );
+
+    expect(missing).toEqual(["Supplier", "Roleless Recipient"]);
+  });
+
+  it("accepts required signature assignments case-insensitively", () => {
+    expect(
+      findRecipientsMissingRequiredSignatures(
+        [{ role: "Company" }, { role: "Contractor" }],
+        [
+          { type: "signature", signer_role: "company", required: true },
+          { type: "signature", signer_role: "CONTRACTOR" },
+        ],
+      ),
+    ).toEqual([]);
+  });
+
+  it("finds prepared signature roles without recipients", () => {
+    expect(
+      findRequiredSignatureRolesWithoutRecipients(
+        [{ role: "Client" }],
+        [
+          { type: "signature", signer_role: "Client", required: true },
+          { type: "signature", signer_role: "Supplier", required: true },
+          { type: "date", signer_role: "Witness", required: true },
+        ],
+      ),
+    ).toEqual(["Supplier"]);
+  });
+
+  it("finds duplicate recipient roles case-insensitively", () => {
+    expect(
+      findDuplicateRecipientRoles([
+        { role: "Client" },
+        { role: " client " },
+        { role: "Supplier" },
+      ]),
+    ).toEqual(["client"]);
   });
 });

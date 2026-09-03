@@ -82,6 +82,10 @@ import {
   type PaymentMilestone,
   type PaymentStructure,
 } from "@/lib/payments/config";
+import {
+  preservesUploadedOriginal,
+  supportsOriginalSigning,
+} from "@/lib/contracts/uploaded-document";
 
 interface ContractContent {
   preamble: string;
@@ -112,7 +116,7 @@ interface Contract {
   source_type?: "generated" | "uploaded";
   source_file_url?: string | null;
   source_file_type?: "pdf" | "docx" | "jpg" | "png" | null;
-  processing_mode?: "sign_only" | "edit_and_sign" | "full" | null;
+  processing_mode?: "sign_only" | "review" | "edit_and_sign" | "full" | null;
   extracted_text?: string | null;
 }
 
@@ -963,6 +967,23 @@ export default function ContractEditorPage() {
             setBalanceDueDate(dueDate.toISOString().split("T")[0]);
           }
 
+          const launchAction = new URLSearchParams(window.location.search);
+          if (
+            launchAction.get("prepare") === "signatures" &&
+            preservesUploadedOriginal(data.contract.processing_mode) &&
+            supportsOriginalSigning(data.contract.source_file_type) &&
+            data.contract.status === "draft"
+          ) {
+            setShowDefineSigners(true);
+          }
+          if (launchAction.get("workspace") === "review") {
+            openPanel("riskAnalysis");
+            setShowRiskAnalysis(true);
+          }
+          if (launchAction.has("prepare") || launchAction.has("workspace")) {
+            window.history.replaceState({}, "", window.location.pathname);
+          }
+
           // Load saved defined signers from metadata, or extract from party info
           if (data.contract.metadata?.defined_signers) {
             setDefinedSigners(data.contract.metadata.defined_signers);
@@ -984,7 +1005,7 @@ export default function ContractEditorPage() {
     }
 
     fetchContract();
-  }, [contractId, completeStep]);
+  }, [contractId, completeStep, openPanel]);
 
   // Fetch current user ID for comments
   useEffect(() => {
@@ -1362,8 +1383,10 @@ export default function ContractEditorPage() {
     if (!contract || reparsing) return;
 
     const confirmed = await confirmDialog({
-      title: "Reparse uploaded contract",
-      message: "This replaces the current sections with a fresh parse of the original uploaded text. Your current version remains available in version history.",
+      title: contract.processing_mode === "review" ? "Refresh AI review outline" : "Reparse uploaded contract",
+      message: contract.processing_mode === "review"
+        ? "This refreshes the analysis outline from the uploaded text. It does not alter the original document, and the current outline remains in version history."
+        : "This replaces the current sections with a fresh parse of the original uploaded text. Your current version remains available in version history.",
       variant: "warning",
       confirmText: "Reparse",
     });
@@ -1386,7 +1409,11 @@ export default function ContractEditorPage() {
         new Set(data.contract.content.clauses.map((clause: Clause) => clause.id))
       );
       setRiskAnalysis(null);
-      setReparseNotice(`Reparsed into ${data.clauseCount} editable sections.`);
+      setReparseNotice(
+        contract.processing_mode === "review"
+          ? `AI review outline refreshed with ${data.clauseCount} sections. The original is unchanged.`
+          : `Reparsed into ${data.clauseCount} editable sections.`,
+      );
       setTimeout(() => setReparseNotice(null), 5000);
     } catch (err) {
       setSaveError(
@@ -1657,7 +1684,9 @@ export default function ContractEditorPage() {
               )}
 
               {/* Signature Fields — keep visible (primary action for uploaded) */}
-              {contract.processing_mode === "sign_only" && !isLocked && (
+              {preservesUploadedOriginal(contract.processing_mode) &&
+                supportsOriginalSigning(contract.source_file_type) &&
+                !isLocked && (
                 <button
                   onClick={() => setShowDefineSigners(true)}
                   className="flex items-center gap-1.5 px-2 sm:px-3 py-2 text-sm rounded-lg transition-all bg-[#529ec6] text-white hover:bg-[#4a8db3]"
@@ -1752,7 +1781,13 @@ export default function ContractEditorPage() {
                           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
                         >
                           <RefreshCw className={`w-4 h-4 text-slate-400 ${reparsing ? "animate-spin" : ""}`} />
-                          {reparsing ? "Reparsing upload..." : "Reparse upload"}
+                          {reparsing
+                            ? contract.processing_mode === "review"
+                              ? "Refreshing outline..."
+                              : "Reparsing upload..."
+                            : contract.processing_mode === "review"
+                              ? "Refresh AI outline"
+                              : "Reparse upload"}
                         </button>
                       )}
 
@@ -1788,7 +1823,10 @@ export default function ContractEditorPage() {
                       <button
                         onClick={() => {
                           // For sign_only contracts, use visual PDF field editor
-                          if (contract.processing_mode === "sign_only") {
+                          if (
+                            preservesUploadedOriginal(contract.processing_mode) &&
+                            supportsOriginalSigning(contract.source_file_type)
+                          ) {
                             setShowDefineSigners(true);
                           } else {
                             setIsEditingFields(!isEditingFields);
@@ -2321,14 +2359,22 @@ export default function ContractEditorPage() {
               </div>
 
               {/* Sign Only Mode: Show original PDF */}
-              {contract.processing_mode === "sign_only" && contract.source_file_url ? (
+              {preservesUploadedOriginal(contract.processing_mode) &&
+              supportsOriginalSigning(contract.source_file_type) &&
+              contract.source_file_url ? (
                 <div className="p-4">
                   <div className="mb-4 flex items-start gap-3 p-4 bg-blue-50 rounded-lg">
                     <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-blue-800">
-                      <p className="font-medium">Sign Only Mode</p>
+                      <p className="font-medium">
+                        {contract.processing_mode === "review"
+                          ? "Original document with AI review"
+                          : "Original document"}
+                      </p>
                       <p className="mt-1">
-                        This is your original document. Click the &quot;Place Fields&quot; button above to visually place signature fields on the PDF, then send for signatures.
+                        {contract.processing_mode === "review"
+                          ? "AI findings use a separate extracted outline. This PDF remains unchanged and can be prepared for signature at any time."
+                          : "Review every page, then use Place Fields to assign recipients and position their signature fields directly on the PDF."}
                       </p>
                     </div>
                   </div>
@@ -2338,6 +2384,19 @@ export default function ContractEditorPage() {
                 </div>
               ) : (
                 <>
+                  {contract.source_type === "uploaded" &&
+                    contract.processing_mode === "review" &&
+                    contract.source_file_type === "docx" && (
+                      <div className="m-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                        <Info className="mt-0.5 h-5 w-5 flex-none text-amber-600" />
+                        <div>
+                          <p className="font-semibold">AI review outline - original Word file retained</p>
+                          <p className="mt-1 leading-6 text-amber-800">
+                            This outline supports analysis only. Export the final Word document to PDF and upload that fixed-layout copy before sending it for signature.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   {/* Preamble */}
                   <div className="px-8 py-6 border-b border-slate-100">
                     <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
@@ -2930,8 +2989,8 @@ export default function ContractEditorPage() {
           <RiskAnalysisPanel
             contractId={contractId}
             onClose={() => setShowRiskAnalysis(false)}
-            onJumpToClause={jumpToClause}
-            onImplement={async (risk) => {
+            onJumpToClause={contract?.processing_mode === "review" ? undefined : jumpToClause}
+            onImplement={contract?.processing_mode === "review" ? undefined : async (risk) => {
               // Get the suggestion and clause info
               const suggestion = "suggestion" in risk ? risk.suggestion : null;
               const clauseId = "clauseId" in risk ? risk.clauseId : ("affectedClauseId" in risk ? risk.affectedClauseId : null);
@@ -2985,6 +3044,7 @@ export default function ContractEditorPage() {
             error={riskError}
             onRefresh={() => fetchRiskAnalysis(true)}
             showUpgradeTeaser={showRiskTeaser}
+            reviewOnly={contract?.processing_mode === "review"}
           />
         )}
 
@@ -3155,7 +3215,7 @@ export default function ContractEditorPage() {
           contractTitle={contract.title}
           pdfUrl={`/api/contracts/${contractId}/pdf`}
           signers={definedSigners.length > 0
-            ? definedSigners.map(s => ({ id: s.id, role: s.role, name: s.name, email: s.email }))
+            ? definedSigners.map(s => ({ id: s.id, role: s.role, name: s.name, email: s.email, color: s.color }))
             : getSignerRoles().map((role, idx) => ({
               id: `signer-${idx}`,
               role,
@@ -3165,7 +3225,11 @@ export default function ContractEditorPage() {
           initialFields={signatureFields.map((f) => ({
             id: f.id,
             type: f.type,
-            signerId: `signer-${getSignerRoles().indexOf(f.signerRole)}`,
+            signerId:
+              definedSigners.find(
+                (signer) => signer.role.trim().toLocaleLowerCase() === f.signerRole.trim().toLocaleLowerCase(),
+              )?.id ||
+              `signer-${getSignerRoles().indexOf(f.signerRole)}`,
             signerRole: f.signerRole,
             page: f.page || 1,
             x: f.positionX,
@@ -3178,15 +3242,20 @@ export default function ContractEditorPage() {
           onClose={() => setShowVisualEditor(false)}
           onSave={async (fields: PlacedFieldData[]) => {
             // Convert visual fields back to signature fields and save
-            for (const field of fields) {
+            for (const [index, field] of fields.entries()) {
               const existingField = signatureFields.find((f) => f.id === field.id);
               if (existingField) {
                 await handleFieldUpdate(field.id, {
+                  type: field.type,
+                  signerRole: field.signerRole,
+                  label: field.label || field.type,
+                  required: field.required,
                   positionX: field.x,
                   positionY: field.y,
                   width: field.width,
                   height: field.height,
                   page: field.page,
+                  order: index + 1,
                 });
               } else {
                 await handleFieldCreate({
@@ -3199,7 +3268,7 @@ export default function ContractEditorPage() {
                   width: field.width,
                   height: field.height,
                   page: field.page,
-                  order: signatureFields.length + 1,
+                  order: index + 1,
                 });
               }
             }

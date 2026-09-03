@@ -18,6 +18,10 @@ import {
 } from "lucide-react";
 import { PDFPreviewModal } from "@/components/pdf-preview-modal";
 import { useOnboarding } from "@/components/onboarding";
+import {
+  preservesUploadedOriginal,
+  supportsOriginalSigning,
+} from "@/lib/contracts/uploaded-document";
 
 interface Signer {
   name: string;
@@ -30,8 +34,10 @@ interface Contract {
   title: string;
   type: string;
   status: string;
+  source_type?: string | null;
   processing_mode?: string;
   source_file_url?: string | null;
+  source_file_type?: string | null;
 }
 
 export default function SendForSignaturePage() {
@@ -59,6 +65,11 @@ export default function SendForSignaturePage() {
   // is non-empty, each signer MUST be mapped to one of these roles — otherwise
   // the signer can't be matched to their fields and the contract is unsignable.
   const [availableRoles, setAvailableRoles] = useState<string[]>([]);
+  const isFixedLayoutOriginal = Boolean(
+    contract?.source_type === "uploaded" &&
+      preservesUploadedOriginal(contract.processing_mode) &&
+      supportsOriginalSigning(contract.source_file_type),
+  );
 
   // Fetch contract
   useEffect(() => {
@@ -72,7 +83,15 @@ export default function SendForSignaturePage() {
         // Distinct, non-empty roles the document's fields are assigned to.
         const roles = Array.from(
           new Set(
-            ((data.signatureFields || []) as Array<{ signer_role?: string }>)
+            ((data.signatureFields || []) as Array<{
+              signer_role?: string;
+              type?: string;
+              required?: boolean;
+            }>)
+              .filter(
+                (field) =>
+                  field.type === "signature" && field.required !== false,
+              )
               .map((f) => f.signer_role)
               .filter((r): r is string => !!r && r.trim().length > 0)
           )
@@ -185,10 +204,26 @@ export default function SendForSignaturePage() {
   };
 
   const handleSend = async () => {
-    // Validate signers
-    const validSigners = signers.filter((s) => s.name && s.email);
-    if (validSigners.length === 0) {
-      setError("Please add at least one signer with name and email");
+    const validSigners = signers.map((signer) => ({
+      ...signer,
+      name: signer.name.trim(),
+      email: signer.email.trim(),
+      role: signer.role?.trim(),
+    }));
+    if (
+      validSigners.length === 0 ||
+      validSigners.some((signer) => !signer.name || !signer.email)
+    ) {
+      setError("Add a name and email address for every recipient.");
+      return;
+    }
+    const normalizedEmails = validSigners.map((signer) => signer.email.toLocaleLowerCase());
+    if (new Set(normalizedEmails).size !== normalizedEmails.length) {
+      setError("Each recipient must use a different email address.");
+      return;
+    }
+    if (isFixedLayoutOriginal && availableRoles.length === 0) {
+      setError("Return to the contract and place a required signature field before sending.");
       return;
     }
     // When the document has role-scoped fields, every signer must be mapped to a
@@ -200,6 +235,19 @@ export default function SendForSignaturePage() {
         setError(
           "Please choose a role for each signer — it's how they're matched to the right signature fields. Without it the contract can't be signed."
         );
+        return;
+      }
+      const normalizedRoles = validSigners.map((signer) => signer.role!.toLocaleLowerCase());
+      if (new Set(normalizedRoles).size !== normalizedRoles.length) {
+        setError("Choose a different prepared role for each recipient.");
+        return;
+      }
+      const assignedRoles = new Set(normalizedRoles);
+      const rolesWithoutRecipients = availableRoles.filter(
+        (role) => !assignedRoles.has(role.toLocaleLowerCase()),
+      );
+      if (rolesWithoutRecipients.length > 0) {
+        setError(`Add a recipient for ${rolesWithoutRecipients.join(", ")}.`);
         return;
       }
     }
@@ -358,13 +406,26 @@ export default function SendForSignaturePage() {
           </div>
         )}
 
+        {isFixedLayoutOriginal && availableRoles.length === 0 && (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            This document is not ready to send. Place at least one required signature field and assign it to a recipient first.{" "}
+            <Link
+              href={`/contracts/${contractId}/edit?prepare=signatures`}
+              className="font-semibold underline underline-offset-2"
+            >
+              Prepare fields
+            </Link>
+          </div>
+        )}
+
         {/* Signers */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-slate-900">Signers</h2>
             <button
               onClick={addSigner}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm text-[#529ec6] hover:bg-[#529ec6]/5 rounded-lg"
+              disabled={availableRoles.length > 0 && signers.length >= availableRoles.length}
+              className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-[#529ec6] hover:bg-[#529ec6]/5 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Plus className="w-4 h-4" />
               Add Signer
@@ -375,12 +436,12 @@ export default function SendForSignaturePage() {
             {signers.map((signer, index) => (
               <div
                 key={index}
-                className="flex items-start gap-4 p-4 bg-slate-50 rounded-lg"
+                className="flex flex-col gap-4 rounded-lg bg-slate-50 p-4 sm:flex-row sm:items-start"
               >
                 <div className="w-10 h-10 bg-[#529ec6]/10 rounded-full flex items-center justify-center flex-shrink-0">
                   <User className="w-5 h-5 text-[#529ec6]" />
                 </div>
-                <div className="flex-1 grid grid-cols-3 gap-4">
+                <div className="grid w-full flex-1 grid-cols-1 gap-4 md:grid-cols-3">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                       Name
@@ -421,7 +482,15 @@ export default function SendForSignaturePage() {
                       >
                         <option value="">Select role…</option>
                         {availableRoles.map((r) => (
-                          <option key={r} value={r}>
+                          <option
+                            key={r}
+                            value={r}
+                            disabled={signers.some(
+                              (candidate, candidateIndex) =>
+                                candidateIndex !== index &&
+                                candidate.role?.trim().toLocaleLowerCase() === r.toLocaleLowerCase(),
+                            )}
+                          >
                             {r}
                           </option>
                         ))}
@@ -548,7 +617,10 @@ export default function SendForSignaturePage() {
         contractId={contractId}
         contractTitle={contract?.title || "Contract"}
         sourceFileUrl={
-          contract?.processing_mode === "sign_only" ? contract.source_file_url : undefined
+          preservesUploadedOriginal(contract?.processing_mode)
+            && supportsOriginalSigning(contract?.source_file_type)
+            ? contract?.source_file_url
+            : undefined
         }
       />
     </div>

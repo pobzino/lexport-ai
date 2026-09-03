@@ -22,6 +22,7 @@ interface PlacedFieldProps {
   onDelete: () => void;
   onResize: (width: number, height: number) => void;
   pageDimensions: { width: number; height: number };
+  signerColor?: string;
 }
 
 export function PlacedField({
@@ -31,6 +32,7 @@ export function PlacedField({
   onDelete,
   onResize,
   pageDimensions,
+  signerColor,
 }: PlacedFieldProps) {
   const [isResizing, setIsResizing] = useState(false);
 
@@ -40,6 +42,7 @@ export function PlacedField({
   });
 
   const config = getFieldConfig(field.type);
+  const accentColor = signerColor || config.color;
   const Icon = FIELD_ICONS[field.type];
   const fieldScale = pageDimensions.width > 0
     ? pageDimensions.width / 800
@@ -123,7 +126,7 @@ export function PlacedField({
               ? "border-[#529ec6] shadow-md"
               : "border-slate-300 hover:border-slate-400"
           }`}
-          style={{ backgroundColor: `${config.color}15` }}
+          style={{ backgroundColor: `${accentColor}18` }}
         >
           {/* Drag indicator */}
           <div
@@ -131,7 +134,7 @@ export function PlacedField({
               isSelected ? "bg-[#529ec6]/20" : "bg-slate-200/50"
             }`}
           >
-            <Move className="w-3 h-3" style={{ color: config.color }} />
+            <Move className="w-3 h-3" style={{ color: accentColor }} />
           </div>
 
           {/* Delete Button */}
@@ -155,10 +158,10 @@ export function PlacedField({
           {/* Field Content */}
           <div className="absolute inset-0 flex items-center justify-center p-1">
             <div className="flex items-center gap-1.5 text-slate-600">
-              <Icon className="w-4 h-4 flex-shrink-0" style={{ color: config.color }} />
+              <Icon className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
               <span
                 className="text-xs font-medium truncate"
-                style={{ color: config.color }}
+                style={{ color: accentColor }}
               >
                 {field.label || config.label}
               </span>
@@ -169,7 +172,7 @@ export function PlacedField({
           <div
             className="absolute -bottom-5 left-0 text-[10px] font-medium px-1.5 py-0.5 rounded truncate max-w-full"
             style={{
-              backgroundColor: config.color,
+              backgroundColor: accentColor,
               color: "white",
             }}
           >
@@ -180,7 +183,7 @@ export function PlacedField({
           {isSelected && !isResizing && (
             <div
               className="absolute bottom-0 right-0 w-3 h-3 rounded-tl"
-              style={{ backgroundColor: config.color }}
+              style={{ backgroundColor: accentColor }}
             />
           )}
         </div>

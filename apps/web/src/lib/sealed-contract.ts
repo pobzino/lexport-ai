@@ -7,7 +7,7 @@ import {
 } from "@/lib/document-integrity";
 import {
   fingerprintSigningDocument,
-  isUploadedSignOnlyContract,
+  isUploadedOriginalContract,
 } from "@/lib/signing-document";
 import {
   generateUploadedContractPdf,
@@ -160,7 +160,7 @@ export async function sealCompletedContract(
   }
 
   let pdfBytes: Uint8Array;
-  if (isUploadedSignOnlyContract(contract)) {
+  if (isUploadedOriginalContract(contract)) {
     if (!fingerprint.sourceBytes) {
       throw new Error("Uploaded source document is unavailable");
     }
@@ -173,18 +173,9 @@ export async function sealCompletedContract(
     pdfBytes = await generateUploadedContractPdf({
       sourceBytes: fingerprint.sourceBytes,
       sourceFileType: contract.source_file_type as UploadedSourceFileType,
-      contract: {
-        id: contract.id,
-        title: contract.title,
-        status: "sealed",
-        contentHash: contract.content_hash,
-        completedAt: contract.completed_at || contract.signed_at,
-      },
       signatureFields: fields || [],
       fieldValues: fieldValuesResult.data || [],
       signatures: contract.signatures,
-      signatureRequests: requests,
-      appendCompletionPage: false,
     });
   } else {
     const identity = await loadDocumentIdentity(supabase, contract.user_id);

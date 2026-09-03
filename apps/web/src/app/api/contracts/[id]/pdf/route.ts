@@ -10,6 +10,10 @@ import {
   renderLegalContractPdf,
   type LegalDocumentIdentity,
 } from "@/lib/pdf/legal-contract";
+import {
+  preservesUploadedOriginal,
+  supportsOriginalSigning,
+} from "@/lib/contracts/uploaded-document";
 
 interface Clause {
   id: string;
@@ -188,12 +192,13 @@ export async function GET(
     const isSigned = contract.status === "signed" || contract.status === "completed";
 
     let pdfBytes: Uint8Array;
-    const preserveUploadedOriginal =
+    const shouldPreserveUploadedOriginal =
       contract.source_type === "uploaded" &&
-      contract.processing_mode === "sign_only" &&
+      preservesUploadedOriginal(contract.processing_mode) &&
+      supportsOriginalSigning(contract.source_file_type) &&
       contract.source_file_url;
 
-    if (preserveUploadedOriginal) {
+    if (shouldPreserveUploadedOriginal) {
       if (!(["pdf", "jpg", "png"] as const).includes(contract.source_file_type)) {
         return NextResponse.json(
           { error: "This original file must be converted before it can be downloaded as a signed PDF" },
@@ -208,17 +213,9 @@ export async function GET(
       pdfBytes = await generateUploadedContractPdf({
         sourceBytes,
         sourceFileType: contract.source_file_type as UploadedSourceFileType,
-        contract: {
-          id: contract.id,
-          title: contract.title,
-          status: contract.status,
-          contentHash: contract.content_hash,
-          completedAt: contract.completed_at || contract.signed_at,
-        },
         signatureFields: (signatureFields || []) as SignatureField[],
         fieldValues: (fieldValues || []) as FieldValue[],
         signatures: (allSignatures || []) as SignatureRecord[],
-        signatureRequests: (allSignatureRequests || []) as SignatureRequestData[],
       });
     } else {
       const content = contract.content as ContractContent;

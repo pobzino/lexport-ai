@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { PDFSigningView } from "@/components/pdf-signing-view";
 import { trackSignatureCompleted } from "@/lib/gtm";
+import { preservesUploadedOriginal } from "@/lib/contracts/uploaded-document";
 
 // Signature font styles for "Select Style" mode
 const SIGNATURE_FONTS = [
@@ -98,7 +99,7 @@ interface Contract {
   depositPaid?: boolean;
   paymentSufficientForSigning?: boolean;
   // Sign-only contract fields
-  processingMode?: "sign_only" | "edit_and_sign" | null;
+  processingMode?: "sign_only" | "review" | "edit_and_sign" | null;
   sourceFileUrl?: string | null;
 }
 
@@ -1465,7 +1466,7 @@ export default function SignContractPage() {
               </div>
 
               {/* Sign-only mode: Show PDF with signature field overlays */}
-              {contract.processingMode === "sign_only" && contract.sourceFileUrl ? (
+              {preservesUploadedOriginal(contract.processingMode) && contract.sourceFileUrl ? (
                 <div className="p-4">
                   <PDFSigningView
                     pdfUrl={contract.sourceFileUrl}
@@ -1540,7 +1541,7 @@ export default function SignContractPage() {
               )}
 
               {/* Signature Block - Document Style (hidden for sign_only since fields are on PDF) */}
-              {contract.processingMode !== "sign_only" && (
+              {!preservesUploadedOriginal(contract.processingMode) && (
               <div className="px-8 py-6 border-t border-slate-200">
                 <h3 className="text-sm font-semibold text-slate-500 uppercase mb-6">
                   Signatures

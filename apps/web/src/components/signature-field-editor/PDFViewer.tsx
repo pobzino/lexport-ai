@@ -22,6 +22,7 @@ interface PDFViewerProps {
   currentPage: number;
   onPageChange: (page: number) => void;
   onPageDimensions: (dimensions: { width: number; height: number }) => void;
+  pageFieldCounts?: Record<number, number>;
   children?: React.ReactNode;
 }
 
@@ -30,6 +31,7 @@ export function PDFViewer({
   currentPage,
   onPageChange,
   onPageDimensions,
+  pageFieldCounts = {},
   children,
 }: PDFViewerProps) {
   const [numPages, setNumPages] = useState<number>(0);
@@ -151,12 +153,51 @@ export function PDFViewer({
         </div>
       </div>
 
-      {/* PDF Container */}
-      <div
-        ref={containerRef}
-        className="flex flex-1 justify-center overflow-auto p-6 sm:p-10"
-      >
-        {!isClient ? (
+      {/* PDF workspace */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {isClient && numPages > 1 && (
+          <aside className="hidden w-28 flex-none overflow-y-auto border-r border-slate-300 bg-slate-100 p-3 lg:block">
+            <Document file={pdfUrl} loading={null} error={null}>
+              <div className="space-y-3">
+                {Array.from({ length: numPages }, (_, index) => index + 1).map((pageNumber) => (
+                  <button
+                    key={pageNumber}
+                    type="button"
+                    onClick={() => onPageChange(pageNumber)}
+                    aria-label={`Go to page ${pageNumber}`}
+                    aria-current={currentPage === pageNumber ? "page" : undefined}
+                    className={`relative block w-full rounded-lg p-1.5 transition ${
+                      currentPage === pageNumber
+                        ? "bg-white shadow ring-2 ring-[#397fa4]"
+                        : "hover:bg-white/80"
+                    }`}
+                  >
+                    <Page
+                      pageNumber={pageNumber}
+                      width={72}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                    />
+                    <span className="mt-1 block text-center text-[10px] font-semibold text-slate-500">
+                      {pageNumber}
+                    </span>
+                    {pageFieldCounts[pageNumber] ? (
+                      <span className="absolute right-0 top-0 flex h-5 min-w-5 translate-x-1/3 -translate-y-1/3 items-center justify-center rounded-full bg-[#202e46] px-1 text-[9px] font-bold text-white">
+                        {pageFieldCounts[pageNumber]}
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            </Document>
+          </aside>
+        )}
+
+        <div
+          ref={containerRef}
+          className="flex min-w-0 flex-1 justify-center overflow-auto p-6 sm:p-10"
+        >
+          {!isClient ? (
           <div className="flex items-center justify-center p-12">
             <Loader2 className="w-8 h-8 animate-spin text-[#529ec6]" />
           </div>
@@ -199,11 +240,12 @@ export function PDFViewer({
               </div>
             </div>
           </div>
-        )}
+          )}
+        </div>
       </div>
 
       {numPages > 1 && (
-        <div className="flex items-center gap-2 overflow-x-auto border-t border-slate-200 bg-white px-4 py-2">
+        <div className="flex items-center gap-2 overflow-x-auto border-t border-slate-200 bg-white px-4 py-2 lg:hidden">
           <span className="mr-1 flex-none text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
             Pages
           </span>

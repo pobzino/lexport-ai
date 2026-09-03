@@ -1,8 +1,23 @@
 import type { ContractContent } from "@/db/types";
+import {
+  preservesUploadedOriginal,
+  supportsOriginalSigning,
+} from "@/lib/contracts/uploaded-document";
 
 export interface UnresolvedContractPlaceholder {
   path: string;
   text: string;
+}
+
+interface SigningRecipient {
+  name?: string | null;
+  role?: string | null;
+}
+
+interface SigningFieldAssignment {
+  type: string;
+  signer_role?: string | null;
+  required?: boolean | null;
 }
 
 const PLACEHOLDER_PATTERNS = [
@@ -70,10 +85,84 @@ export function findUnresolvedContractPlaceholders(
 
 export function shouldCheckContractPlaceholders(contract: {
   source_type?: string | null;
+  source_file_type?: string | null;
   processing_mode?: string | null;
 }): boolean {
   return !(
     contract.source_type === "uploaded" &&
-    contract.processing_mode === "sign_only"
+    preservesUploadedOriginal(contract.processing_mode) &&
+    supportsOriginalSigning(contract.source_file_type)
   );
+}
+
+/**
+ * Every recipient of a fixed-layout document needs an explicit required
+ * signature field. Role matching is case-insensitive because the role is the
+ * stable link between the preparation workspace and the signing invitation.
+ */
+export function findRecipientsMissingRequiredSignatures(
+  recipients: SigningRecipient[],
+  fields: SigningFieldAssignment[],
+): string[] {
+  const rolesWithRequiredSignatures = new Set(
+    fields
+      .filter(
+        (field) => field.type === "signature" && field.required !== false,
+      )
+      .map((field) => normalizeRole(field.signer_role))
+      .filter(Boolean),
+  );
+
+  return recipients.flatMap((recipient, index) => {
+    const role = String(recipient.role || "").trim();
+    if (role && rolesWithRequiredSignatures.has(normalizeRole(role))) {
+      return [];
+    }
+
+    return [role || String(recipient.name || "").trim() || `Recipient ${index + 1}`];
+  });
+}
+
+/** Find prepared signature roles that do not have a corresponding recipient. */
+export function findRequiredSignatureRolesWithoutRecipients(
+  recipients: SigningRecipient[],
+  fields: SigningFieldAssignment[],
+): string[] {
+  const recipientRoles = new Set(
+    recipients.map((recipient) => normalizeRole(recipient.role)).filter(Boolean),
+  );
+  const requiredRoles = new Map<string, string>();
+
+  for (const field of fields) {
+    if (field.type !== "signature" || field.required === false) continue;
+    const displayRole = String(field.signer_role || "").trim();
+    const normalizedRole = normalizeRole(displayRole);
+    if (normalizedRole) requiredRoles.set(normalizedRole, displayRole);
+  }
+
+  return Array.from(requiredRoles.entries())
+    .filter(([normalizedRole]) => !recipientRoles.has(normalizedRole))
+    .map(([, displayRole]) => displayRole);
+}
+
+/** Duplicate roles cannot be distinguished by the current role-scoped fields. */
+export function findDuplicateRecipientRoles(
+  recipients: SigningRecipient[],
+): string[] {
+  const seen = new Set<string>();
+  const duplicates = new Map<string, string>();
+
+  for (const recipient of recipients) {
+    const displayRole = String(recipient.role || "").trim();
+    const normalizedRole = normalizeRole(displayRole);
+    if (!normalizedRole) continue;
+    if (seen.has(normalizedRole)) duplicates.set(normalizedRole, displayRole);
+    seen.add(normalizedRole);
+  }
+
+  return Array.from(duplicates.values());
+}
+
+function normalizeRole(value: string | null | undefined): string {
+  return String(value || "").trim().toLocaleLowerCase();
 }

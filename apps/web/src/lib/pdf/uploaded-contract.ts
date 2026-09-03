@@ -1,6 +1,8 @@
 import {
   PDFDocument,
+  PDFDict,
   PDFImage,
+  PDFName,
   PDFFont,
   PDFPage,
   StandardFonts,
@@ -9,13 +11,7 @@ import {
 
 const BRAND = {
   navy: rgb(32 / 255, 46 / 255, 70 / 255),
-  blue: rgb(82 / 255, 158 / 255, 198 / 255),
-  green: rgb(16 / 255, 185 / 255, 129 / 255),
   ink: rgb(15 / 255, 23 / 255, 42 / 255),
-  slate: rgb(100 / 255, 116 / 255, 139 / 255),
-  border: rgb(226 / 255, 232 / 255, 240 / 255),
-  surface: rgb(248 / 255, 250 / 255, 252 / 255),
-  white: rgb(1, 1, 1),
 };
 
 const FIELD_EDITOR_REFERENCE_WIDTH = 800;
@@ -49,31 +45,12 @@ export interface UploadedSignatureRecord {
   image_hash?: string | null;
 }
 
-export interface UploadedSignatureRequest {
-  id?: string;
-  signer_name: string;
-  signer_email: string;
-  signer_role: string;
-  status: string;
-  signed_at?: string | null;
-  email_verified_at?: string | null;
-}
-
 interface GenerateUploadedContractPdfInput {
   sourceBytes: Uint8Array;
   sourceFileType: UploadedSourceFileType;
-  contract: {
-    id: string;
-    title: string;
-    status: string;
-    contentHash?: string | null;
-    completedAt?: string | null;
-  };
   signatureFields?: UploadedSignatureField[];
   fieldValues?: UploadedFieldValue[];
   signatures?: UploadedSignatureRecord[];
-  signatureRequests?: UploadedSignatureRequest[];
-  appendCompletionPage?: boolean;
 }
 
 function safeText(value: string | null | undefined): string {
@@ -82,25 +59,6 @@ function safeText(value: string | null | undefined): string {
     .replace(/[\u201C\u201D]/g, '"')
     .replace(/[\u2013\u2014]/g, "-")
     .replace(/[^\x20-\x7E\xA0-\xFF]/g, "?");
-}
-
-function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
-  const words = safeText(text).trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return [];
-
-  const lines: string[] = [];
-  let line = "";
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word;
-    if (line && font.widthOfTextAtSize(candidate, size) > maxWidth) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = candidate;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
 }
 
 function fitText(text: string, font: PDFFont, maxSize: number, width: number): number {
@@ -178,6 +136,23 @@ async function createSourceDocument(
   return pdfDoc;
 }
 
+/**
+ * Keep the visible legal document intact while removing executable or embedded
+ * payloads that should never be carried into a signing copy.
+ */
+function removeActivePdfContent(pdfDoc: PDFDocument) {
+  pdfDoc.catalog.delete(PDFName.of("OpenAction"));
+  pdfDoc.catalog.delete(PDFName.of("AA"));
+
+  const names = pdfDoc.catalog.lookupMaybe(PDFName.of("Names"), PDFDict);
+  names?.delete(PDFName.of("JavaScript"));
+  names?.delete(PDFName.of("EmbeddedFiles"));
+
+  for (const page of pdfDoc.getPages()) {
+    page.node.delete(PDFName.of("AA"));
+  }
+}
+
 async function drawCompletedField(
   pdfDoc: PDFDocument,
   page: PDFPage,
@@ -249,186 +224,15 @@ async function drawCompletedField(
   });
 }
 
-function drawLexportWordmark(
-  page: PDFPage,
-  bold: PDFFont,
-  x: number,
-  y: number,
-  inverse = false,
-) {
-  page.drawText("LEX", {
-    x,
-    y,
-    size: 17,
-    font: bold,
-    color: inverse ? BRAND.white : BRAND.ink,
-  });
-  page.drawText("PORT", {
-    x: x + bold.widthOfTextAtSize("LEX", 17),
-    y,
-    size: 17,
-    font: bold,
-    color: BRAND.blue,
-  });
-}
-
-function appendCompletionSummary(
-  pdfDoc: PDFDocument,
-  contract: GenerateUploadedContractPdfInput["contract"],
-  signatureRequests: UploadedSignatureRequest[],
-  regular: PDFFont,
-  bold: PDFFont,
-) {
-  const firstPage = pdfDoc.getPages()[0];
-  const firstSize = firstPage?.getSize() || { width: 612, height: 792 };
-  const pageWidth = firstSize.width >= 500 ? firstSize.width : 612;
-  const pageHeight = firstSize.height >= 700 ? firstSize.height : 792;
-  const page = pdfDoc.addPage([pageWidth, pageHeight]);
-  const margin = 48;
-  const contentWidth = pageWidth - margin * 2;
-
-  page.drawRectangle({
-    x: 0,
-    y: pageHeight - 96,
-    width: pageWidth,
-    height: 96,
-    color: BRAND.navy,
-  });
-  drawLexportWordmark(page, bold, margin, pageHeight - 55, true);
-  page.drawText("COMPLETION RECORD", {
-    x: margin,
-    y: pageHeight - 76,
-    size: 8,
-    font: bold,
-    color: rgb(184 / 255, 217 / 255, 236 / 255),
-  });
-
-  page.drawRectangle({
-    x: pageWidth - margin - 92,
-    y: pageHeight - 65,
-    width: 92,
-    height: 24,
-    color: BRAND.green,
-  });
-  page.drawText("COMPLETED", {
-    x: pageWidth - margin - 77,
-    y: pageHeight - 57,
-    size: 8,
-    font: bold,
-    color: BRAND.white,
-  });
-
-  let y = pageHeight - 138;
-  page.drawText("Document completion summary", {
-    x: margin,
-    y,
-    size: 11,
-    font: bold,
-    color: BRAND.blue,
-  });
-  y -= 30;
-  const titleLines = wrapText(contract.title, bold, 22, contentWidth);
-  for (const line of titleLines.slice(0, 3)) {
-    page.drawText(line, { x: margin, y, size: 22, font: bold, color: BRAND.ink });
-    y -= 27;
-  }
-
-  y -= 14;
-  page.drawRectangle({
-    x: margin,
-    y: y - 54,
-    width: contentWidth,
-    height: 64,
-    color: BRAND.surface,
-    borderColor: BRAND.border,
-    borderWidth: 1,
-  });
-  const completedAt = contract.completedAt
-    ? new Date(contract.completedAt).toLocaleString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: "UTC",
-        timeZoneName: "short",
-      })
-    : "Recorded by Lexport";
-  page.drawText("DOCUMENT ID", { x: margin + 16, y: y - 12, size: 7, font: bold, color: BRAND.slate });
-  page.drawText(safeText(contract.id), { x: margin + 16, y: y - 30, size: 9, font: regular, color: BRAND.ink });
-  page.drawText("COMPLETED", { x: margin + contentWidth / 2, y: y - 12, size: 7, font: bold, color: BRAND.slate });
-  page.drawText(safeText(completedAt), { x: margin + contentWidth / 2, y: y - 30, size: 9, font: regular, color: BRAND.ink });
-  y -= 88;
-
-  page.drawText("SIGNERS", { x: margin, y, size: 8, font: bold, color: BRAND.slate });
-  y -= 24;
-  const completedSigners = signatureRequests.filter((request) => request.status === "signed");
-  for (const signer of completedSigners.slice(0, 5)) {
-    page.drawLine({
-      start: { x: margin, y: y - 48 },
-      end: { x: pageWidth - margin, y: y - 48 },
-      thickness: 0.7,
-      color: BRAND.border,
-    });
-    page.drawText(safeText(signer.signer_name), { x: margin, y: y - 12, size: 11, font: bold, color: BRAND.ink });
-    page.drawText(safeText(signer.signer_role || "Signer"), { x: margin, y: y - 30, size: 8, font: regular, color: BRAND.slate });
-    const signedAt = signer.signed_at
-      ? new Date(signer.signed_at).toLocaleString("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          timeZone: "UTC",
-        }) + " UTC"
-      : "Signature recorded";
-    const signedWidth = regular.widthOfTextAtSize(safeText(signedAt), 8);
-    page.drawText(safeText(signedAt), { x: pageWidth - margin - signedWidth, y: y - 12, size: 8, font: regular, color: BRAND.slate });
-    const verification = signer.email_verified_at ? "Email verified" : "Signature recorded";
-    const verificationWidth = regular.widthOfTextAtSize(verification, 8);
-    page.drawText(verification, { x: pageWidth - margin - verificationWidth, y: y - 30, size: 8, font: regular, color: BRAND.green });
-    y -= 56;
-  }
-  if (completedSigners.length > 5) {
-    page.drawText(`+ ${completedSigners.length - 5} additional signer(s)`, {
-      x: margin,
-      y: y - 4,
-      size: 8,
-      font: regular,
-      color: BRAND.slate,
-    });
-  }
-
-  const hash = safeText(contract.contentHash || "Not recorded");
-  page.drawRectangle({ x: 0, y: 0, width: pageWidth, height: 78, color: BRAND.surface });
-  page.drawText("DOCUMENT FINGERPRINT", { x: margin, y: 49, size: 7, font: bold, color: BRAND.slate });
-  page.drawText(hash.length > 70 ? `${hash.slice(0, 67)}...` : hash, {
-    x: margin,
-    y: 31,
-    size: 7.5,
-    font: regular,
-    color: BRAND.ink,
-  });
-  page.drawText("Original pages preserved; signer fields flattened by Lexport.", {
-    x: margin,
-    y: 15,
-    size: 7,
-    font: regular,
-    color: BRAND.slate,
-  });
-}
-
 export async function generateUploadedContractPdf({
   sourceBytes,
   sourceFileType,
-  contract,
   signatureFields = [],
   fieldValues = [],
   signatures = [],
-  signatureRequests = [],
-  appendCompletionPage = false,
 }: GenerateUploadedContractPdfInput): Promise<Uint8Array> {
   const pdfDoc = await createSourceDocument(sourceBytes, sourceFileType);
+  removeActivePdfContent(pdfDoc);
   const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const pages = pdfDoc.getPages();
@@ -440,11 +244,6 @@ export async function generateUploadedContractPdf({
     const page = pages[Math.max(0, Math.min((field.page || 1) - 1, pages.length - 1))];
     if (!page) continue;
     await drawCompletedField(pdfDoc, page, field, value, signatures, regular, bold);
-  }
-
-  const isComplete = ["signed", "completed", "sealed"].includes(contract.status);
-  if (appendCompletionPage && isComplete) {
-    appendCompletionSummary(pdfDoc, contract, signatureRequests, regular, bold);
   }
 
   return pdfDoc.save({ useObjectStreams: true });

@@ -1,9 +1,9 @@
 "use client";
 
-import { ScanText, Check, FileSignature } from "lucide-react";
+import { ScanSearch, Check, FileSignature } from "lucide-react";
 import { motion } from "framer-motion";
 
-export type ProcessingMode = "sign_only" | "edit_and_sign";
+export type ProcessingMode = "sign_only" | "review";
 
 interface ModeSelectorProps {
   selectedMode: ProcessingMode | null;
@@ -21,27 +21,28 @@ export function ModeSelector({
   const modes = [
     {
       id: "sign_only" as const,
-      title: "Keep the original",
+      title: "Prepare for signing",
       description:
-        "Preserve the uploaded layout and place signature fields directly on it.",
+        "Keep every original page exactly as supplied, then assign recipients and place fields.",
       icon: FileSignature,
-      badge: "Fastest",
+      badge: "Recommended",
       features: [
-        "No reformatting",
-        "Best for ready-to-sign documents",
-        "PDF or scanned image",
+        "Original layout and branding retained",
+        "Page-by-page field placement",
+        "Signed PDF preserves the source document",
       ],
     },
     {
-      id: "edit_and_sign" as const,
-      title: "Convert to editable",
+      id: "review" as const,
+      title: "Review with AI",
       description:
-        "Extract the legal text into clauses so you can review and edit it first.",
-      icon: ScanText,
+        "Analyse the contract alongside the original without replacing or reformatting it.",
+      icon: ScanSearch,
+      badge: "Original stays unchanged",
       features: [
-        "Review extracted clauses",
-        "Edit wording with AI",
-        "Original file remains attached",
+        "Clause and obligation outline",
+        "Risk and missing-protection analysis",
+        "Prepare the same original for signing later",
       ],
     },
   ];
@@ -105,7 +106,7 @@ export function ModeSelector({
 
             {isUnavailable && (
               <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                Word files must be converted to editable clauses before signing.
+                Word files can be reviewed now. Export to PDF before preparing them for signature.
               </p>
             )}
 

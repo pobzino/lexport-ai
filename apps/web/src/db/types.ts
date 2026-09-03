@@ -20,7 +20,7 @@ export interface PaymentMilestone {
 }
 export type ContractSourceType = "generated" | "uploaded";
 export type UploadedFileType = "pdf" | "docx" | "jpg" | "png";
-export type ProcessingMode = "full";
+export type ProcessingMode = "full" | "sign_only" | "review" | "edit_and_sign";
 export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "cancelled" | "void";
 export type InvoiceTemplateType = "hourly" | "fixed_fee" | "milestone" | "retainer" | "custom";
 export type RetainerPeriod = "weekly" | "monthly" | "quarterly";

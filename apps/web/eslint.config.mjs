@@ -1,12 +1,20 @@
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import nextTypeScript from "eslint-config-next/typescript";
 
+const inheritedPlugins = Object.assign(
+  {},
+  ...[...nextCoreWebVitals, ...nextTypeScript].map(
+    (configuration) => configuration.plugins || {},
+  ),
+);
+
 const eslintConfig = [
   ...nextCoreWebVitals,
   ...nextTypeScript,
   {
     ignores: [
       ".next/**",
+      "**/.netlify/**",
       "node_modules/**",
       "playwright-report/**",
       "scripts/**",
@@ -15,6 +23,7 @@ const eslintConfig = [
     ],
   },
   {
+    plugins: inheritedPlugins,
     rules: {
       // The existing application predates the stricter React 19/Next 16 rule
       // set. Keep that debt visible without making the release gate unusable;

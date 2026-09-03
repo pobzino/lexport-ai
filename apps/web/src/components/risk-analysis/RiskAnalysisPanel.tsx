@@ -29,13 +29,14 @@ import type {
 interface RiskAnalysisPanelProps {
   contractId: string;
   onClose: () => void;
-  onJumpToClause: (clauseId: string) => void;
+  onJumpToClause?: (clauseId: string) => void;
   onImplement?: (risk: ClauseRisk | MissingProtection | JurisdictionAlert) => Promise<void>;
   analysis: RiskAnalysisResult | null;
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
   showUpgradeTeaser?: boolean;
+  reviewOnly?: boolean;
 }
 
 export function RiskAnalysisPanel({
@@ -48,6 +49,7 @@ export function RiskAnalysisPanel({
   error,
   onRefresh,
   showUpgradeTeaser = false,
+  reviewOnly = false,
 }: RiskAnalysisPanelProps) {
   // Group risks by severity for display
   const groupedRisks = analysis
@@ -113,7 +115,9 @@ export function RiskAnalysisPanel({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-amber-600" />
-            <span className="font-semibold text-slate-900">Risk Analysis</span>
+            <span className="font-semibold text-slate-900">
+              {reviewOnly ? "AI Contract Review" : "Risk Analysis"}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -168,6 +172,11 @@ export function RiskAnalysisPanel({
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4 space-y-4">
+        {reviewOnly && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-900">
+            Findings use an extracted review outline. Your original PDF remains unchanged and is the document that will be signed.
+          </div>
+        )}
         {/* Upgrade teaser for free users */}
         {showUpgradeTeaser && !loading && (
           <div className="relative">

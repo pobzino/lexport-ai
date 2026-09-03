@@ -2,7 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { extractPdfText, normalizeExtractedText } from "@/lib/upload/extract-pdf";
 import { extractDocxText } from "@/lib/upload/extract-docx";
-import { isOwnedUploadPath, type UploadFileType } from "@/lib/upload/file-validation";
+import {
+  getUploadFileType,
+  isOwnedUploadPath,
+  validateUploadedFileBytes,
+  type UploadFileType,
+} from "@/lib/upload/file-validation";
 
 export const maxDuration = 26;
 
@@ -24,7 +29,8 @@ export async function POST(request: Request) {
     if (
       typeof filePath !== "string" ||
       !isOwnedUploadPath(filePath, user.id) ||
-      !UPLOAD_FILE_TYPES.has(fileType)
+      !UPLOAD_FILE_TYPES.has(fileType) ||
+      getUploadFileType(filePath, "") !== fileType
     ) {
       return NextResponse.json(
         { error: "Invalid file path or type" },
@@ -46,6 +52,10 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await fileData.arrayBuffer());
+    const contentError = validateUploadedFileBytes(buffer, fileType);
+    if (contentError) {
+      return NextResponse.json({ error: contentError }, { status: 422 });
+    }
     let extractedText = "";
     let needsOCR = false;
     let pageCount = 1;
@@ -101,13 +111,8 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Extraction error:", error);
-    console.error("Stack:", error instanceof Error ? error.stack : "No stack");
     return NextResponse.json(
-      {
-        error: error instanceof Error
-          ? `Failed to extract text: ${error.message}`
-          : "Failed to extract text from document"
-      },
+      { error: "Failed to extract text from document" },
       { status: 500 }
     );
   }

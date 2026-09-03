@@ -26,6 +26,10 @@ import { randomBytes } from "crypto";
 import { normalizePaymentSchedule } from "@/lib/payments/config";
 import { isPayingSignerRole } from "@/lib/payments/payer-role";
 import { sealCompletedContract } from "@/lib/sealed-contract";
+import {
+  preservesUploadedOriginal,
+  supportsOriginalSigning,
+} from "@/lib/contracts/uploaded-document";
 
 // GET - Fetch signature request details
 export async function GET(
@@ -68,15 +72,16 @@ export async function GET(
     const contract = signatureRequest.contracts;
 
     if (contract.content_hash_algorithm === SIGNING_HASH_ALGORITHM) {
-      const isUploadedSignOnly =
+      const usesUploadedOriginal =
         contract.source_type === "uploaded" &&
-        contract.processing_mode === "sign_only" &&
+        preservesUploadedOriginal(contract.processing_mode) &&
+        supportsOriginalSigning(contract.source_file_type) &&
         contract.source_file_url;
       const requestMatchesContract = documentHashesEqual(
         signatureRequest.document_hash || contract.content_hash,
         contract.content_hash,
       );
-      const generatedContentMatches = isUploadedSignOnly
+      const generatedContentMatches = usesUploadedOriginal
         ? true
         : documentHashesEqual(
             contract.content_hash,
@@ -329,7 +334,9 @@ export async function GET(
         // Sign-only contract fields
         processingMode: contract.processing_mode,
         sourceFileUrl:
-          contract.processing_mode === "sign_only" && contract.source_file_url
+          preservesUploadedOriginal(contract.processing_mode) &&
+          supportsOriginalSigning(contract.source_file_type) &&
+          contract.source_file_url
             ? `/api/sign/${token}/document`
             : null,
       },
@@ -343,10 +350,7 @@ export async function GET(
       error instanceof Error ? error.message : error,
     );
     return NextResponse.json(
-      {
-        error: "Failed to fetch signature request",
-        detail: error instanceof Error ? error.message : "Unknown error",
-      },
+      { error: "Failed to fetch signature request" },
       { status: 500 },
     );
   }

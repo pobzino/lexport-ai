@@ -92,6 +92,9 @@ export function DefineSignersModal({
         const newErrors: Record<string, string> = {};
 
         signers.forEach((signer) => {
+            if (!signer.role.trim()) {
+                newErrors[`${signer.id}-role`] = "Role is required";
+            }
             if (!signer.name.trim()) {
                 newErrors[`${signer.id}-name`] = "Name is required";
             }
@@ -100,6 +103,16 @@ export function DefineSignersModal({
             } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signer.email)) {
                 newErrors[`${signer.id}-email`] = "Invalid email format";
             }
+        });
+
+        // Roles link recipients to their document fields, so they must also be unique.
+        const roles = signers.map((s) => s.role.toLocaleLowerCase().trim());
+        const seenRoles = new Set<string>();
+        roles.forEach((role, idx) => {
+            if (role && seenRoles.has(role)) {
+                newErrors[`${signers[idx].id}-role`] = "Role must be unique";
+            }
+            seenRoles.add(role);
         });
 
         // Check for duplicate emails
@@ -169,7 +182,7 @@ export function DefineSignersModal({
                                             type="text"
                                             value={signer.role}
                                             onChange={(e) => updateSigner(signer.id, "role", e.target.value)}
-                                            className="font-medium text-slate-900 bg-transparent border-none focus:outline-none focus:ring-0 p-0"
+                                            className={`font-medium text-slate-900 bg-transparent border-none focus:outline-none focus:ring-0 p-0 ${errors[`${signer.id}-role`] ? "text-red-600" : ""}`}
                                             placeholder="Role name"
                                         />
                                     </div>
@@ -182,6 +195,13 @@ export function DefineSignersModal({
                                         </button>
                                     )}
                                 </div>
+
+                                {errors[`${signer.id}-role`] && (
+                                    <p className="-mt-1 mb-3 flex items-center gap-1 text-xs text-red-500">
+                                        <AlertCircle className="w-3 h-3" />
+                                        {errors[`${signer.id}-role`]}
+                                    </p>
+                                )}
 
                                 <div className="space-y-3">
                                     <div>

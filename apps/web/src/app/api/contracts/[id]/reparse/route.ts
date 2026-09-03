@@ -43,7 +43,7 @@ export async function POST(
       !contract.extracted_text
     ) {
       return NextResponse.json(
-        { error: "This contract does not have editable uploaded text" },
+        { error: "This contract does not have uploaded text available for analysis" },
         { status: 400 }
       );
     }

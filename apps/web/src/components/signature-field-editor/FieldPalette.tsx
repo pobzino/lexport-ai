@@ -79,8 +79,9 @@ function DraggableField({ type, label, description, color, onAdd }: DraggableFie
 }
 
 interface FieldPaletteProps {
-  signers: Array<{ id: string; role: string; name?: string; email?: string }>;
+  signers: Array<{ id: string; role: string; name?: string; email?: string; color?: string }>;
   selectedSignerId: string;
+  isFieldSelected?: boolean;
   onSignerChange: (signerId: string) => void;
   onAddField: (type: FieldType) => void;
 }
@@ -88,13 +89,14 @@ interface FieldPaletteProps {
 export function FieldPalette({
   signers,
   selectedSignerId,
+  isFieldSelected = false,
   onSignerChange,
   onAddField,
 }: FieldPaletteProps) {
   const selectedSigner = signers.find((s) => s.id === selectedSignerId);
 
   return (
-    <aside className="flex w-80 flex-col border-l border-slate-200 bg-white shadow-[-8px_0_24px_rgba(15,23,42,0.05)]">
+    <aside className="flex max-h-[42vh] w-full flex-none flex-col border-t border-slate-200 bg-white shadow-[0_-8px_24px_rgba(15,23,42,0.05)] lg:max-h-none lg:w-80 lg:border-l lg:border-t-0 lg:shadow-[-8px_0_24px_rgba(15,23,42,0.05)]">
       {/* Header */}
       <div className="border-b border-slate-200 px-5 py-4">
         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#4189b1]">
@@ -109,7 +111,7 @@ export function FieldPalette({
       {/* Signer Selector */}
       <div className="border-b border-slate-200 bg-slate-50/70 px-5 py-4">
         <label className="mb-2 block text-xs font-semibold text-slate-700">
-          Assign fields to
+          {isFieldSelected ? "Selected field assigned to" : "New fields assigned to"}
         </label>
         <select
           value={selectedSignerId}
@@ -127,6 +129,11 @@ export function FieldPalette({
             {selectedSigner.email}
           </p>
         )}
+        {isFieldSelected && (
+          <p className="mt-2 text-xs font-medium text-[#317ba2]">
+            Changing the recipient reassigns the selected field.
+          </p>
+        )}
       </div>
 
       {/* Field Types */}
@@ -134,14 +141,14 @@ export function FieldPalette({
         <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
           Fields
         </p>
-        <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2 lg:block lg:space-y-2">
           {FIELD_CONFIGS.map((config) => (
             <DraggableField
               key={config.type}
               type={config.type}
               label={config.label}
               description={config.description}
-              color={config.color}
+              color={selectedSigner?.color || config.color}
               onAdd={onAddField}
             />
           ))}
@@ -149,7 +156,7 @@ export function FieldPalette({
       </div>
 
       {/* Instructions */}
-      <div className="border-t border-slate-200 bg-[#f0f7fb] px-5 py-4">
+      <div className="hidden border-t border-slate-200 bg-[#f0f7fb] px-5 py-4 lg:block">
         <p className="text-xs leading-5 text-slate-600">
           <strong className="text-slate-800">Tip:</strong> Place required signatures first. Dates can auto-fill when a recipient signs.
         </p>
